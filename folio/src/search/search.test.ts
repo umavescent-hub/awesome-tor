@@ -107,6 +107,38 @@ describe('search — term matching', () => {
     expect((hits[2]?.score ?? 0) / (hits[0]?.score ?? 1)).toBeCloseTo(0.5 / 0.75, 10);
   });
 
+  it('ranks exact matches of a typed word above rarer prefix completions of it', () => {
+    const salts = buildSearchIndex([
+      ...['a', 'b', 'c', 'd', 'e'].map((id) => material(id, { title: `Salt ${id}` })),
+      material('saltpeter', { title: 'Saltpeter' }),
+      ...['f', 'g', 'h', 'i'].map((id) => material(id, { title: `Other ${id}` })),
+    ]);
+
+    expect(ids(search(salts, 'salt')).at(-1)).toBe('saltpeter');
+  });
+
+  it('ranks prefix completions above rarer typo matches', () => {
+    const kellers = buildSearchIndex([
+      ...['a', 'b', 'c', 'd', 'e'].map((id) => material(id, { title: `Keller ${id}` })),
+      material('kelp', { title: 'Kelp' }),
+      ...['f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'].map((id) => material(id, { title: `Other ${id}` })),
+    ]);
+
+    expect(ids(search(kellers, 'kell')).at(-1)).toBe('kelp');
+  });
+
+  it('matches singular and plural spellings exactly, not as typos', () => {
+    const pantry = buildSearchIndex([
+      material('tomato', { title: 'The Tomato' }),
+      material('cookie', { title: 'One Perfect Cookie' }),
+    ]);
+
+    expect(search(pantry, 'tomatoes ')).toEqual([
+      { materialId: 'tomato', score: expect.any(Number), matchedFields: ['title'], fuzzyTerms: [] },
+    ]);
+    expect(ids(search(pantry, 'cookies '))).toEqual(['cookie']);
+  });
+
   it('tolerates typos: "fermentaton" finds fermentation', () => {
     const hits = search(index, 'fermentaton');
 
@@ -178,6 +210,27 @@ describe('search — operators', () => {
     expect(ids(hits).sort()).toEqual(['laundry', 'sous']);
     expect(hits[0]?.score).toBeGreaterThan(0);
     expect(hits[0]?.matchedFields).toContain('authors');
+  });
+
+  it('operators narrow free text; they never stand in for words that do not match', () => {
+    expect(search(index, 'author:keller fermentation')).toEqual([]);
+    expect(ids(search(index, 'author:keller sous'))).toEqual(['sous']);
+    expect(ids(search(index, 'tag:koji miso'))).toEqual(['noma']);
+  });
+
+  it('operator values keep matching at every step of typing them', () => {
+    const studies = buildSearchIndex([
+      material('davies', { title: 'Bread', authors: ['Ruth Davies'], tags: ['case studies'] }),
+    ]);
+    const typing = (word: string): string[] =>
+      Array.from({ length: word.length - 1 }, (_, i) => word.slice(0, i + 2));
+
+    for (const partial of typing('studies')) {
+      expect(ids(search(studies, `tag:${partial}`)), partial).toEqual(['davies']);
+    }
+    for (const partial of typing('davies')) {
+      expect(ids(search(studies, `author:${partial}`)), partial).toEqual(['davies']);
+    }
   });
 
   it('tag: matches tags only, by prefix', () => {

@@ -37,7 +37,7 @@ function containsSequence(tokens: readonly string[], sequence: readonly string[]
   return false;
 }
 
-/** Every value token is a prefix of some token of the same entry (one author, one tag). */
+/** Every value token is a prefix of some term or word of the same entry (one author, one tag). */
 function anyEntryMatches(entries: readonly (readonly string[])[], value: string): boolean {
   const valueTokens = value.split(' ');
   return entries.some((entry) =>

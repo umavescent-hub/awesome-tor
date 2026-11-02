@@ -37,9 +37,19 @@ function syntheticLibrary(count: number): Material[] {
   );
 }
 
+/** A pasted paragraph: many distinct words, most of them unknown to the index. */
+function pastedText(words: number): string {
+  const random = seededRandom(7);
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  return Array.from({ length: words }, () =>
+    Array.from({ length: 4 + Math.floor(random() * 8) }, () => letters[Math.floor(random() * 26)]).join(''),
+  ).join(' ');
+}
+
 describe('search performance', () => {
+  const index = buildSearchIndex(syntheticLibrary(DOCUMENTS));
+
   it(`answers typical queries over ${DOCUMENTS} documents in under ${BUDGET_MS} ms`, () => {
-    const index = buildSearchIndex(syntheticLibrary(DOCUMENTS));
     const queries = [
       'fermentaton',
       'fermentation koji',
@@ -55,5 +65,14 @@ describe('search performance', () => {
       search(index, query);
       expect(performance.now() - started, query).toBeLessThan(BUDGET_MS);
     }
+  });
+
+  it(`answers a pasted 1,000-word query in under ${BUDGET_MS} ms`, () => {
+    const query = pastedText(1_000);
+    search(index, query); // warm up the JIT once
+
+    const started = performance.now();
+    search(index, query);
+    expect(performance.now() - started).toBeLessThan(BUDGET_MS);
   });
 });

@@ -40,7 +40,11 @@ export interface IndexedDoc {
   /** Stemmed terms in reading order, for phrase matching. */
   readonly titleTokens: readonly string[];
   readonly abstractTokens: readonly string[];
-  /** Stemmed terms per author and per tag, for the author: and tag: operators. */
+  /**
+   * Per author and per tag, its stemmed terms and its unstemmed words, for the author: and tag:
+   * operators. Both forms are needed for prefix matching while typing: "studi" is a prefix of
+   * the word "studies" but not of its stem "study".
+   */
   readonly authorTokens: readonly (readonly string[])[];
   readonly tagTokens: readonly (readonly string[])[];
 }
@@ -71,6 +75,9 @@ export function asBuiltIndex(index: SearchIndex): BuiltIndex {
 }
 
 const stems = (words: readonly string[]): string[] => words.map(stem);
+const stemsAndWords = (words: readonly string[]): string[] => [
+  ...new Set([...stems(words), ...words]),
+];
 
 /** The document record plus its content words per field, in FIELDS order. */
 function prepare(material: Material): { doc: IndexedDoc; fields: readonly (readonly string[])[] } {
@@ -84,8 +91,8 @@ function prepare(material: Material): { doc: IndexedDoc; fields: readonly (reado
       sortTitle: normalize(material.title),
       titleTokens: stems(title),
       abstractTokens: stems(abstract),
-      authorTokens: authors.map(stems),
-      tagTokens: tags.map(stems),
+      authorTokens: authors.map(stemsAndWords),
+      tagTokens: tags.map(stemsAndWords),
     },
     fields: [title, tags.flat(), authors.flat(), contentWords(material.venue ?? ''), abstract],
   };

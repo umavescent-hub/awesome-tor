@@ -131,7 +131,7 @@ describe('recommend — study lane', () => {
     expect(intro?.score).toBeCloseTo(expected, 10);
   });
 
-  it('gives confidence as a softmax over the returned list', () => {
+  it('gives confidence as a softmax over the whole candidate set', () => {
     const result = recommend(fermentationLibrary(), { now: NOW });
     const total = result.reduce((sum, recommendation) => sum + recommendation.confidence, 0);
 
@@ -141,6 +141,16 @@ describe('recommend — study lane', () => {
       Math.exp(((a?.score ?? 0) - (b?.score ?? 0)) / 0.15),
       10,
     );
+  });
+
+  it('does not inflate confidence when the list is cut short', () => {
+    const state = fermentationLibrary([progress('intro', 'completed', { completedAt: daysAgo(3) })]);
+    const [top] = recommend(state, { now: NOW, limit: 1 });
+    const [sameTop] = recommend(state, { now: NOW, limit: 10 });
+
+    expect(top?.materialId).toBe(sameTop?.materialId);
+    expect(top?.confidence).toBeLessThan(1);
+    expect(top?.confidence).toBeCloseTo(sameTop?.confidence ?? Number.NaN, 10);
   });
 
   it('limits reasons to three, strongest first, with titles in curly quotes', () => {
@@ -204,6 +214,70 @@ describe('recommend — diversity', () => {
       find(recommend(state, { now: NOW, diversity: 1 }), 'stars')?.score,
     );
   });
+
+  it('treats a NaN diversity as the default instead of inverting the ranking', () => {
+    expect(recommend(state, { now: NOW, diversity: Number.NaN })).toEqual(recommend(state, { now: NOW }));
+  });
+
+  it('never calls something you are reading right now "different from your recent reading"', () => {
+    const reading: LibraryState = {
+      ...state,
+      progress: {
+        ...state.progress,
+        stars: progress('stars', 'in_progress', { percent: 0.3, lastOpenedAt: daysAgo(1) }),
+      },
+    };
+    const stars = find(recommend(reading, { now: NOW }), 'stars');
+
+    expect(reasonOf(stars, 'continue')).toBeDefined();
+    expect(reasonOf(stars, 'fresh')).toBeUndefined();
+  });
+
+  it('never claims a material both matches your interests and differs from your reading', () => {
+    const rye = material('rye', {
+      title: 'Rye Bread Chemistry',
+      tags: ['rye', 'baking'],
+      abstract: 'Rye flour, pentosans and the lactic fermentation of rye dough.',
+      categoryId: 'bread',
+    });
+    const withRye: LibraryState = { ...state, materials: { ...state.materials, rye } };
+
+    for (const recommendation of recommend(withRye, { now: NOW })) {
+      const codes = recommendation.reasons.map((reason) => reason.code);
+      expect(codes.includes('fresh') && codes.includes('affinity'), recommendation.materialId).toBe(false);
+    }
+  });
+
+  it('says nothing about "your recent reading" before anything has been read', () => {
+    const coldStart: LibraryState = { ...state, progress: {} };
+
+    for (const recommendation of recommend(coldStart, { now: NOW })) {
+      expect(reasonOf(recommendation, 'fresh'), recommendation.materialId).toBeUndefined();
+    }
+  });
+});
+
+describe('recommend — affinity reason', () => {
+  it('names a multi-word tag only when every word of it is in your profile', () => {
+    const state = library({
+      materials: [
+        material('done', {
+          title: 'Browning Chemistry',
+          tags: ['amino acids'],
+          abstract: 'Amino acids and reducing sugars.',
+        }),
+        material('pickles', {
+          title: 'Pickling Vegetables',
+          tags: ['lactic acid'],
+          abstract: 'Brines and acid.',
+        }),
+      ],
+      progress: [progress('done', 'completed', { completedAt: daysAgo(2) })],
+    });
+    const affinity = reasonOf(find(recommend(state, { now: NOW }), 'pickles'), 'affinity');
+
+    expect(affinity?.text ?? '').not.toContain('lactic');
+  });
 });
 
 describe('recommend — review lane', () => {
@@ -238,6 +312,14 @@ describe('recommend — review lane', () => {
 
     expect(result).toHaveLength(3);
     expect(result.filter((r) => r.lane === 'review').map((r) => r.materialId)).toEqual(['intro']);
+  });
+
+  it('returns review breakdowns the caller can change without affecting later results', () => {
+    const [review] = recommend(reviewState(), { now: NOW }).filter((r) => r.lane === 'review');
+    if (review) review.breakdown.affinity = 1;
+    const [next] = recommend(reviewState(), { now: NOW }).filter((r) => r.lane === 'review');
+
+    expect(next?.breakdown.affinity).toBe(0);
   });
 
   it('can be turned off and respects the category filter', () => {

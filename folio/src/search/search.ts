@@ -1,7 +1,8 @@
 /**
  * Ranking. A query becomes clauses — one per free term, phrase, author: value and tag: value —
  * each scored per document with BM25F. Free terms take the best of their exact, prefix and
- * typo expansions; the document score is Σ clause scores × coverage².
+ * typo expansions; the document score is Σ clause scores × coverage². Only free-text clauses
+ * (terms and phrases) make a document a candidate: operators narrow and boost, never match alone.
  */
 import { compareText } from '@/domain/text';
 import type { Material, SearchField, SearchHit } from '@/domain/types';
@@ -24,6 +25,12 @@ import { planQuery, type QueryPlan } from './query';
 import type { ParsedQuery, SearchIndex, SearchOptions } from './types';
 
 const DEFAULT_LIMIT = 50;
+/**
+ * Free-text terms considered per query, in typed order. Each unknown term costs a typo scan of
+ * the vocabulary, so a pasted paragraph would otherwise stall the UI; 32 is far beyond anything
+ * typed (and the long-standing web-search limit).
+ */
+const MAX_QUERY_TERMS = 32;
 
 /** One index term matched inside a document. */
 interface TermMatch {
@@ -67,23 +74,30 @@ function boostedTf(posting: Posting, position: number, field: number | undefined
   return sum;
 }
 
-function bm25(posting: Posting, position: number, field: number | undefined): number {
+function bm25(posting: Posting, position: number, field: number | undefined, idf: number): number {
   const tf = boostedTf(posting, position, field);
-  return tf === 0 ? 0 : (posting.idf * tf * (BM25.k1 + 1)) / (tf + BM25.k1);
+  return tf === 0 ? 0 : (idf * tf * (BM25.k1 + 1)) / (tf + BM25.k1);
 }
 
-/** Per document, the single strongest expansion (best of exact / prefix / typo). */
+/**
+ * Per document, the single strongest expansion (best of exact / prefix / typo). All expansions
+ * share the IDF of the most common one (Lucene's blended frequency): otherwise a rare completion
+ * or misspelling would outrank an exact match on rarity alone, whatever its kind's weight.
+ */
 function bestMatches(
   index: BuiltIndex,
   expansions: readonly Expansion[],
   field?: number,
 ): Map<number, ClauseMatch> {
+  const known = expansions.flatMap((expansion) => {
+    const posting = index.postings.get(expansion.term);
+    return posting === undefined ? [] : [{ ...expansion, posting }];
+  });
+  const idf = Math.min(...known.map(({ posting }) => posting.idf));
   const best = new Map<number, ClauseMatch>();
-  for (const { term, kind, weight } of expansions) {
-    const posting = index.postings.get(term);
-    if (posting === undefined) continue;
+  for (const { term, kind, weight, posting } of known) {
     posting.docs.forEach((doc, position) => {
-      const score = weight * bm25(posting, position, field);
+      const score = weight * bm25(posting, position, field, idf);
       if (score > (best.get(doc)?.score ?? 0)) {
         best.set(doc, { score, fuzzy: kind === 'fuzzy', terms: [{ term, position, score }] });
       }
@@ -111,7 +125,7 @@ function summedMatches(perToken: readonly Map<number, ClauseMatch>[]): Map<numbe
 function clausesFor(index: BuiltIndex, { query, partial }: QueryPlan, expand: Expander): Clause[] {
   const prefixFor = (term: string): string | undefined =>
     partial?.term === term ? partial.prefix : undefined;
-  const freeTerms = query.terms.map((term) => ({
+  const freeTerms = query.terms.slice(0, MAX_QUERY_TERMS).map((term) => ({
     queryTerm: term,
     matches: bestMatches(index, expand(term, { prefix: prefixFor(term) })),
   }));
@@ -181,7 +195,8 @@ function rank(
   limit: number,
 ): SearchHit[] {
   const clauses = clausesFor(index, plan, createExpander(index));
-  const candidates = new Set(clauses.flatMap((clause) => [...clause.matches.keys()]));
+  const freeText = clauses.filter((clause) => clause.field === undefined);
+  const candidates = new Set(freeText.flatMap((clause) => [...clause.matches.keys()]));
   return [...candidates]
     .filter(accept)
     .flatMap((doc) => {

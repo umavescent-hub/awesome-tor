@@ -25,12 +25,15 @@ const APOSTROPHES = /['’]/g;
 const NON_ALPHANUMERIC = /[^\p{L}\p{N}]+/u;
 const ALPHANUMERIC_END = /[\p{L}\p{N}]$/u;
 
-/** Lowercase, compatibility-decompose and strip diacritics: "Adrià" → "adria". */
+/**
+ * Compatibility-decompose, strip diacritics and lowercase: "Adrià" → "adria". Lowercasing comes
+ * after NFKD because decomposition can produce capitals ("𝐊" → "K", "ℌ" → "H").
+ */
 export function normalize(text: string): string {
   return text
-    .toLowerCase()
     .normalize('NFKD')
     .replace(COMBINING_MARKS, '')
+    .toLowerCase()
     .replace(FOLDABLE_LETTERS, (letter) => LETTER_FOLDS[letter] ?? letter);
 }
 
@@ -55,13 +58,17 @@ export function isStopword(token: string): boolean {
  * "studies" → "study", "glasses" → "glass", "boxes" → "box", "papers" → "paper".
  * "-ses"/"-zes" lose only the "s" unless doubled ("cases" → "case", "buzzes" → "buzz"),
  * and "-ss", "-us", "-is" words are left alone ("process", "corpus", "analysis").
+ * Singular "-ie" and "-oe" are folded the same way as their plurals, so both spellings share a
+ * stem: "cookie"/"cookies" → "cooky", "tomato"/"tomatoes" → "tomato", "shoe"/"shoes" → "sho".
  */
 export function stem(token: string): string {
   if (token.length > 4 && token.endsWith('ies')) return `${token.slice(0, -3)}y`;
-  if (token.length > 4 && /(?:ss|zz|x|ch|sh)es$/.test(token)) return token.slice(0, -2);
+  if (token.length > 4 && /(?:ss|zz|x|ch|sh|o)es$/.test(token)) return token.slice(0, -2);
   if (token.length > 3 && token.endsWith('s') && !/(?:ss|us|is)$/.test(token)) {
     return token.slice(0, -1);
   }
+  if (token.length > 4 && token.endsWith('ie')) return `${token.slice(0, -2)}y`;
+  if (token.length > 3 && token.endsWith('oe')) return token.slice(0, -1);
   return token;
 }
 

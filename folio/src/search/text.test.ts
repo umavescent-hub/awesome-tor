@@ -9,6 +9,12 @@ describe('normalize / tokenize', () => {
     expect(tokenize('Crème Brûlée')).toEqual(['creme', 'brulee']);
   });
 
+  it('lowercases letters that only become capitals through compatibility decomposition', () => {
+    // Mathematical and letterlike symbols, common in text pasted from PDFs.
+    expect(normalize('ℌ𝐊oji')).toBe('hkoji');
+    expect(tokenize('𝑁-body')).toEqual(['n', 'body']);
+  });
+
   it('splits on non-alphanumerics, keeping digits and non-Latin scripts', () => {
     expect(tokenize('lacto-fermentation (2nd ed., 2011)')).toEqual(['lacto', 'fermentation', '2nd', 'ed', '2011']);
     expect(tokenize('発酵 и квас')).toEqual(['発酵', 'и', 'квас']);
@@ -39,6 +45,20 @@ describe('stem', () => {
 
   it.each(['process', 'corpus', 'analysis', 'bus', 'koji', 'fermentation'])('leaves %s alone', (word) => {
     expect(stem(word)).toBe(word);
+  });
+
+  it.each([
+    ['cookie', 'cookies'],
+    ['calorie', 'calories'],
+    ['tomato', 'tomatoes'],
+    ['potato', 'potatoes'],
+    ['shoe', 'shoes'],
+    ['canoe', 'canoes'],
+    ['toe', 'toes'],
+    ['tie', 'ties'],
+    ['study', 'studies'],
+  ])('gives %s and %s the same stem', (singular, plural) => {
+    expect(stem(plural)).toBe(stem(singular));
   });
 });
 
