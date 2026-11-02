@@ -86,6 +86,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     year: 2009,
     kind: 'paper',
     venue: 'Accounts of Chemical Research',
+    doi: '10.1021/ar8002078',
     abstract:
       'A review of molecular gastronomy as a scientific discipline, distinct from the cooking styles it inspired. This outlines its history and how dishes can be described and studied as physical-chemical systems.',
     tags: ['molecular-gastronomy', 'chemistry', 'review'],
@@ -113,11 +114,12 @@ export const MATERIALS: readonly CatalogEntry[] = [
   },
   {
     id: 'm_hodge_browning_reactions',
-    title: 'Chemistry of Browning Reactions in Model Systems',
+    title: 'Dehydrated Foods, Chemistry of Browning Reactions in Model Systems',
     authors: ['John E. Hodge'],
     year: 1953,
     kind: 'paper',
     venue: 'Journal of Agricultural and Food Chemistry',
+    doi: '10.1021/jf60015a004',
     abstract:
       'The classic synthesis that arranged the Maillard reaction into a coherent sequence of stages, from sugar–amine condensation and the Amadori rearrangement to brown pigments and aromas. Still the reference point for understanding browning in seared, roasted and baked foods.',
     tags: ['maillard', 'browning', 'chemistry', 'classic'],
@@ -174,22 +176,6 @@ export const MATERIALS: readonly CatalogEntry[] = [
     difficulty: 2,
     prerequisites: ['m_nosrat_salt_fat_acid_heat'],
     addedDaysAgo: 120,
-  },
-  {
-    id: 'm_harvardx_science_and_cooking',
-    title: 'Science and Cooking: From Haute Cuisine to Soft Matter Science',
-    authors: ['Michael Brenner', 'Pia Sörensen', 'David Weitz'],
-    year: 2013,
-    kind: 'lecture',
-    venue: 'HarvardX (edX)',
-    abstract:
-      'Harvard’s course pairing guest chefs with scientists, using dishes to teach soft-matter physics such as heat transfer, elasticity, emulsions, gels and diffusion. Each unit ties a culinary technique to the principle behind it.',
-    tags: ['soft-matter', 'physics', 'emulsions', 'course'],
-    categoryId: 'cat_food_science',
-    minutes: 90,
-    difficulty: 2,
-    prerequisites: [],
-    addedDaysAgo: 80,
   },
 
   /* ───────────────────────────── Fermentation ───────────────────────────── */
@@ -249,7 +235,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     kind: 'book',
     venue: 'Chelsea Green',
     abstract:
-      'A deep dive into Aspergillus oryzae and its uses beyond traditional Japanese foods, including amino pastes and sauces and koji-cured meats. Written by two cooks who helped bring koji into Western kitchens.',
+      'A deep dive into Aspergillus oryzae and what it can make, from soy sauce, miso, sake, mirin and amazake to koji-cured charcuterie, by two practitioners who helped bring koji into Western kitchens. Foreword by Sandor Katz.',
     tags: ['koji', 'fermentation', 'umami', 'charcuterie'],
     categoryId: 'cat_fermentation',
     minutes: 840,
@@ -372,6 +358,22 @@ export const MATERIALS: readonly CatalogEntry[] = [
     prerequisites: ['m_page_dornenburg_flavor_bible'],
     addedDaysAgo: 16,
   },
+  {
+    id: 'm_humm_where_is_the_acid',
+    title: 'Where is the Acid?',
+    authors: ['Daniel Humm'],
+    year: 2014,
+    kind: 'lecture',
+    venue: 'Harvard Science and Cooking Public Lecture Series',
+    abstract:
+      'Eleven Madison Park’s Daniel Humm on the part acid plays in a dish’s flavor, given in Harvard’s public Science and Cooking lecture series, which pairs leading chefs with the science behind what they do.',
+    tags: ['acidity', 'flavor', 'fine-dining', 'lecture'],
+    categoryId: 'cat_flavor',
+    minutes: 75,
+    difficulty: 2,
+    prerequisites: [],
+    addedDaysAgo: 80,
+  },
 
   /* ───────────────────────────── Technique & Craft ───────────────────────────── */
   {
@@ -427,6 +429,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     year: 2012,
     kind: 'paper',
     venue: 'International Journal of Gastronomy and Food Science',
+    doi: '10.1016/j.ijgfs.2011.11.002',
     abstract:
       'Reviews the science and practice of sous vide: heat transfer, pasteurisation and food safety, and how time and temperature change the texture of meat, fish and vegetables.',
     tags: ['sous-vide', 'food-safety', 'heat-transfer', 'review'],
@@ -444,7 +447,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     kind: 'book',
     venue: 'Phaidon',
     abstract:
-      'Follows a single day at elBulli, from the morning’s first deliveries to the last guests, revealing the creative process, workshop and service behind the restaurant.',
+      'Follows a single day at elBulli, from the morning’s preparation to the last guests, revealing the creative process, workshop and service behind the restaurant.',
     tags: ['creativity', 'avant-garde', 'kitchen-systems'],
     categoryId: 'cat_technique',
     minutes: 900,
@@ -455,7 +458,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
   {
     id: 'm_chefs_table_grant_achatz',
     title: 'Chef’s Table: Grant Achatz',
-    authors: ['David Gelb'],
+    authors: ['Brian McGinn'],
     year: 2016,
     kind: 'video',
     venue: 'Netflix',
@@ -474,6 +477,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     authors: ['Grant Achatz'],
     year: 2008,
     kind: 'book',
+    venue: 'Ten Speed Press',
     abstract:
       'The Chicago restaurant’s cooking in detail: recipes for its avant-garde courses alongside essays on the thinking behind them.',
     tags: ['avant-garde', 'fine-dining', 'plating'],
@@ -493,7 +497,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     kind: 'book',
     venue: 'University of Chicago Press',
     abstract:
-      'Alfonso Ortiz, an anthropologist from Ohkay Owingeh, describes the Tewa world from within: the Summer and Winter moieties, a ritual year that moves with the seasons, and the levels of being that join the living, the ancestors and the spirits. Foundational for understanding the place of land, season and food in Pueblo life.',
+      'Alfonso Ortiz, an anthropologist from Ohkay Owingeh (then San Juan Pueblo), describes the Tewa world from within: the Summer and Winter moieties, a ritual year that moves with the seasons, and six categories of being, three human and three spiritual, that order all existence. Foundational for understanding the place of land, season and food in Pueblo life.',
     tags: ['tewa', 'pueblo', 'ohkay-owingeh', 'cosmology', 'anthropology'],
     categoryId: 'cat_indigenous',
     minutes: 720,
@@ -503,13 +507,13 @@ export const MATERIALS: readonly CatalogEntry[] = [
   },
   {
     id: 'm_frank_foods_of_the_southwest_indian_nations',
-    title: 'Foods of the Southwest Indian Nations',
+    title: 'Foods of the Southwest Indian Nations: Traditional and Contemporary Native American Recipes',
     authors: ['Lois Ellen Frank'],
     year: 2002,
     kind: 'book',
     venue: 'Ten Speed Press',
     abstract:
-      'Traditional and contemporary recipes from Native communities of the American Southwest, centred on corn, beans, squash, chiles and wild foods, with the author’s own photography.',
+      'Recipes gathered over years of visits to Native communities of the Southwest, among them Pueblo, Hopi and Ute cooks, built on corn, beans, squash, wild greens and game. Frank, who also took the photographs, worked with Diné chef Walter Whitewater as culinary advisor; the book won a 2003 James Beard award.',
     tags: ['southwest', 'corn', 'chile', 'recipes'],
     categoryId: 'cat_indigenous',
     minutes: 600,
@@ -541,6 +545,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     year: 2010,
     kind: 'paper',
     venue: 'Journal of Ethnobiology',
+    doi: '10.2993/0278-0771-30.1.52',
     abstract:
       'Combines field trials of corn, beans and squash grown together in mounds with historical sources to estimate the yields of traditional Iroquoian agriculture, which proved highly productive.',
     tags: ['three-sisters', 'agronomy', 'haudenosaunee', 'yields'],
@@ -574,7 +579,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     kind: 'book',
     venue: 'North Point Press',
     abstract:
-      'Documents crops and wild plants that Native farmers of the Americas domesticated and sustained, and argues for conserving that diversity together with the communities who grow it.',
+      'Documents the crops Native farmers of North America bred and the wild plants they tended, from wild rice in the Great Lakes to wild gourds in Florida, and argues for conserving that diversity together with the communities who grow it.',
     tags: ['seeds', 'agrobiodiversity', 'conservation', 'southwest'],
     categoryId: 'cat_indigenous',
     minutes: 720,
@@ -606,7 +611,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     kind: 'book',
     venue: 'University of Minnesota Press',
     abstract:
-      'Sherman’s case for, and recipes from, a decolonised Indigenous cuisine of the upper Midwest and northern Plains, cooked without wheat flour, dairy or cane sugar and built on wild game, foraged plants and heritage crops.',
+      'Sherman, an Oglala Lakota chef, sets out a decolonised Indigenous cuisine of the upper Midwest and northern Plains: wild game and fish, foraged plants and heritage crops, cooked without colonial staples such as wheat flour, dairy, sugar, and domestic beef and pork.',
     tags: ['decolonized-cuisine', 'foraging', 'recipes', 'plains'],
     categoryId: 'cat_indigenous',
     minutes: 600,
@@ -623,7 +628,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     kind: 'book',
     venue: 'University of Oklahoma Press',
     abstract:
-      'An edited volume in which Indigenous scholars, activists and growers describe efforts to reclaim food systems, from seed saving and land access to health and community programmes.',
+      'An edited volume in which scholars, seed keepers, farmers and activists ask what food sovereignty means for Native nations and how to regain it: reviving ancestral gardens, hunting and seed saving, restoring health, and confronting obstacles such as treaty abrogation.',
     tags: ['food-sovereignty', 'policy', 'health', 'community'],
     categoryId: 'cat_indigenous',
     minutes: 960,
@@ -702,7 +707,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
   {
     id: 'm_brillat_savarin_physiology_of_taste',
     title: 'The Physiology of Taste',
-    authors: ['Jean Anthelme Brillat-Savarin', 'M. F. K. Fisher'],
+    authors: ['Jean Anthelme Brillat-Savarin'],
     year: 1825,
     kind: 'book',
     abstract:
@@ -769,7 +774,7 @@ export const MATERIALS: readonly CatalogEntry[] = [
     year: 2014,
     kind: 'podcast',
     abstract:
-      'Two science journalists investigate the history and science behind one food topic per episode, whether an ingredient, a technique or a whole food system.',
+      'Two journalists investigate the history and science behind one food topic per episode, whether an ingredient, a technique or a whole food system.',
     tags: ['podcast', 'science', 'history', 'food-systems'],
     categoryId: 'cat_history',
     minutes: 50,

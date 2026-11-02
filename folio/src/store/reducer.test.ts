@@ -44,6 +44,11 @@ describe('material/update', () => {
   it('is a no-op for an unknown id', () => {
     expectNoOp(base(), { type: 'material/update', id: 'nope', patch: { title: 'x' } });
   });
+
+  it('is a no-op when the patch changes nothing', () => {
+    expectNoOp(base(), { type: 'material/update', id: 'm1', patch: {} });
+    expectNoOp(base(), { type: 'material/update', id: 'm1', patch: { title: 'Title m1', year: 2000 } });
+  });
 });
 
 describe('material/remove', () => {
@@ -217,8 +222,59 @@ describe('progress/skip', () => {
     );
   });
 
-  it('is a no-op for an unknown material', () => {
+  it('is a no-op for an unknown material or one already skipped', () => {
     expectNoOp(base(), { type: 'progress/skip', id: 'nope', at: T0 });
+    expectNoOp({ ...base(), progress: { m1: progress('m1', { status: 'skipped' }) } }, { type: 'progress/skip', id: 'm1', at: T0 });
+  });
+
+  it('leaves completed work completed, so a later start cannot revive its review card', () => {
+    const done = progress('m1', {
+      status: 'completed',
+      percent: 1,
+      completedAt: at(-60),
+      review: initialReviewCard(new Date(at(-60))),
+    });
+    const state = { ...base(), progress: { m1: done } };
+    expectNoOp(state, { type: 'progress/skip', id: 'm1', at: T0 });
+    const started = reduce(reduce(state, { type: 'progress/skip', id: 'm1', at: T0 }), {
+      type: 'progress/start',
+      id: 'm1',
+      at: T0,
+    });
+    expect(started.progress.m1?.status).toBe('completed');
+  });
+});
+
+describe('progress state machine', () => {
+  it('complete → set(0.5) → complete leaves one fresh review card from the second completion', () => {
+    const steps: Action[] = [
+      { type: 'progress/complete', id: 'm1', at: at(-1440) },
+      { type: 'progress/review', id: 'm1', grade: 'good', at: at(-60) },
+      { type: 'progress/set', id: 'm1', percent: 0.5, at: at(-30) },
+      { type: 'progress/complete', id: 'm1', at: T0 },
+    ];
+    const done = steps.reduce(reduce, base()).progress.m1;
+    expect(done).toMatchObject({ status: 'completed', percent: 1, completedAt: T0, startedAt: at(-1440) });
+    expect(done?.review).toEqual(initialReviewCard(new Date(T0)));
+  });
+
+  it('skip → start resumes in progress with the original percent', () => {
+    const steps: Action[] = [
+      { type: 'progress/set', id: 'm1', percent: 0.3, at: at(-60) },
+      { type: 'progress/skip', id: 'm1', at: at(-30) },
+      { type: 'progress/start', id: 'm1', at: T0 },
+    ];
+    expect(steps.reduce(reduce, base()).progress.m1).toMatchObject({
+      status: 'in_progress',
+      percent: 0.3,
+      startedAt: at(-60),
+    });
+  });
+
+  it('reset → review is a no-op: a material without progress has nothing to review', () => {
+    const done = reduce(base(), { type: 'progress/complete', id: 'm1', at: at(-60) });
+    const reset = reduce(done, { type: 'progress/reset', id: 'm1' });
+    expectNoOp(reset, { type: 'progress/review', id: 'm1', grade: 'easy', at: T0 });
   });
 });
 
@@ -246,8 +302,9 @@ describe('progress/rate', () => {
     expect(next.progress.m1).toEqual({ ...done, rating: 5 });
   });
 
-  it('is a no-op for an unknown material', () => {
+  it('is a no-op for an unknown material or an unchanged rating', () => {
     expectNoOp(base(), { type: 'progress/rate', id: 'nope', rating: 3 });
+    expectNoOp({ ...base(), progress: { m1: progress('m1', { rating: 3 }) } }, { type: 'progress/rate', id: 'm1', rating: 3 });
   });
 });
 
@@ -291,6 +348,11 @@ describe('playlist/update', () => {
 
   it('is a no-op for an unknown id', () => {
     expectNoOp(base(), { type: 'playlist/update', id: 'nope', patch: { name: 'x' }, at: T0 });
+  });
+
+  it('is a no-op, without bumping updatedAt, when the patch changes nothing', () => {
+    expectNoOp(base(), { type: 'playlist/update', id: 'p1', patch: {}, at: at(5) });
+    expectNoOp(base(), { type: 'playlist/update', id: 'p1', patch: { name: 'p1', description: '' }, at: at(5) });
   });
 });
 
@@ -375,6 +437,12 @@ describe('settings/update', () => {
     expect(minutes(1000)).toBe(600);
     expect(minutes(42.6)).toBe(43);
     expect(minutes(Number.NaN)).toBe(60);
+  });
+
+  it('is a no-op when nothing changes', () => {
+    expectNoOp(base(), { type: 'settings/update', patch: {} });
+    expectNoOp(base(), { type: 'settings/update', patch: { displayName: 'Chef', dailyMinutes: 60 } });
+    expectNoOp(base(), { type: 'settings/update', patch: { displayName: '  Chef ', dailyMinutes: Number.NaN } });
   });
 
   it('leaves fields absent from the patch alone', () => {

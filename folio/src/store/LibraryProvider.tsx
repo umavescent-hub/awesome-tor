@@ -6,7 +6,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -33,6 +32,7 @@ import type { Action } from './actions';
 import { createLibraryActions } from './libraryActions';
 import { loadLibrary, saveLibrary, type KeyValueStorage } from './persistence';
 import { libraryReducer } from './reducer';
+import { createWriteQueue } from './writeQueue';
 
 export type NewMaterialInput = Omit<Material, 'id' | 'addedAt'>;
 
@@ -112,40 +112,32 @@ function useHydration(storage: KeyValueStorage, dispatch: Dispatch<Action>): boo
 }
 
 /**
- * Once hydrated, writes the state PERSIST_DEBOUNCE_MS after the last change, and immediately when
- * the app leaves the foreground or the provider unmounts. Nothing is written before hydration,
- * so a stored library is never clobbered by the seed.
+ * Once hydrated, writes each change PERSIST_DEBOUNCE_MS after the last one, and immediately when
+ * the app leaves the foreground or the provider unmounts.
+ *
+ * The state hydration produced is never written back: it is what storage already holds, or the
+ * seed. Writing the seed would be wasted work after a first launch and, because `loadLibrary` also
+ * returns null when reading fails, could replace a stored library the app merely failed to read.
  */
 function usePersistence(storage: KeyValueStorage, state: LibraryState, ready: boolean): void {
-  const pending = useRef<LibraryState | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  const flush = useCallback(() => {
-    clearTimeout(timer.current);
-    timer.current = undefined;
-    const next = pending.current;
-    if (next === null) return;
-    pending.current = null;
-    saveLibrary(storage, next).catch(() => {
-      // Keep it for the next flush unless a newer state is already waiting.
-      pending.current ??= next;
-    });
-  }, [storage]);
+  const [queue] = useState(() =>
+    createWriteQueue<LibraryState>((next) => saveLibrary(storage, next), PERSIST_DEBOUNCE_MS),
+  );
+  const hydrated = useRef<LibraryState | null>(null);
 
   useEffect(() => {
     if (!ready) return;
-    pending.current = state;
-    clearTimeout(timer.current);
-    timer.current = setTimeout(flush, PERSIST_DEBOUNCE_MS);
-  }, [state, ready, flush]);
+    if (hydrated.current === null) hydrated.current = state;
+    else if (state !== hydrated.current) queue.schedule(state);
+  }, [queue, state, ready]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
-      if (status === 'background' || status === 'inactive') flush();
+      if (status === 'background' || status === 'inactive') queue.flush();
     });
     return () => {
       subscription.remove();
-      flush();
+      queue.flush();
     };
-  }, [flush]);
+  }, [queue]);
 }

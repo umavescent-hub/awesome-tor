@@ -1,12 +1,13 @@
 /**
- * Pure reducer. Unknown ids are no-ops (return the same state object).
+ * Pure reducer. Unknown ids, and actions that would change nothing, are no-ops (return the same
+ * state object), so they cause no re-render and no storage write.
  * CONTRACT: fixed signature.
  */
 import type { ID, ISODate, LibraryState, Material, Playlist, Progress, Settings } from '@/domain/types';
 import type { Action } from './actions';
 import * as transition from './progressTransitions';
 import { clampDailyMinutes } from './settings';
-import { lookup, mapValues, omitKey, unique } from './util';
+import { lookup, mapValues, omitKey, shallowEqual, unique } from './util';
 
 export function libraryReducer(state: LibraryState, action: Action): LibraryState {
   switch (action.type) {
@@ -38,7 +39,7 @@ export function libraryReducer(state: LibraryState, action: Action): LibraryStat
     case 'playlist/create':
       return createPlaylist(state, action.playlist);
     case 'playlist/update':
-      return updatePlaylist(state, action.id, (p) => ({ ...p, ...action.patch, updatedAt: action.at }));
+      return updatePlaylist(state, action.id, (p) => patchPlaylist(p, action.patch, action.at));
     case 'playlist/delete':
       return lookup(state.playlists, action.id) ? { ...state, playlists: omitKey(state.playlists, action.id) } : state;
     case 'playlist/add':
@@ -49,7 +50,7 @@ export function libraryReducer(state: LibraryState, action: Action): LibraryStat
       return updatePlaylist(state, action.id, (p) => movePlaylistItem(p, action.from, action.to, action.at));
 
     case 'settings/update':
-      return { ...state, settings: mergeSettings(state.settings, action.patch) };
+      return updateSettings(state, action.patch);
     case 'library/replace':
       return action.state;
   }
@@ -65,7 +66,8 @@ function addMaterial(state: LibraryState, material: Material): LibraryState {
 function updateMaterial(state: LibraryState, id: ID, patch: Partial<Omit<Material, 'id'>>): LibraryState {
   const current = lookup(state.materials, id);
   if (!current) return state;
-  return { ...state, materials: { ...state.materials, [id]: { ...current, ...patch, id } } };
+  const next = { ...current, ...patch, id };
+  return shallowEqual(next, current) ? state : { ...state, materials: { ...state.materials, [id]: next } };
 }
 
 /**
@@ -91,13 +93,13 @@ function removeMaterial(state: LibraryState, id: ID): LibraryState {
 
 /**
  * Applies `fn` to the material's progress, creating a queued entry when missing.
- * Unknown materials, and transitions that return their input unchanged, keep the same state.
+ * Unknown materials, and transitions whose result equals their input, keep the same state.
  */
 function updateProgress(state: LibraryState, id: ID, fn: (progress: Progress) => Progress): LibraryState {
   if (!lookup(state.materials, id)) return state;
   const current = lookup(state.progress, id) ?? transition.emptyProgress(id);
   const next = fn(current);
-  if (next === current) return state;
+  if (shallowEqual(next, current)) return state;
   return { ...state, progress: { ...state.progress, [id]: next } };
 }
 
@@ -120,8 +122,18 @@ function updatePlaylist(state: LibraryState, id: ID, fn: (playlist: Playlist) =>
   const current = lookup(state.playlists, id);
   if (!current) return state;
   const next = fn(current);
-  if (next === current) return state;
+  if (shallowEqual(next, current)) return state;
   return { ...state, playlists: { ...state.playlists, [id]: next } };
+}
+
+/** Merges the patch and bumps `updatedAt`, unless the patch changes nothing (e.g. saving an unedited form). */
+function patchPlaylist(
+  playlist: Playlist,
+  patch: Partial<Pick<Playlist, 'name' | 'description' | 'pinned'>>,
+  at: ISODate,
+): Playlist {
+  const merged = { ...playlist, ...patch };
+  return shallowEqual(merged, playlist) ? playlist : { ...merged, updatedAt: at };
 }
 
 function addToPlaylist(state: LibraryState, id: ID, materialId: ID, at: ISODate): LibraryState {
@@ -154,6 +166,11 @@ export function moveItem<T>(items: readonly T[], from: number, to: number): T[] 
 }
 
 /* ───────────────────────────── Settings ───────────────────────────── */
+
+function updateSettings(state: LibraryState, patch: Partial<Settings>): LibraryState {
+  const settings = mergeSettings(state.settings, patch);
+  return shallowEqual(settings, state.settings) ? state : { ...state, settings };
+}
 
 /** Merges the patch; dailyMinutes is clamped (NaN ignored), a blank displayName keeps the old one. */
 function mergeSettings(settings: Settings, patch: Partial<Settings>): Settings {

@@ -142,6 +142,36 @@ describe('migrate: materials', () => {
     expect(migrated?.materials.m1).toMatchObject({ venue: 'Science', doi: '10.1/x' });
   });
 
+  it('accepts only ISO-8601 timestamps, not whatever the JS engine happens to parse', () => {
+    const addedAt = (value: unknown) => migrate(withRaw((r) => (r.materials.m1.addedAt = value)))?.materials.m1?.addedAt;
+    // V8 parses these, Hermes (the app's engine) may not: the stored library must not depend on which.
+    for (const loose of ['1', '2026/11/02', 'Nov 2 2026', '2026-11-02T13:00:00', '2026-11-02T13:00:00.5Z', ' 2026-11-02']) {
+      expect(addedAt(loose), loose).toBeUndefined();
+    }
+    for (const iso of [T0, '2026-11-02', '2026-11-02T13:00Z', '2026-11-02T13:00:00.500+05:30']) {
+      expect(addedAt(iso), iso).toBe(iso);
+    }
+    expect(addedAt('2026-13-45T00:00:00Z')).toBeUndefined();
+  });
+
+  it('keeps prototype-named ids as plain own entries', () => {
+    const raw = JSON.parse(
+      JSON.stringify(valid())
+        .replaceAll('"m1"', '"__proto__"')
+        .replaceAll('"m2"', '"constructor"'),
+    );
+    const migrated = migrate(raw);
+    expect(Object.getPrototypeOf(migrated?.materials)).toBe(Object.prototype);
+    expect(Object.keys(migrated?.materials ?? {}).sort()).toEqual(['__proto__', 'constructor']);
+    expect(Object.getOwnPropertyDescriptor(migrated?.materials, 'constructor')?.value.prerequisites).toEqual([
+      '__proto__',
+    ]);
+    expect(Object.keys(migrated?.progress ?? {})).toEqual(['__proto__']);
+    // Compared as JSON: vitest's deep equality itself mishandles an own "__proto__" key.
+    const json = JSON.stringify(migrated);
+    expect(JSON.stringify(migrate(JSON.parse(json)))).toBe(json);
+  });
+
   it('re-keys entries by their own id', () => {
     const migrated = migrate(
       withRaw((r) => {
@@ -191,6 +221,17 @@ describe('migrate: categories, playlists, progress, settings', () => {
     expect(m1).toMatchObject({ status: 'completed', percent: 1, sessions: 0, rating: 5 });
     expect(m1?.review?.ease).toBe(1.3);
     expect(m1 && 'lastOpenedAt' in m1).toBe(false);
+  });
+
+  it('keeps completedAt and review cards on completed entries only', () => {
+    const card = { ease: 2.5, intervalDays: 1, reps: 0, dueAt: T0 };
+    const migrated = migrate(
+      withRaw((r) => {
+        r.progress.m2 = { materialId: 'm2', status: 'in_progress', percent: 0.5, completedAt: T0, review: card };
+      }),
+    );
+    expect(migrated?.progress.m2).toStrictEqual({ materialId: 'm2', status: 'in_progress', percent: 0.5, sessions: 0 });
+    expect(migrated?.progress.m1).toMatchObject({ completedAt: T0, review: card });
   });
 
   it('clamps percent, defaults sessions and drops unusable review cards', () => {

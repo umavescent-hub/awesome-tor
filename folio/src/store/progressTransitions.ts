@@ -65,8 +65,12 @@ export function setPercent(progress: Progress, percent: number, at: ISODate): Pr
   return { ...next, percent: clamped, lastOpenedAt: at };
 }
 
+/**
+ * Completed work stays completed: a skipped entry would keep its completedAt and review card,
+ * and a later start would carry them into in-progress work.
+ */
 export function skip(progress: Progress): Progress {
-  return { ...progress, status: 'skipped' };
+  return progress.status === 'completed' ? progress : { ...progress, status: 'skipped' };
 }
 
 export function rate(progress: Progress, rating: 1 | 2 | 3 | 4 | 5): Progress {

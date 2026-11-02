@@ -90,7 +90,7 @@ const PLAYLISTS: readonly PlaylistSeed[] = [
     createdDaysAgo: 80,
     updatedDaysAgo: 6,
     materialIds: [
-      'm_harvardx_science_and_cooking',
+      'm_humm_where_is_the_acid',
       'm_this_scientific_look_at_cooking',
       'm_hodge_browning_reactions',
       'm_spence_gastrophysics',

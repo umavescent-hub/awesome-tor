@@ -181,23 +181,27 @@ function parsePlaylist(raw: unknown, materials: Record<ID, Material>): Playlist 
   };
 }
 
-/** Completed entries are forced to percent 1, matching what the reducer maintains. */
+/**
+ * Matches what the reducer maintains: completed entries are at percent 1, and only they carry
+ * `completedAt` and a review card.
+ */
 function parseProgress(raw: unknown, materials: Record<ID, Material>): Progress | null {
   if (!isRecord(raw)) return null;
   const materialId = readString(raw.materialId);
   const status = raw.status;
   if (materialId === undefined || !lookup(materials, materialId) || !isProgressStatus(status)) return null;
+  const completed = status === 'completed';
   return {
     materialId,
     status,
-    percent: status === 'completed' ? 1 : clamp(readNumber(raw.percent) ?? 0, 0, 1),
+    percent: completed ? 1 : clamp(readNumber(raw.percent) ?? 0, 0, 1),
     sessions: Math.max(0, Math.round(readNumber(raw.sessions) ?? 0)),
     ...definedOnly({
       startedAt: readIsoDate(raw.startedAt),
-      completedAt: readIsoDate(raw.completedAt),
+      completedAt: completed ? readIsoDate(raw.completedAt) : undefined,
       lastOpenedAt: readIsoDate(raw.lastOpenedAt),
       rating: readScale5(raw.rating),
-      review: parseReviewCard(raw.review),
+      review: completed ? parseReviewCard(raw.review) : undefined,
     }),
   };
 }

@@ -25,9 +25,17 @@ export function readNumber(value: unknown): number | undefined {
   return typeof number === 'number' && Number.isFinite(number) ? number : undefined;
 }
 
-/** Any string `Date.parse` understands, returned unchanged. */
+/**
+ * A calendar date, or a date-time with an explicit offset, in the ECMAScript subset of ISO-8601
+ * (e.g. "2026-11-02", "2026-11-02T13:00Z", "2026-11-02T13:00:00.000+05:30").
+ * Only this subset is parsed the same way by every JS engine; looser strings that V8 accepts may
+ * be NaN on Hermes, and offset-less times depend on the device time zone.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{3})?)?(Z|[+-]\d{2}:\d{2}))?$/;
+
+/** A valid ISO-8601 string (see ISO_DATE), returned unchanged. */
 export function readIsoDate(value: unknown): string | undefined {
-  return isString(value) && !Number.isNaN(Date.parse(value)) ? value : undefined;
+  return isString(value) && ISO_DATE.test(value) && !Number.isNaN(Date.parse(value)) ? value : undefined;
 }
 
 /** Array of strings (non-strings dropped), or undefined when not an array at all. */

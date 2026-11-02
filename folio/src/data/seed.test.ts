@@ -103,6 +103,17 @@ describe('seed catalogue', () => {
     }
   });
 
+  it('cites exactly the DOIs that were checked against published reference lists', () => {
+    const dois = Object.fromEntries(materials.flatMap((m) => (m.doi === undefined ? [] : [[m.id, m.doi]])));
+    expect(dois).toEqual({
+      m_this_scientific_look_at_cooking: '10.1021/ar8002078',
+      m_hodge_browning_reactions: '10.1021/jf60015a004',
+      m_ahn_flavor_network: '10.1038/srep00196',
+      m_baldwin_sous_vide_review: '10.1016/j.ijgfs.2011.11.002',
+      m_mt_pleasant_burt_iroquoian_cropping: '10.2993/0278-0771-30.1.52',
+    });
+  });
+
   it('has resolvable, acyclic prerequisites', () => {
     for (const m of materials) {
       for (const prerequisite of m.prerequisites) {
