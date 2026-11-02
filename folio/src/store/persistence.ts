@@ -117,7 +117,7 @@ function parseCategory(raw: unknown): Category | null {
   return { id, name, color, icon, description: readString(raw.description) ?? '' };
 }
 
-/** Prerequisites are kept verbatim here; dangling ones are removed once all materials are known. */
+/** Prerequisites are only deduplicated here; dangling ones are removed once all materials are known. */
 function parseMaterial(raw: unknown): Material | null {
   if (!isRecord(raw)) return null;
   const id = readString(raw.id);

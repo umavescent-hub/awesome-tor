@@ -3,8 +3,23 @@
  * (falls back to the seed library), persisted with a debounced write.
  * CONTRACT: exported names and shapes are fixed; screens depend on them.
  */
-import type { ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type Dispatch,
+  type JSX,
+  type ReactNode,
+} from 'react';
+import { AppState } from 'react-native';
 
+import { createSeedLibrary } from '@/data/seed';
 import type {
   ID,
   LibraryState,
@@ -13,8 +28,11 @@ import type {
   ReviewGrade,
   Settings,
 } from '@/domain/types';
-import type { SearchIndex } from '@/search';
-import type { KeyValueStorage } from './persistence';
+import { buildSearchIndex, type SearchIndex } from '@/search';
+import type { Action } from './actions';
+import { createLibraryActions } from './libraryActions';
+import { loadLibrary, saveLibrary, type KeyValueStorage } from './persistence';
+import { libraryReducer } from './reducer';
 
 export type NewMaterialInput = Omit<Material, 'id' | 'addedAt'>;
 
@@ -51,10 +69,83 @@ export interface LibraryContextValue {
   searchIndex: SearchIndex;
 }
 
-export function LibraryProvider(props: { children: ReactNode; storage?: KeyValueStorage }): ReactNode {
-  throw new Error('not implemented');
+/** Quiet period after the last change before the library is written to storage. */
+const PERSIST_DEBOUNCE_MS = 400;
+
+const LibraryContext = createContext<LibraryContextValue | null>(null);
+
+export function LibraryProvider(props: { children: ReactNode; storage?: KeyValueStorage }): JSX.Element {
+  // Fixed at mount so hydration and persistence always talk to the same backend.
+  const [storage] = useState<KeyValueStorage>(() => props.storage ?? AsyncStorage);
+  const [state, dispatch] = useReducer(libraryReducer, undefined, () => createSeedLibrary(new Date()));
+  const ready = useHydration(storage, dispatch);
+  usePersistence(storage, state, ready);
+
+  const actions = useMemo(() => createLibraryActions(dispatch), [dispatch]);
+  const searchIndex = useMemo(() => buildSearchIndex(Object.values(state.materials)), [state.materials]);
+  const value = useMemo(() => ({ state, ready, actions, searchIndex }), [state, ready, actions, searchIndex]);
+
+  return <LibraryContext value={value}>{props.children}</LibraryContext>;
 }
 
 export function useLibrary(): LibraryContextValue {
-  throw new Error('not implemented');
+  const value = useContext(LibraryContext);
+  if (value === null) throw new Error('useLibrary must be used inside <LibraryProvider>');
+  return value;
+}
+
+/** Loads the stored library once; `ready` turns true afterwards whether or not anything usable was stored. */
+function useHydration(storage: KeyValueStorage, dispatch: Dispatch<Action>): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void loadLibrary(storage).then((stored) => {
+      if (!active) return;
+      if (stored !== null) dispatch({ type: 'library/replace', state: stored });
+      setReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [storage, dispatch]);
+  return ready;
+}
+
+/**
+ * Once hydrated, writes the state PERSIST_DEBOUNCE_MS after the last change, and immediately when
+ * the app leaves the foreground or the provider unmounts. Nothing is written before hydration,
+ * so a stored library is never clobbered by the seed.
+ */
+function usePersistence(storage: KeyValueStorage, state: LibraryState, ready: boolean): void {
+  const pending = useRef<LibraryState | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const flush = useCallback(() => {
+    clearTimeout(timer.current);
+    timer.current = undefined;
+    const next = pending.current;
+    if (next === null) return;
+    pending.current = null;
+    saveLibrary(storage, next).catch(() => {
+      // Keep it for the next flush unless a newer state is already waiting.
+      pending.current ??= next;
+    });
+  }, [storage]);
+
+  useEffect(() => {
+    if (!ready) return;
+    pending.current = state;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(flush, PERSIST_DEBOUNCE_MS);
+  }, [state, ready, flush]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (status) => {
+      if (status === 'background' || status === 'inactive') flush();
+    });
+    return () => {
+      subscription.remove();
+      flush();
+    };
+  }, [flush]);
 }

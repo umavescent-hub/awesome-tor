@@ -72,6 +72,12 @@ export function analyze(text: string): string[] {
     .map(stem);
 }
 
+/** Code-point order, independent of device locale, for deterministic tie-breaks. */
+export function compareText(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 /** True when the text ends mid-word (its last character is a letter or digit). */
 export function endsMidWord(text: string): boolean {
   return ALPHANUMERIC_END.test(text);
