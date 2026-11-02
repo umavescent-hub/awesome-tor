@@ -73,7 +73,13 @@ export function greeting(now: Date): string {
 /** Mix a hex colour toward black (amount 0..1). */
 export function shade(hex: string, amount: number): string {
   const n = hex.replace('#', '');
-  const full = n.length === 3 ? n.split('').map((c) => c + c).join('') : n;
+  const full =
+    n.length === 3
+      ? n
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : n;
   const v = Number.parseInt(full, 16);
   if (Number.isNaN(v) || full.length !== 6) return hex;
   const k = 1 - Math.min(1, Math.max(0, amount));
@@ -86,7 +92,15 @@ export function shade(hex: string, amount: number): string {
 /** Hex + alpha → rgba(). */
 export function alpha(hex: string, a: number): string {
   const n = hex.replace('#', '');
-  const v = Number.parseInt(n.length === 3 ? n.split('').map((c) => c + c).join('') : n, 16);
+  const v = Number.parseInt(
+    n.length === 3
+      ? n
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : n,
+    16,
+  );
   if (Number.isNaN(v)) return hex;
   return `rgba(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255}, ${a})`;
 }

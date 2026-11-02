@@ -7,7 +7,12 @@ import { color } from '@/theme';
 export default function NotFound() {
   return (
     <View style={styles.fill}>
-      <EmptyState icon="compass-outline" title="Nothing at this address" actionLabel="Go home" onAction={() => router.replace('/')} />
+      <EmptyState
+        icon="compass-outline"
+        title="Nothing at this address"
+        actionLabel="Go home"
+        onAction={() => router.replace('/')}
+      />
     </View>
   );
 }

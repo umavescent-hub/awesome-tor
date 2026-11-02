@@ -157,13 +157,19 @@ describe('libraryStats', () => {
   it('lets the streak end yesterday when today has no activity', () => {
     const state = library({
       materials: [material('a'), material('b')],
-      progress: [progress('a', { lastOpenedAt: day('2026-11-09') }), progress('b', { lastOpenedAt: day('2026-11-08') })],
+      progress: [
+        progress('a', { lastOpenedAt: day('2026-11-09') }),
+        progress('b', { lastOpenedAt: day('2026-11-08') }),
+      ],
     });
     expect(libraryStats(state, now).streakDays).toBe(2);
   });
 
   it('is zero when the last activity was before yesterday', () => {
-    const state = library({ materials: [material('a')], progress: [progress('a', { lastOpenedAt: day('2026-11-08') })] });
+    const state = library({
+      materials: [material('a')],
+      progress: [progress('a', { lastOpenedAt: day('2026-11-08') })],
+    });
     expect(libraryStats(state, now).streakDays).toBe(0);
   });
 });

@@ -26,7 +26,7 @@ import { reviewReason, sharedInterests, type StudyFacts, studyReasons } from './
 import { isReviewDue } from './review';
 import * as score from './scoring';
 import { daysSince, timeOrOldest } from './time';
-import { type Corpus, corpusFor, dot, type SparseVector, vectorOf } from './vectors';
+import { type Corpus, corpusFor, cosine, dot, norm, type SparseVector, vectorOf } from './vectors';
 
 const DEFAULT_LIMIT = 10;
 const DEFAULT_DIVERSITY = 0.75;
@@ -56,9 +56,7 @@ function isUnfinished(status: ProgressStatus): boolean {
 /** Category and playlist filters, shared by both lanes. An unknown playlist matches nothing. */
 function scopeFilter(state: LibraryState, opts: RecommendOptions): (material: Material) => boolean {
   const members =
-    opts.playlistId === undefined
-      ? undefined
-      : new Set(state.playlists[opts.playlistId]?.materialIds ?? []);
+    opts.playlistId === undefined ? undefined : new Set(state.playlists[opts.playlistId]?.materialIds ?? []);
   return (material) =>
     (opts.categoryId === undefined || material.categoryId === opts.categoryId) &&
     (members === undefined || members.has(material.id));
@@ -77,6 +75,9 @@ interface StudyContext {
   now: Date;
   corpus: Corpus;
   profile: TasteProfile;
+  /** Lengths of the profile's vectors, computed once for the cosine against every candidate. */
+  profileNorm: number;
+  readingNorm: number;
   recentLevel: number | undefined;
   dependents: ReadonlyMap<ID, readonly ID[]>;
   unfinished: ReadonlySet<ID>;
@@ -86,8 +87,11 @@ interface StudyContext {
 interface Candidate {
   material: Material;
   vector: SparseVector;
+  /** The taste profile this candidate was scored against (without its own contribution). */
+  taste: SparseVector;
   score: number;
-  facts: StudyFacts;
+  /** Everything but the shared interests, which only the picked few need. */
+  facts: Omit<StudyFacts, 'interests'>;
 }
 
 function playlistContext(
@@ -103,14 +107,15 @@ function playlistContext(
 
 function studyContext(state: LibraryState, opts: RecommendOptions): StudyContext {
   const corpus = corpusFor(state.materials, state.categories);
-  const unfinished = new Set(
-    Object.keys(state.materials).filter((id) => isUnfinished(statusOf(state, id))),
-  );
+  const unfinished = new Set(Object.keys(state.materials).filter((id) => isUnfinished(statusOf(state, id))));
+  const profile = buildTasteProfile(state, corpus, opts.now);
   return {
     state,
     now: opts.now,
     corpus,
-    profile: buildTasteProfile(state, corpus, opts.now),
+    profile,
+    profileNorm: norm(profile.vector),
+    readingNorm: norm(profile.reading),
     recentLevel: recentDifficulty(state),
     dependents: dependentsIndex(state.materials),
     unfinished,
@@ -128,9 +133,7 @@ function latestPrerequisite(
   const { materials, progress } = context.state;
   const latest = knownPrerequisites(materials, materialId)
     .map((id) => ({ id, completedAt: progress[id]?.completedAt }))
-    .sort((a, b) =>
-      descending(timeOrOldest(a.completedAt), timeOrOldest(b.completedAt), compareIds(a.id, b.id)),
-    )[0];
+    .sort((a, b) => descending(timeOrOldest(a.completedAt), timeOrOldest(b.completedAt), compareIds(a.id, b.id)))[0];
   const title = latest && materials[latest.id]?.title;
   if (latest === undefined || title === undefined) return undefined;
   return { title, daysAgo: daysSince(latest.completedAt, context.now) };
@@ -148,37 +151,44 @@ function scoreCandidate(context: StudyContext, material: Material): Candidate {
   const playlistRank = context.playlist?.ranks.get(material.id);
 
   const breakdown: ScoreBreakdown = {
-    affinity: score.affinity(taste, vector),
+    affinity: score.affinity(taste, vector, taste === profile.vector ? context.profileNorm : undefined),
     readiness: score.readiness(prerequisites),
     momentum: score.momentum(progress, now),
     foundation: score.foundation(dependentCount, context.unfinished.size),
-    effortFit: score.effortFit(
-      score.remainingMinutes(material, progress),
-      state.settings.dailyMinutes,
-    ),
+    effortFit: score.effortFit(score.remainingMinutes(material, progress), state.settings.dailyMinutes),
     stretch: score.stretch(material.difficulty, context.recentLevel),
     sequence: score.sequence(playlistRank),
     blocked: score.blockedPenalty(prerequisites),
   };
-  const facts: StudyFacts = {
+  const facts: Candidate['facts'] = {
     material,
     progress,
     breakdown,
     latestPrerequisite: latestPrerequisite(context, prerequisites, material.id),
     dependentCount,
-    interests: sharedInterests(taste, vector, material),
+    readingSimilarity: profile.reading.size > 0 ? cosine(profile.reading, vector, context.readingNorm) : undefined,
     playlist:
-      context.playlist && playlistRank !== undefined
-        ? { name: context.playlist.name, rank: playlistRank }
-        : undefined,
+      context.playlist && playlistRank !== undefined ? { name: context.playlist.name, rank: playlistRank } : undefined,
     dailyMinutes: state.settings.dailyMinutes,
     recentLevel: context.recentLevel,
   };
-  return { material, vector, score: score.baseScore(breakdown), facts };
+  return { material, vector, taste, score: score.baseScore(breakdown), facts };
 }
 
 function byScoreThenId<T extends { score: number }>(id: (item: T) => ID) {
   return (a: T, b: T): number => descending(a.score, b.score, compareIds(id(a), id(b)));
+}
+
+/** MMR λ clamped to 0..1; missing or NaN means the default (NaN would invert the ranking). */
+function diversityOf(opts: RecommendOptions): number {
+  const diversity = opts.diversity ?? DEFAULT_DIVERSITY;
+  return Number.isNaN(diversity) ? DEFAULT_DIVERSITY : Math.min(1, Math.max(0, diversity));
+}
+
+interface StudyLane {
+  recommendations: Recommendation[];
+  /** The score of every candidate, picked or not: part of the confidence softmax's set. */
+  candidateScores: number[];
 }
 
 function studyLane(
@@ -186,19 +196,18 @@ function studyLane(
   opts: RecommendOptions,
   inScope: (material: Material) => boolean,
   count: number,
-): Recommendation[] {
-  if (count <= 0) return [];
+): StudyLane {
   const candidates = materialsById(state).filter(
     (material) => isUnfinished(statusOf(state, material.id)) && inScope(material),
   );
-  if (candidates.length === 0) return [];
+  if (candidates.length === 0) return { recommendations: [], candidateScores: [] };
 
   const context = studyContext(state, opts);
   const ranked = candidates
     .map((material) => scoreCandidate(context, material))
     .sort(byScoreThenId((candidate) => candidate.material.id));
   const relevance = normalizeToUnit(ranked.map((candidate) => candidate.score));
-  const lambda = Math.min(1, Math.max(0, opts.diversity ?? DEFAULT_DIVERSITY));
+  const lambda = diversityOf(opts);
   const picks = mmrRerank(
     ranked.map((candidate, rank) => ({
       ...candidate,
@@ -210,7 +219,7 @@ function studyLane(
     count,
   );
 
-  return picks.map(({ item, rank, maxSimilarity }, position) => {
+  const recommendations = picks.map(({ item, rank, maxSimilarity }, position): Recommendation => {
     // Promoted above its pure-relevance rank: the diversity term earned it this slot.
     const freshWeight = position < rank ? (1 - lambda) * (1 - maxSimilarity) : undefined;
     return {
@@ -218,10 +227,15 @@ function studyLane(
       lane: 'study',
       score: item.score,
       confidence: 0,
-      reasons: studyReasons({ ...item.facts, freshWeight }),
+      reasons: studyReasons({
+        ...item.facts,
+        interests: sharedInterests(item.taste, item.vector, item.material),
+        freshWeight,
+      }),
       breakdown: item.facts.breakdown,
     };
   });
+  return { recommendations, candidateScores: ranked.map((candidate) => candidate.score) };
 }
 
 /* ─────────────────────────────── Review lane ────────────────────────────── */
@@ -230,11 +244,7 @@ function studyLane(
  * Due reviews, most overdue first. Review items carry no study components, so their
  * breakdown is all zeros; their score comes from how overdue they are.
  */
-function reviewLane(
-  state: LibraryState,
-  inScope: (material: Material) => boolean,
-  now: Date,
-): Recommendation[] {
+function reviewLane(state: LibraryState, inScope: (material: Material) => boolean, now: Date): Recommendation[] {
   return materialsById(state)
     .filter((material) => inScope(material) && isReviewDue(state.progress[material.id], now))
     .map((material) => {
@@ -247,7 +257,7 @@ function reviewLane(
         score: reviewScore,
         confidence: 0,
         reasons: [reviewReason(daysSince(progress?.completedAt, now), reviewScore)],
-        breakdown: ZERO_BREAKDOWN,
+        breakdown: { ...ZERO_BREAKDOWN },
       };
     })
     .sort(byScoreThenId((recommendation) => recommendation.materialId));
@@ -255,15 +265,10 @@ function reviewLane(
 
 /* ──────────────────────────────── Assembly ──────────────────────────────── */
 
-const byRecommendationRank = byScoreThenId(
-  (recommendation: Recommendation) => recommendation.materialId,
-);
+const byRecommendationRank = byScoreThenId((recommendation: Recommendation) => recommendation.materialId);
 
 /** Merge two lanes by score, preserving each lane's own order (merge sort's merge step). */
-function mergeLanes(
-  study: readonly Recommendation[],
-  reviews: readonly Recommendation[],
-): Recommendation[] {
+function mergeLanes(study: readonly Recommendation[], reviews: readonly Recommendation[]): Recommendation[] {
   const merged: Recommendation[] = [];
   let s = 0;
   let r = 0;
@@ -279,16 +284,20 @@ function mergeLanes(
   return [...merged, ...study.slice(s), ...reviews.slice(r)];
 }
 
-/** Softmax of score / temperature over the returned list. */
-function withConfidence(recommendations: Recommendation[]): Recommendation[] {
-  const max = Math.max(...recommendations.map((recommendation) => recommendation.score));
-  const weights = recommendations.map((recommendation) =>
-    Math.exp((recommendation.score - max) / CONFIDENCE_TEMPERATURE),
-  );
-  const total = weights.reduce((sum, weight) => sum + weight, 0);
-  return recommendations.map((recommendation, index) => ({
+/**
+ * Softmax of score / temperature over the whole candidate set (every study candidate and due
+ * review, returned or not), so a shorter list does not inflate anyone's confidence.
+ */
+function withConfidence(
+  recommendations: readonly Recommendation[],
+  candidateScores: readonly number[],
+): Recommendation[] {
+  const max = candidateScores.reduce((highest, score) => Math.max(highest, score), -Infinity);
+  const weight = (score: number): number => Math.exp((score - max) / CONFIDENCE_TEMPERATURE);
+  const total = candidateScores.reduce((sum, score) => sum + weight(score), 0);
+  return recommendations.map((recommendation) => ({
     ...recommendation,
-    confidence: (weights[index] ?? 0) / total,
+    confidence: weight(recommendation.score) / total,
   }));
 }
 
@@ -296,11 +305,10 @@ export function recommend(state: LibraryState, opts: RecommendOptions): Recommen
   const limit = Math.max(0, Math.floor(opts.limit ?? DEFAULT_LIMIT));
   if (limit === 0) return [];
   const inScope = scopeFilter(state, opts);
+  const dueReviews = (opts.includeReviews ?? true) ? reviewLane(state, inScope, opts.now) : [];
   // Due reviews get reserved slots (up to a third of the list): study items cannot crowd them out.
-  const reviews =
-    (opts.includeReviews ?? true)
-      ? reviewLane(state, inScope, opts.now).slice(0, Math.ceil(limit / 3))
-      : [];
+  const reviews = dueReviews.slice(0, Math.ceil(limit / 3));
   const study = studyLane(state, opts, inScope, limit - reviews.length);
-  return withConfidence(mergeLanes(study, reviews));
+  const candidateScores = [...study.candidateScores, ...dueReviews.map((review) => review.score)];
+  return withConfidence(mergeLanes(study.recommendations, reviews), candidateScores);
 }

@@ -17,7 +17,8 @@ const STATUS_FILTERS: { status: ProgressStatus; label: string }[] = [
 
 const TIPS = ['author:keller', 'tag:koji', 'kind:paper', 'year:2000..2015', '"food pairing"', 'fermentation -kimchi'];
 
-const toggle = <T,>(list: T[], item: T): T[] => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
+const toggle = <T,>(list: T[], item: T): T[] =>
+  list.includes(item) ? list.filter((x) => x !== item) : [...list, item];
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -61,11 +62,7 @@ export default function SearchScreen() {
         <Text style={type.display} accessibilityRole="header">
           Search
         </Text>
-        <SearchField
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Titles, authors, topics, tags…"
-        />
+        <SearchField value={query} onChangeText={setQuery} placeholder="Titles, authors, topics, tags…" />
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
@@ -79,7 +76,12 @@ export default function SearchScreen() {
         ))}
         <View style={styles.divider} />
         {presentKinds.map((k) => (
-          <Chip key={k} label={KIND_LABEL[k]} selected={kinds.includes(k)} onPress={() => setKinds((s) => toggle(s, k))} />
+          <Chip
+            key={k}
+            label={KIND_LABEL[k]}
+            selected={kinds.includes(k)}
+            onPress={() => setKinds((s) => toggle(s, k))}
+          />
         ))}
       </ScrollView>
 
@@ -176,7 +178,14 @@ function completeLastWord(query: string, term: string): string {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
-  top: { paddingHorizontal: GUTTER, gap: space.md, paddingTop: space.md, maxWidth: 760, width: '100%', alignSelf: 'center' },
+  top: {
+    paddingHorizontal: GUTTER,
+    gap: space.md,
+    paddingTop: space.md,
+    maxWidth: 760,
+    width: '100%',
+    alignSelf: 'center',
+  },
   chips: { paddingHorizontal: GUTTER, paddingVertical: space.md, gap: space.sm, alignItems: 'center' },
   divider: { width: StyleSheet.hairlineWidth, height: 20, backgroundColor: color.border, marginHorizontal: space.xs },
   results: { paddingBottom: space.huge, maxWidth: 760, width: '100%', alignSelf: 'center' },

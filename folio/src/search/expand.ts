@@ -37,9 +37,7 @@ export function documentFrequency(index: BuiltIndex, term: string): number {
 
 /** Most documents first, then alphabetical. */
 function byDocumentFrequency(index: BuiltIndex, terms: Iterable<string>): string[] {
-  return [...terms].sort(
-    (a, b) => documentFrequency(index, b) - documentFrequency(index, a) || compareText(a, b),
-  );
+  return [...terms].sort((a, b) => documentFrequency(index, b) - documentFrequency(index, a) || compareText(a, b));
 }
 
 /** Indexed (unstemmed) words starting with `prefix`, via binary search on the sorted list. */
@@ -85,11 +83,7 @@ export interface ExpandOptions {
   typos?: boolean;
 }
 
-function expand(
-  index: BuiltIndex,
-  term: string,
-  { prefix, typos = true }: ExpandOptions,
-): Expansion[] {
+function expand(index: BuiltIndex, term: string, { prefix, typos = true }: ExpandOptions): Expansion[] {
   const expansions = new Map<string, Expansion>();
   // Offered strongest kind first, so the first offer for a vocabulary term wins.
   const offer = (candidate: string, kind: MatchKind): void => {

@@ -2,7 +2,7 @@
  * Human explanations for a recommendation. Each builder returns a reason only when its signal
  * is meaningful; the reason's weight is that signal's contribution to the score.
  */
-import { analyze } from '@/domain/text';
+import { analyze, contentWords, stem } from '@/domain/text';
 import type { Material, Progress, Reason, ScoreBreakdown } from '@/domain/types';
 
 import { descending } from './order';
@@ -12,7 +12,8 @@ import type { SparseVector } from './vectors';
 const MAX_REASONS = 3;
 const MAX_INTEREST_TERMS = 2;
 const UNLOCK_WINDOW_DAYS = 14;
-const MIN_AFFINITY_FOR_REASON = 0.1;
+/** Cosine at which content counts as like your reading: "affinity" needs it, "fresh" less. */
+const INTEREST_SIMILARITY = 0.1;
 const MIN_STRETCH_FOR_REASON = 0.5;
 
 export interface StudyFacts {
@@ -25,6 +26,11 @@ export interface StudyFacts {
   dependentCount: number;
   /** Shared profile terms for display, strongest first. */
   interests: readonly string[];
+  /**
+   * Cosine to everything being read (this material included while in progress); undefined
+   * before anything has been read.
+   */
+  readingSimilarity: number | undefined;
   playlist?: { name: string; rank: number };
   dailyMinutes: number;
   recentLevel: number | undefined;
@@ -76,7 +82,7 @@ function foundationReason(facts: StudyFacts): Reason | undefined {
 }
 
 function affinityReason(facts: StudyFacts): Reason | undefined {
-  if (facts.breakdown.affinity < MIN_AFFINITY_FOR_REASON || facts.interests.length === 0) {
+  if (facts.breakdown.affinity < INTEREST_SIMILARITY || facts.interests.length === 0) {
     return undefined;
   }
   return {
@@ -89,8 +95,7 @@ function affinityReason(facts: StudyFacts): Reason | undefined {
 function playlistReason(facts: StudyFacts): Reason | undefined {
   if (facts.playlist === undefined) return undefined;
   const { name, rank } = facts.playlist;
-  const text =
-    rank === 0 ? `Next up in ${quoted(name)}` : `${ordinal(rank + 1)} in line in ${quoted(name)}`;
+  const text = rank === 0 ? `Next up in ${quoted(name)}` : `${ordinal(rank + 1)} in line in ${quoted(name)}`;
   return { code: 'playlist_order', text, weight: contribution(facts.breakdown, 'sequence') };
 }
 
@@ -114,12 +119,18 @@ function stretchReason(facts: StudyFacts): Reason | undefined {
   };
 }
 
+/**
+ * MMR only knows the item differs from the picks above it; the text also claims it differs from
+ * the reader's own reading, so that is checked here (and never alongside an affinity reason).
+ */
 function freshReason(facts: StudyFacts): Reason | undefined {
-  if (facts.freshWeight === undefined) return undefined;
+  const { freshWeight, readingSimilarity, breakdown } = facts;
+  if (freshWeight === undefined || readingSimilarity === undefined) return undefined;
+  if (Math.max(readingSimilarity, breakdown.affinity) >= INTEREST_SIMILARITY) return undefined;
   return {
     code: 'fresh',
     text: 'Something different from your recent reading',
-    weight: facts.freshWeight,
+    weight: freshWeight,
   };
 }
 
@@ -148,9 +159,7 @@ function finishedAgo(days: number): string {
 
 export function reviewReason(daysSinceCompleted: number | undefined, weight: number): Reason {
   const text =
-    daysSinceCompleted === undefined
-      ? 'Review due'
-      : `Review due — ${finishedAgo(Math.floor(daysSinceCompleted))}`;
+    daysSinceCompleted === undefined ? 'Review due' : `Review due — ${finishedAgo(Math.floor(daysSinceCompleted))}`;
   return { code: 'review_due', text, weight };
 }
 
@@ -158,13 +167,8 @@ export function reviewReason(daysSinceCompleted: number | undefined, weight: num
  * Up to two profile terms this candidate shares, strongest first. Whole tags are preferred
  * ("lactic acid" reads better than "acid"); author and venue words are never shown.
  */
-export function sharedInterests(
-  profile: SparseVector,
-  candidate: SparseVector,
-  material: Material,
-): string[] {
-  const overlap = (term: string): number =>
-    Math.max(0, (profile.get(term) ?? 0) * (candidate.get(term) ?? 0));
+export function sharedInterests(profile: SparseVector, candidate: SparseVector, material: Material): string[] {
+  const overlap = (term: string): number => Math.max(0, (profile.get(term) ?? 0) * (candidate.get(term) ?? 0));
   const byScore = (labels: Iterable<string>, score: (label: string) => number): string[] =>
     [...labels]
       .map((label) => ({ label, score: score(label) }))
@@ -172,15 +176,28 @@ export function sharedInterests(
       .sort((a, b) => descending(a.score, b.score))
       .map((entry) => entry.label);
 
-  const tags = byScore(new Set(material.tags), (tag) =>
-    analyze(tag).reduce((sum, term) => sum + overlap(term), 0),
-  );
-  const hidden = new Set(
-    [...material.tags, ...material.authors, material.venue ?? ''].flatMap(analyze),
-  );
+  // A tag is named only when all of its words are in the profile: someone who read about
+  // "amino acids" has not shown an interest in "lactic acid".
+  const tags = byScore(new Set(material.tags), (tag) => {
+    const overlaps = analyze(tag).map(overlap);
+    if (!overlaps.every((value) => value > 0)) return 0;
+    return overlaps.reduce((sum, value) => sum + value, 0);
+  });
+  const hidden = new Set([...material.tags, ...material.authors, material.venue ?? ''].flatMap(analyze));
+  const surface = surfaceForms(`${material.title} ${material.abstract}`);
   const words = byScore(
-    [...candidate.keys()].filter((term) => !hidden.has(term)),
+    [...candidate.keys()].filter((term) => !hidden.has(term) && surface.has(term)),
     overlap,
-  );
+  ).map((term) => surface.get(term) ?? term);
   return [...tags, ...words].slice(0, MAX_INTEREST_TERMS);
+}
+
+/** Stem → the first real word in `text` that produced it ("gastrophysic" → "gastrophysics"). */
+function surfaceForms(text: string): Map<string, string> {
+  const forms = new Map<string, string>();
+  for (const word of contentWords(text)) {
+    const key = stem(word);
+    if (!forms.has(key)) forms.set(key, word);
+  }
+  return forms;
 }

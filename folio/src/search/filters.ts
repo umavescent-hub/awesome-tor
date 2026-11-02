@@ -72,9 +72,7 @@ export function documentFilter(
     predicates.push(({ material }) => categoryIds.includes(material.categoryId));
   }
   if (isSet(statuses)) {
-    predicates.push(({ material }) =>
-      statuses.includes(opts.progress?.[material.id]?.status ?? 'queued'),
-    );
+    predicates.push(({ material }) => statuses.includes(opts.progress?.[material.id]?.status ?? 'queued'));
   }
   const years = yearBounds(query, filters);
   if (Number.isFinite(years.from) || Number.isFinite(years.to)) {
@@ -87,9 +85,7 @@ export function documentFilter(
   for (const phrase of query.phrases) {
     const sequence = phrase.split(' ');
     predicates.push(
-      (doc) =>
-        containsSequence(doc.titleTokens, sequence) ||
-        containsSequence(doc.abstractTokens, sequence),
+      (doc) => containsSequence(doc.titleTokens, sequence) || containsSequence(doc.abstractTokens, sequence),
     );
   }
   for (const author of query.authors) {

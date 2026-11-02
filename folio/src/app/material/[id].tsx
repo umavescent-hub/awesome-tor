@@ -73,7 +73,13 @@ export default function MaterialScreen() {
   if (!material) {
     return (
       <View style={styles.fill}>
-        <EmptyState icon="alert-circle-outline" title="Not in your library" message="This material may have been removed." actionLabel="Go home" onAction={() => router.replace('/')} />
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Not in your library"
+          message="This material may have been removed."
+          actionLabel="Go home"
+          onAction={() => router.replace('/')}
+        />
       </View>
     );
   }
@@ -109,12 +115,18 @@ export default function MaterialScreen() {
           </Text>
           <Text style={[type.bodyStrong, styles.authors]}>{material.authors.join(', ')}</Text>
           <Text style={type.caption}>
-            {[material.venue, material.year, KIND_LABEL[material.kind], formatMinutes(material.minutes)].filter(Boolean).join(' · ')}
+            {[material.venue, material.year, KIND_LABEL[material.kind], formatMinutes(material.minutes)]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
           <View style={styles.metaRow}>
             <Difficulty level={material.difficulty} tint={tint} />
             {category && (
-              <Touchable onPress={() => router.push(`/category/${category.id}`)} accessibilityRole="link" accessibilityLabel={`Category ${category.name}`}>
+              <Touchable
+                onPress={() => router.push(`/category/${category.id}`)}
+                accessibilityRole="link"
+                accessibilityLabel={`Category ${category.name}`}
+              >
                 <Text style={[type.captionStrong, { color: tint }]}>{category.name}</Text>
               </Touchable>
             )}
@@ -141,11 +153,20 @@ export default function MaterialScreen() {
           {status === 'completed' && (
             <View style={[styles.flex, styles.doneBadge]}>
               <Icon name="checkmark-circle" size={20} color={color.accent} />
-              <Text style={[type.bodyStrong, { color: color.accent }]}>Completed {daysAgo(progress.completedAt, now)}</Text>
+              <Text style={[type.bodyStrong, { color: color.accent }]}>
+                Completed {daysAgo(progress.completedAt, now)}
+              </Text>
             </View>
           )}
           <IconButton icon="albums-outline" label="Add to playlist" onPress={() => setPickerOpen(true)} filled />
-          {link && <IconButton icon="open-outline" label="Open source" onPress={() => Linking.openURL(link).catch(() => undefined)} filled />}
+          {link && (
+            <IconButton
+              icon="open-outline"
+              label="Open source"
+              onPress={() => Linking.openURL(link).catch(() => undefined)}
+              filled
+            />
+          )}
           <IconButton icon="ellipsis-horizontal" label="More options" onPress={() => setMoreOpen(true)} filled />
         </View>
 
@@ -153,7 +174,8 @@ export default function MaterialScreen() {
           <View style={[styles.block, styles.notice]}>
             <Icon name="git-merge-outline" size={18} color={color.warning} />
             <Text style={[type.caption, styles.noticeText]}>
-              Builds on {prereq.missing.length} {prereq.missing.length === 1 ? 'material' : 'materials'} you haven’t finished — see Prerequisites below. You can still start now.
+              Builds on {prereq.missing.length} {prereq.missing.length === 1 ? 'material' : 'materials'} you haven’t
+              finished — see Prerequisites below. You can still start now.
             </Text>
           </View>
         )}
@@ -164,7 +186,8 @@ export default function MaterialScreen() {
               <Text style={type.heading}>Progress</Text>
               <Text style={type.caption}>
                 {formatPercent(progress.percent)}
-                {remaining > 0 ? ` · ${formatMinutes(remaining)} left` : ''} · {progress.sessions} {progress.sessions === 1 ? 'session' : 'sessions'}
+                {remaining > 0 ? ` · ${formatMinutes(remaining)} left` : ''} · {progress.sessions}{' '}
+                {progress.sessions === 1 ? 'session' : 'sessions'}
               </Text>
             </View>
             <SegmentedProgress value={progress.percent} onChange={(v) => actions.setPercent(id, v)} tint={tint} />
@@ -191,7 +214,10 @@ export default function MaterialScreen() {
                         }}
                         accessibilityRole="button"
                         accessibilityLabel={`${label}, next review in ${next.intervalDays} days`}
-                        style={[styles.grade, grade === 'good' && { backgroundColor: alpha(tint, 0.25), borderColor: tint }]}
+                        style={[
+                          styles.grade,
+                          grade === 'good' && { backgroundColor: alpha(tint, 0.25), borderColor: tint },
+                        ]}
                       >
                         <Text style={type.bodyStrong}>{label}</Text>
                         <Text style={type.caption}>{next.intervalDays} d</Text>
@@ -242,7 +268,9 @@ export default function MaterialScreen() {
                 <Chip
                   key={t}
                   label={`#${t}`}
-                  onPress={() => router.push({ pathname: '/search', params: { q: /\s/.test(t) ? `"${t}"` : `tag:${t}` } })}
+                  onPress={() =>
+                    router.push({ pathname: '/search', params: { q: /\s/.test(t) ? `"${t}"` : `tag:${t}` } })
+                  }
                 />
               ))}
             </View>
@@ -251,9 +279,19 @@ export default function MaterialScreen() {
 
         {prerequisites.length > 0 && (
           <Section title="Prerequisites" subtitle={`${prereq.completed} of ${prereq.total} complete`}>
-            <ProgressBar value={prereq.total ? prereq.completed / prereq.total : 1} tint={tint} style={styles.prereqBar} />
+            <ProgressBar
+              value={prereq.total ? prereq.completed / prereq.total : 1}
+              tint={tint}
+              style={styles.prereqBar}
+            />
             {prerequisites.map((m) => (
-              <MaterialRow key={m.id} material={m} category={state.categories[m.categoryId]} progress={progressOf(state, m.id)} onPress={() => openRow(m)} />
+              <MaterialRow
+                key={m.id}
+                material={m}
+                category={state.categories[m.categoryId]}
+                progress={progressOf(state, m.id)}
+                onPress={() => openRow(m)}
+              />
             ))}
           </Section>
         )}
@@ -261,7 +299,13 @@ export default function MaterialScreen() {
         {unlocks.length > 0 && (
           <Section title="Opens the way to">
             {unlocks.map((m) => (
-              <MaterialRow key={m.id} material={m} category={state.categories[m.categoryId]} progress={progressOf(state, m.id)} onPress={() => openRow(m)} />
+              <MaterialRow
+                key={m.id}
+                material={m}
+                category={state.categories[m.categoryId]}
+                progress={progressOf(state, m.id)}
+                onPress={() => openRow(m)}
+              />
             ))}
           </Section>
         )}
@@ -271,7 +315,12 @@ export default function MaterialScreen() {
             <Text style={[type.heading, styles.sectionTitle]}>In your playlists</Text>
             <View style={styles.tags}>
               {inPlaylists.map((p) => (
-                <Chip key={p.id} label={p.name} icon="albums-outline" onPress={() => router.push(`/playlist/${p.id}`)} />
+                <Chip
+                  key={p.id}
+                  label={p.name}
+                  icon="albums-outline"
+                  onPress={() => router.push(`/playlist/${p.id}`)}
+                />
               ))}
             </View>
           </View>
@@ -284,7 +333,14 @@ export default function MaterialScreen() {
               {similar.map(({ materialId }) => {
                 const m = state.materials[materialId];
                 return m ? (
-                  <MaterialCard key={m.id} material={m} category={state.categories[m.categoryId]} progress={progressOf(state, m.id)} size={128} onPress={() => openRow(m)} />
+                  <MaterialCard
+                    key={m.id}
+                    material={m}
+                    category={state.categories[m.categoryId]}
+                    progress={progressOf(state, m.id)}
+                    size={128}
+                    onPress={() => openRow(m)}
+                  />
                 ) : null;
               })}
             </ScrollView>
@@ -323,12 +379,33 @@ export default function MaterialScreen() {
           ) : (
             <>
               {status !== 'skipped' && status !== 'completed' && (
-                <Button label="Skip for now" variant="secondary" icon="play-skip-forward-outline" onPress={() => { actions.skip(id); setMoreOpen(false); }} />
+                <Button
+                  label="Skip for now"
+                  variant="secondary"
+                  icon="play-skip-forward-outline"
+                  onPress={() => {
+                    actions.skip(id);
+                    setMoreOpen(false);
+                  }}
+                />
               )}
               {status !== 'queued' && (
-                <Button label="Reset progress" variant="secondary" icon="refresh-outline" onPress={() => { actions.reset(id); setMoreOpen(false); }} />
+                <Button
+                  label="Reset progress"
+                  variant="secondary"
+                  icon="refresh-outline"
+                  onPress={() => {
+                    actions.reset(id);
+                    setMoreOpen(false);
+                  }}
+                />
               )}
-              <Button label="Remove from library" variant="danger" icon="trash-outline" onPress={() => setConfirmRemove(true)} />
+              <Button
+                label="Remove from library"
+                variant="danger"
+                icon="trash-outline"
+                onPress={() => setConfirmRemove(true)}
+              />
             </>
           )}
         </View>
@@ -404,7 +481,13 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
     gap: space.md,
   },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md, flexWrap: 'wrap' },
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.md,
+    flexWrap: 'wrap',
+  },
   grades: { flexDirection: 'row', gap: space.sm },
   grade: {
     flex: 1,
@@ -422,7 +505,12 @@ const styles = StyleSheet.create({
   abstract: { color: color.textMuted },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
   section: { marginBottom: space.xxl },
-  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: space.sm },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: space.sm,
+  },
   gutter: { paddingHorizontal: GUTTER },
   prereqBar: { marginHorizontal: GUTTER, marginBottom: space.sm },
   shelf: { paddingHorizontal: GUTTER, gap: space.md },

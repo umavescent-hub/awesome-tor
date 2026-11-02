@@ -8,15 +8,7 @@ export type ID = string;
 /** ISO-8601 timestamp, e.g. "2026-11-02T13:00:00.000Z". */
 export type ISODate = string;
 
-export type MaterialKind =
-  | 'paper'
-  | 'book'
-  | 'chapter'
-  | 'article'
-  | 'lecture'
-  | 'video'
-  | 'podcast'
-  | 'dataset';
+export type MaterialKind = 'paper' | 'book' | 'chapter' | 'article' | 'lecture' | 'video' | 'podcast' | 'dataset';
 
 export const MATERIAL_KINDS: readonly MaterialKind[] = [
   'paper',

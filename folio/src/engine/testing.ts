@@ -1,16 +1,7 @@
 /**
  * Test-only fixture builders for small, hand-made libraries. Not imported by app code.
  */
-import type {
-  Category,
-  ID,
-  ISODate,
-  LibraryState,
-  Material,
-  Playlist,
-  Progress,
-  ProgressStatus,
-} from '@/domain/types';
+import type { Category, ID, ISODate, LibraryState, Material, Playlist, Progress, ProgressStatus } from '@/domain/types';
 
 import { MS_PER_DAY } from './time';
 
@@ -38,11 +29,7 @@ export function material(id: ID, overrides: Partial<Material> = {}): Material {
   };
 }
 
-export function progress(
-  materialId: ID,
-  status: ProgressStatus,
-  overrides: Partial<Progress> = {},
-): Progress {
+export function progress(materialId: ID, status: ProgressStatus, overrides: Partial<Progress> = {}): Progress {
   return {
     materialId,
     status,

@@ -26,7 +26,12 @@ export default function CategoryScreen() {
   if (!category) {
     return (
       <View style={styles.fill}>
-        <EmptyState icon="grid-outline" title="Category not found" actionLabel="Go home" onAction={() => router.replace('/')} />
+        <EmptyState
+          icon="grid-outline"
+          title="Category not found"
+          actionLabel="Go home"
+          onAction={() => router.replace('/')}
+        />
       </View>
     );
   }
@@ -40,7 +45,11 @@ export default function CategoryScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View>
-            <LinearGradient colors={[alpha(category.color, 0.55), color.bg]} style={styles.backdrop} pointerEvents="none" />
+            <LinearGradient
+              colors={[alpha(category.color, 0.55), color.bg]}
+              style={styles.backdrop}
+              pointerEvents="none"
+            />
             <View style={styles.header}>
               <View style={[styles.badge, { backgroundColor: alpha(category.color, 0.3) }]}>
                 <Icon name={category.icon} size={30} color={color.text} />
@@ -73,6 +82,13 @@ const styles = StyleSheet.create({
   list: { paddingBottom: space.huge, maxWidth: 760, width: '100%', alignSelf: 'center' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, height: 300 },
   header: { paddingHorizontal: GUTTER, paddingTop: space.xl, paddingBottom: space.xl, gap: space.sm },
-  badge: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: space.sm },
+  badge: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space.sm,
+  },
   order: { marginTop: space.md },
 });

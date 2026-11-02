@@ -2,16 +2,7 @@
  * Folio persistence. Storage is injected so it is testable; the app passes AsyncStorage.
  * CONTRACT: fixed.
  */
-import type {
-  Category,
-  ID,
-  LibraryState,
-  Material,
-  Playlist,
-  Progress,
-  ReviewCard,
-  Settings,
-} from '@/domain/types';
+import type { Category, ID, LibraryState, Material, Playlist, Progress, ReviewCard, Settings } from '@/domain/types';
 import {
   definedOnly,
   isMaterialKind,
@@ -72,7 +63,13 @@ export async function saveLibrary(storage: KeyValueStorage, state: LibraryState)
 function parseLibrary(raw: unknown): LibraryState | null {
   if (!isRecord(raw) || raw.version !== 1) return null;
   const { materials, categories, playlists, progress, settings } = raw;
-  if (!isRecord(materials) || !isRecord(categories) || !isRecord(playlists) || !isRecord(progress) || !isRecord(settings)) {
+  if (
+    !isRecord(materials) ||
+    !isRecord(categories) ||
+    !isRecord(playlists) ||
+    !isRecord(progress) ||
+    !isRecord(settings)
+  ) {
     return null;
   }
 
@@ -85,8 +82,16 @@ function parseLibrary(raw: unknown): LibraryState | null {
     version: 1,
     materials: validMaterials,
     categories: parseCollection(categories, parseCategory, (c) => c.id),
-    playlists: parseCollection(playlists, (value) => parsePlaylist(value, validMaterials), (p) => p.id),
-    progress: parseCollection(progress, (value) => parseProgress(value, validMaterials), (p) => p.materialId),
+    playlists: parseCollection(
+      playlists,
+      (value) => parsePlaylist(value, validMaterials),
+      (p) => p.id,
+    ),
+    progress: parseCollection(
+      progress,
+      (value) => parseProgress(value, validMaterials),
+      (p) => p.materialId,
+    ),
     settings: parseSettings(settings),
   };
 }

@@ -60,17 +60,15 @@ describe('seed catalogue', () => {
   });
 
   it('defines the seven categories with valid colours and Ionicons glyphs', () => {
-    expect(Object.keys(seed.categories).sort()).toEqual(
-      [
-        'cat_fermentation',
-        'cat_flavor',
-        'cat_food_science',
-        'cat_history',
-        'cat_hospitality',
-        'cat_indigenous',
-        'cat_technique',
-      ],
-    );
+    expect(Object.keys(seed.categories).sort()).toEqual([
+      'cat_fermentation',
+      'cat_flavor',
+      'cat_food_science',
+      'cat_history',
+      'cat_hospitality',
+      'cat_indigenous',
+      'cat_technique',
+    ]);
     for (const c of Object.values(seed.categories)) {
       expect(c.color).toMatch(/^#[0-9A-F]{6}$/);
       expect(Object.hasOwn(ionicons, c.icon), c.icon).toBe(true);
@@ -139,10 +137,11 @@ describe('seed playlists', () => {
   });
 
   it('pins the two signature playlists, with the Pueblo one opening with Ortiz', () => {
-    expect(sortedPlaylists(seed).slice(0, 2).map((p) => p.name)).toEqual([
-      'Pueblo Foodways & Food Sovereignty',
-      'Road to the Fourth Star',
-    ]);
+    expect(
+      sortedPlaylists(seed)
+        .slice(0, 2)
+        .map((p) => p.name),
+    ).toEqual(['Pueblo Foodways & Food Sovereignty', 'Road to the Fourth Star']);
     expect(seed.playlists.p_pueblo_foodways?.materialIds[0]).toBe('m_ortiz_the_tewa_world');
   });
 });

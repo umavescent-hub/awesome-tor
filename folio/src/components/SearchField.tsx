@@ -28,7 +28,13 @@ export function SearchField({ value, onChangeText, ...rest }: Props) {
         accessibilityRole="search"
       />
       {value.length > 0 && (
-        <IconButton icon="close-circle" label="Clear search" size={18} tint={color.textMuted} onPress={() => onChangeText('')} />
+        <IconButton
+          icon="close-circle"
+          label="Clear search"
+          size={18}
+          tint={color.textMuted}
+          onPress={() => onChangeText('')}
+        />
       )}
     </View>
   );

@@ -28,12 +28,31 @@ export function primaryLabel(rec: Recommendation, progress: Progress): string {
 }
 
 /** The hero: the single best next move, with the reasons behind it. */
-export function UpNextCard({ recommendation, material, category, progress, eyebrow = 'Up next', onOpen, onPrimary, onSkip }: Props) {
+export function UpNextCard({
+  recommendation,
+  material,
+  category,
+  progress,
+  eyebrow = 'Up next',
+  onOpen,
+  onPrimary,
+  onSkip,
+}: Props) {
   const tint = category?.color ?? color.accent;
   const remaining = material.minutes * (1 - (progress.status === 'in_progress' ? progress.percent : 0));
   return (
-    <LinearGradient colors={[alpha(tint, 0.38), alpha(tint, 0.08)]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
-      <Touchable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`Open ${material.title}`} style={styles.top}>
+    <LinearGradient
+      colors={[alpha(tint, 0.38), alpha(tint, 0.08)]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.card}
+    >
+      <Touchable
+        onPress={onOpen}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${material.title}`}
+        style={styles.top}
+      >
         <Cover material={material} category={category} size={104} radius={8} />
         <View style={styles.titles}>
           <Text style={type.micro}>{recommendation.lane === 'review' ? 'Review due' : eyebrow}</Text>
@@ -44,7 +63,9 @@ export function UpNextCard({ recommendation, material, category, progress, eyebr
             {materialByline(material)}
           </Text>
           <Text style={type.caption}>
-            {[`${formatMinutes(remaining)}${progress.status === 'in_progress' ? ' left' : ''}`, category?.name].filter(Boolean).join(' · ')}
+            {[`${formatMinutes(remaining)}${progress.status === 'in_progress' ? ' left' : ''}`, category?.name]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
         </View>
       </Touchable>
@@ -58,7 +79,9 @@ export function UpNextCard({ recommendation, material, category, progress, eyebr
           onPress={onPrimary}
           style={styles.primary}
         />
-        {onSkip && <IconButton icon="play-skip-forward" label="Skip — not now" onPress={onSkip} filled tint={color.textMuted} />}
+        {onSkip && (
+          <IconButton icon="play-skip-forward" label="Skip — not now" onPress={onSkip} filled tint={color.textMuted} />
+        )}
       </View>
     </LinearGradient>
   );

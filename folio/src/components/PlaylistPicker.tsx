@@ -49,7 +49,12 @@ export function PlaylistPicker({ materialId, visible, onClose }: Props) {
               accessibilityLabel={p.name}
               style={styles.row}
             >
-              <PlaylistCover materials={playlistMaterials(state, p.id)} categories={state.categories} size={44} radius={4} />
+              <PlaylistCover
+                materials={playlistMaterials(state, p.id)}
+                categories={state.categories}
+                size={44}
+                radius={4}
+              />
               <View style={styles.body}>
                 <Text style={type.bodyStrong} numberOfLines={1}>
                   {p.name}
@@ -73,7 +78,13 @@ export function PlaylistPicker({ materialId, visible, onClose }: Props) {
             onSubmitEditing={create}
             returnKeyType="done"
           />
-          <Button label="Create with this item" icon="add" variant="secondary" onPress={create} disabled={!draft.trim()} />
+          <Button
+            label="Create with this item"
+            icon="add"
+            variant="secondary"
+            onPress={create}
+            disabled={!draft.trim()}
+          />
         </View>
         <Button label="Done" onPress={onClose} />
       </ScrollView>

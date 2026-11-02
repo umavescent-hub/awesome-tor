@@ -10,8 +10,14 @@ const BUDGETS = [15, 30, 45, 60, 90, 120, 180];
 
 const HOW_IT_WORKS: [string, string][] = [
   ['Momentum', 'Anything in progress is pulled forward — finishing beats starting.'],
-  ['Readiness', 'Prerequisites matter. Material whose foundations you haven’t covered sinks; completing them “unlocks” what builds on them.'],
-  ['Taste', 'What you finish and rate highly shapes a topic profile (recent work counts more). Similar material rises.'],
+  [
+    'Readiness',
+    'Prerequisites matter. Material whose foundations you haven’t covered sinks; completing them “unlocks” what builds on them.',
+  ],
+  [
+    'Taste',
+    'What you finish and rate highly shapes a topic profile (recent work counts more). Similar material rises.',
+  ],
   ['Foundations', 'Material that many queued items depend on is favoured early.'],
   ['Stretch', 'Difficulty is pitched half a step above what you’ve recently completed.'],
   ['Time', 'Items that fit your daily budget get a lift; long books are never excluded, just paced.'],
@@ -59,8 +65,8 @@ export default function SettingsScreen() {
       <View style={[styles.group, styles.card]}>
         <Text style={type.heading}>How Up Next decides</Text>
         <Text style={type.caption}>
-          Every recommendation is explainable. Folio scores each unfinished item on nine signals and shows you the strongest reasons.
-          It ranks; it doesn’t claim to read your mind — your ratings and choices steer it.
+          Every recommendation is explainable. Folio scores each unfinished item on nine signals and shows you the
+          strongest reasons. It ranks; it doesn’t claim to read your mind — your ratings and choices steer it.
         </Text>
         {HOW_IT_WORKS.map(([title, body]) => (
           <View key={title} style={styles.how}>
@@ -75,7 +81,9 @@ export default function SettingsScreen() {
         <Text style={type.caption}>Your library lives only on this device.</Text>
         {confirmReset ? (
           <View style={styles.group}>
-            <Text style={[type.caption, { color: color.text }]}>Replace everything with the sample library? Your materials, playlists and progress will be lost.</Text>
+            <Text style={[type.caption, { color: color.text }]}>
+              Replace everything with the sample library? Your materials, playlists and progress will be lost.
+            </Text>
             <Button
               label="Yes, reset library"
               variant="danger"
@@ -88,7 +96,12 @@ export default function SettingsScreen() {
             <Button label="Cancel" variant="secondary" onPress={() => setConfirmReset(false)} />
           </View>
         ) : (
-          <Button label="Reset to sample library" variant="secondary" icon="refresh-outline" onPress={() => setConfirmReset(true)} />
+          <Button
+            label="Reset to sample library"
+            variant="secondary"
+            icon="refresh-outline"
+            onPress={() => setConfirmReset(true)}
+          />
         )}
       </View>
     </ScrollView>
@@ -97,7 +110,14 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
-  content: { padding: GUTTER, gap: space.xxl, paddingBottom: space.huge, maxWidth: 640, width: '100%', alignSelf: 'center' },
+  content: {
+    padding: GUTTER,
+    gap: space.xxl,
+    paddingBottom: space.huge,
+    maxWidth: 640,
+    width: '100%',
+    alignSelf: 'center',
+  },
   group: { gap: space.md },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   card: { backgroundColor: color.surface, borderRadius: radius.lg, padding: space.lg },

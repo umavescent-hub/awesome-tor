@@ -25,9 +25,7 @@
     },
     "scheme": "folio",
     "backgroundColor": "#0C0B0A",
-    "plugins": [
-      "expo-router"
-    ],
+    "plugins": ["expo-router"],
     "experiments": {
       "typedRoutes": false
     }

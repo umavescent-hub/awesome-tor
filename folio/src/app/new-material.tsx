@@ -17,7 +17,14 @@ const DIFFICULTY: { level: Difficulty; label: string }[] = [
 ];
 
 /** Comma- or semicolon-separated list → trimmed, de-duplicated entries. */
-const splitList = (raw: string) => [...new Set(raw.split(/[,;]/).map((s) => s.trim()).filter(Boolean))];
+const splitList = (raw: string) => [
+  ...new Set(
+    raw
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean),
+  ),
+];
 
 export default function NewMaterialScreen() {
   const { state, actions, searchIndex } = useLibrary();
@@ -51,7 +58,10 @@ export default function NewMaterialScreen() {
   const show = (e: string | undefined) => (submitted ? e : undefined);
 
   const prereqHits = useMemo(
-    () => (prereqQuery.trim() ? search(searchIndex, prereqQuery, { limit: 6 }).filter((h) => !prerequisites.includes(h.materialId)) : []),
+    () =>
+      prereqQuery.trim()
+        ? search(searchIndex, prereqQuery, { limit: 6 }).filter((h) => !prerequisites.includes(h.materialId))
+        : [],
     [prereqQuery, searchIndex, prerequisites],
   );
 
@@ -77,15 +87,43 @@ export default function NewMaterialScreen() {
 
   return (
     <ScrollView style={styles.fill} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <TextField label="Title" value={title} onChangeText={setTitle} placeholder="e.g. Traditional Maize Processing Techniques in the New World" error={show(errors.title)} autoFocus />
-      <TextField label="Authors" value={authors} onChangeText={setAuthors} placeholder="Comma-separated" error={show(errors.authors)} hint="Separate multiple authors with commas" />
+      <TextField
+        label="Title"
+        value={title}
+        onChangeText={setTitle}
+        placeholder="e.g. Traditional Maize Processing Techniques in the New World"
+        error={show(errors.title)}
+        autoFocus
+      />
+      <TextField
+        label="Authors"
+        value={authors}
+        onChangeText={setAuthors}
+        placeholder="Comma-separated"
+        error={show(errors.authors)}
+        hint="Separate multiple authors with commas"
+      />
 
       <View style={styles.row}>
         <View style={styles.flex}>
-          <TextField label="Year" value={year} onChangeText={setYear} keyboardType="number-pad" maxLength={4} error={show(errors.year)} />
+          <TextField
+            label="Year"
+            value={year}
+            onChangeText={setYear}
+            keyboardType="number-pad"
+            maxLength={4}
+            error={show(errors.year)}
+          />
         </View>
         <View style={styles.flex}>
-          <TextField label="Minutes to finish" value={minutes} onChangeText={setMinutes} keyboardType="number-pad" maxLength={5} error={show(errors.minutes)} />
+          <TextField
+            label="Minutes to finish"
+            value={minutes}
+            onChangeText={setMinutes}
+            keyboardType="number-pad"
+            maxLength={5}
+            error={show(errors.minutes)}
+          />
         </View>
       </View>
 
@@ -97,26 +135,63 @@ export default function NewMaterialScreen() {
 
       <Group label="Category" error={show(errors.category)}>
         {categories.map((c) => (
-          <Chip key={c.id} label={c.name} selected={categoryId === c.id} tint={c.color} onPress={() => setCategoryId(c.id)} />
+          <Chip
+            key={c.id}
+            label={c.name}
+            selected={categoryId === c.id}
+            tint={c.color}
+            onPress={() => setCategoryId(c.id)}
+          />
         ))}
       </Group>
 
       <Group label="Difficulty">
         {DIFFICULTY.map((d) => (
-          <Chip key={d.level} label={`${d.level} · ${d.label}`} selected={difficulty === d.level} onPress={() => setDifficulty(d.level)} />
+          <Chip
+            key={d.level}
+            label={`${d.level} · ${d.label}`}
+            selected={difficulty === d.level}
+            onPress={() => setDifficulty(d.level)}
+          />
         ))}
       </Group>
 
-      <TextField label="Tags" value={tags} onChangeText={setTags} placeholder="nixtamalization, maize, chemistry" autoCapitalize="none" hint="Tags power search and the taste profile" />
-      <TextField label="Link" value={url} onChangeText={setUrl} placeholder="https://…" autoCapitalize="none" keyboardType="url" />
-      <TextField label="Notes / abstract" value={abstract} onChangeText={setAbstract} multiline placeholder="What is it about? Why does it matter to you?" />
+      <TextField
+        label="Tags"
+        value={tags}
+        onChangeText={setTags}
+        placeholder="nixtamalization, maize, chemistry"
+        autoCapitalize="none"
+        hint="Tags power search and the taste profile"
+      />
+      <TextField
+        label="Link"
+        value={url}
+        onChangeText={setUrl}
+        placeholder="https://…"
+        autoCapitalize="none"
+        keyboardType="url"
+      />
+      <TextField
+        label="Notes / abstract"
+        value={abstract}
+        onChangeText={setAbstract}
+        multiline
+        placeholder="What is it about? Why does it matter to you?"
+      />
 
       <View style={styles.group}>
         <Text style={type.micro}>Builds on (prerequisites)</Text>
         {prerequisites.length > 0 && (
           <View style={styles.chips}>
             {prerequisites.map((pid) => (
-              <Chip key={pid} label={state.materials[pid]?.title ?? pid} icon="close" selected onPress={() => setPrerequisites((p) => p.filter((x) => x !== pid))} />
+              <Chip
+                key={pid}
+                label={state.materials[pid]?.title ?? pid}
+                icon="close"
+                selected
+                onPress={() => setPrerequisites((p) => p.filter((x) => x !== pid))}
+              />
             ))}
           </View>
         )}
@@ -156,7 +231,14 @@ function Group({ label, error, children }: { label: string; error?: string; chil
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
-  content: { padding: GUTTER, gap: space.xl, paddingBottom: space.huge, maxWidth: 640, width: '100%', alignSelf: 'center' },
+  content: {
+    padding: GUTTER,
+    gap: space.xl,
+    paddingBottom: space.huge,
+    maxWidth: 640,
+    width: '100%',
+    alignSelf: 'center',
+  },
   row: { flexDirection: 'row', gap: space.md },
   flex: { flex: 1 },
   group: { gap: space.sm },

@@ -7,15 +7,71 @@
 
 /** Small English stopword list: function words that carry no topical signal. */
 const STOPWORDS: ReadonlySet<string> = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by', 'for', 'from', 'has', 'have',
-  'he', 'her', 'his', 'i', 'if', 'in', 'into', 'is', 'it', 'its', 'not', 'of', 'on', 'or', 'our',
-  'she', 'so', 'than', 'that', 'the', 'their', 'them', 'then', 'there', 'these', 'they', 'this',
-  'those', 'to', 'was', 'we', 'were', 'which', 'who', 'will', 'with', 'you', 'your',
+  'a',
+  'an',
+  'and',
+  'are',
+  'as',
+  'at',
+  'be',
+  'been',
+  'but',
+  'by',
+  'for',
+  'from',
+  'has',
+  'have',
+  'he',
+  'her',
+  'his',
+  'i',
+  'if',
+  'in',
+  'into',
+  'is',
+  'it',
+  'its',
+  'not',
+  'of',
+  'on',
+  'or',
+  'our',
+  'she',
+  'so',
+  'than',
+  'that',
+  'the',
+  'their',
+  'them',
+  'then',
+  'there',
+  'these',
+  'they',
+  'this',
+  'those',
+  'to',
+  'was',
+  'we',
+  'were',
+  'which',
+  'who',
+  'will',
+  'with',
+  'you',
+  'your',
 ]);
 
 /** Letters that NFKD leaves intact but readers treat as accented Latin letters. */
 const LETTER_FOLDS: Readonly<Record<string, string>> = {
-  ø: 'o', æ: 'ae', œ: 'oe', ß: 'ss', đ: 'd', ð: 'd', ł: 'l', þ: 'th', ı: 'i',
+  ø: 'o',
+  æ: 'ae',
+  œ: 'oe',
+  ß: 'ss',
+  đ: 'd',
+  ð: 'd',
+  ł: 'l',
+  þ: 'th',
+  ı: 'i',
 };
 
 const COMBINING_MARKS = /\p{M}+/gu;
@@ -58,8 +114,8 @@ export function isStopword(token: string): boolean {
  * "studies" → "study", "glasses" → "glass", "boxes" → "box", "papers" → "paper".
  * "-ses"/"-zes" lose only the "s" unless doubled ("cases" → "case", "buzzes" → "buzz"),
  * and "-ss", "-us", "-is" words are left alone ("process", "corpus", "analysis").
- * Singular "-ie" and "-oe" are folded the same way as their plurals, so both spellings share a
- * stem: "cookie"/"cookies" → "cooky", "tomato"/"tomatoes" → "tomato", "shoe"/"shoes" → "sho".
+ * "-oes" loses "es" ("tomatoes" → "tomato"). Singular "-ie" and "-oe" fold like their plurals,
+ * so both spellings share a stem: "cookie"/"cookies" → "cooky", "shoe"/"shoes" → "sho".
  */
 export function stem(token: string): string {
   if (token.length > 4 && token.endsWith('ies')) return `${token.slice(0, -3)}y`;

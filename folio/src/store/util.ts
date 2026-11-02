@@ -31,7 +31,9 @@ export function omitKey<T>(record: Readonly<Record<ID, T>>, key: ID): Record<ID,
 /** Same own keys with `Object.is`-equal values; lets reducers return the old state for no-op updates. */
 export function shallowEqual<T extends object>(a: T, b: T): boolean {
   const keys = Object.keys(a) as (keyof T)[];
-  return keys.length === Object.keys(b).length && keys.every((key) => Object.hasOwn(b, key) && Object.is(a[key], b[key]));
+  return (
+    keys.length === Object.keys(b).length && keys.every((key) => Object.hasOwn(b, key) && Object.is(a[key], b[key]))
+  );
 }
 
 export function mapValues<T, U>(record: Readonly<Record<ID, T>>, fn: (value: T) => U): Record<ID, U> {

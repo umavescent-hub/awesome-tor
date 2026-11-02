@@ -27,10 +27,10 @@ import type { ParsedQuery, SearchIndex, SearchOptions } from './types';
 const DEFAULT_LIMIT = 50;
 /**
  * Free-text terms considered per query, in typed order. Each unknown term costs a typo scan of
- * the vocabulary, so a pasted paragraph would otherwise stall the UI; 32 is far beyond anything
- * typed (and the long-standing web-search limit).
+ * the vocabulary, so a pasted paragraph would otherwise stall the UI. Sixteen content words
+ * (stopwords do not count) covers any typed query and a pasted title.
  */
-const MAX_QUERY_TERMS = 32;
+const MAX_QUERY_TERMS = 16;
 
 /** One index term matched inside a document. */
 interface TermMatch {
@@ -84,16 +84,12 @@ function bm25(posting: Posting, position: number, field: number | undefined, idf
  * share the IDF of the most common one (Lucene's blended frequency): otherwise a rare completion
  * or misspelling would outrank an exact match on rarity alone, whatever its kind's weight.
  */
-function bestMatches(
-  index: BuiltIndex,
-  expansions: readonly Expansion[],
-  field?: number,
-): Map<number, ClauseMatch> {
+function bestMatches(index: BuiltIndex, expansions: readonly Expansion[], field?: number): Map<number, ClauseMatch> {
   const known = expansions.flatMap((expansion) => {
     const posting = index.postings.get(expansion.term);
     return posting === undefined ? [] : [{ ...expansion, posting }];
   });
-  const idf = Math.min(...known.map(({ posting }) => posting.idf));
+  const idf = known.reduce((lowest, { posting }) => Math.min(lowest, posting.idf), Infinity);
   const best = new Map<number, ClauseMatch>();
   for (const { term, kind, weight, posting } of known) {
     posting.docs.forEach((doc, position) => {
@@ -123,16 +119,13 @@ function summedMatches(perToken: readonly Map<number, ClauseMatch>[]): Map<numbe
 }
 
 function clausesFor(index: BuiltIndex, { query, partial }: QueryPlan, expand: Expander): Clause[] {
-  const prefixFor = (term: string): string | undefined =>
-    partial?.term === term ? partial.prefix : undefined;
+  const prefixFor = (term: string): string | undefined => (partial?.term === term ? partial.prefix : undefined);
   const freeTerms = query.terms.slice(0, MAX_QUERY_TERMS).map((term) => ({
     queryTerm: term,
     matches: bestMatches(index, expand(term, { prefix: prefixFor(term) })),
   }));
   const phrases = query.phrases.map((phrase) => ({
-    matches: summedMatches(
-      phrase.split(' ').map((token) => bestMatches(index, expand(token, { typos: false }))),
-    ),
+    matches: summedMatches(phrase.split(' ').map((token) => bestMatches(index, expand(token, { typos: false })))),
   }));
   // Operator values match their own field only, exactly or as a prefix.
   const fieldValues = (values: readonly string[], fieldName: SearchField): Clause[] => {
@@ -147,12 +140,7 @@ function clausesFor(index: BuiltIndex, { query, partial }: QueryPlan, expand: Ex
       ),
     }));
   };
-  return [
-    ...freeTerms,
-    ...phrases,
-    ...fieldValues(query.authors, 'authors'),
-    ...fieldValues(query.tags, 'tags'),
-  ];
+  return [...freeTerms, ...phrases, ...fieldValues(query.authors, 'authors'), ...fieldValues(query.tags, 'tags')];
 }
 
 /* ──────────────────────────────── Hits ───────────────────────────────── */
@@ -188,12 +176,7 @@ function byTitleThenId(a: IndexedDoc, b: IndexedDoc): number {
   return compareText(a.sortTitle, b.sortTitle) || compareText(a.material.id, b.material.id);
 }
 
-function rank(
-  index: BuiltIndex,
-  plan: QueryPlan,
-  accept: (doc: number) => boolean,
-  limit: number,
-): SearchHit[] {
+function rank(index: BuiltIndex, plan: QueryPlan, accept: (doc: number) => boolean, limit: number): SearchHit[] {
   const clauses = clausesFor(index, plan, createExpander(index));
   const freeText = clauses.filter((clause) => clause.field === undefined);
   const candidates = new Set(freeText.flatMap((clause) => [...clause.matches.keys()]));
@@ -218,12 +201,7 @@ function rank(
 }
 
 /** No free text: every document passing the constraints, newest first, unscored. */
-function browse(
-  index: BuiltIndex,
-  query: ParsedQuery,
-  accept: (doc: number) => boolean,
-  limit: number,
-): SearchHit[] {
+function browse(index: BuiltIndex, query: ParsedQuery, accept: (doc: number) => boolean, limit: number): SearchHit[] {
   const operatorValues: Partial<Record<SearchField, readonly string[]>> = {
     tags: query.tags,
     authors: query.authors,

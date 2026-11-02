@@ -19,13 +19,8 @@ export function prerequisiteStatus(state: LibraryState, materialId: ID): Prerequ
   return { total: known.length, completed: known.length - missing.length, missing };
 }
 
-export function wouldCreateCycle(
-  materials: Record<ID, Material>,
-  materialId: ID,
-  prerequisites: ID[],
-): boolean {
-  const edgesOf = (id: ID): readonly ID[] =>
-    id === materialId ? prerequisites : (materials[id]?.prerequisites ?? []);
+export function wouldCreateCycle(materials: Record<ID, Material>, materialId: ID, prerequisites: ID[]): boolean {
+  const edgesOf = (id: ID): readonly ID[] => (id === materialId ? prerequisites : (materials[id]?.prerequisites ?? []));
   // Walk everything the proposed prerequisites depend on; meeting materialId closes a loop.
   const stack = [...prerequisites];
   const visited = new Set<ID>();
@@ -52,10 +47,7 @@ export function dependentsIndex(materials: Record<ID, Material>): ReadonlyMap<ID
 }
 
 /** Materials depending on `materialId` directly or through a chain; cycle-safe, never itself. */
-export function transitiveDependents(
-  index: ReadonlyMap<ID, readonly ID[]>,
-  materialId: ID,
-): ReadonlySet<ID> {
+export function transitiveDependents(index: ReadonlyMap<ID, readonly ID[]>, materialId: ID): ReadonlySet<ID> {
   const found = new Set<ID>();
   const queue = [...(index.get(materialId) ?? [])];
   for (let id = queue.shift(); id !== undefined; id = queue.shift()) {

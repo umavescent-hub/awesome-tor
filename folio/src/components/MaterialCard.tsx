@@ -18,7 +18,14 @@ interface Props {
 }
 
 /** Shelf tile: square cover, two-line title, author line. */
-export const MaterialCard = memo(function MaterialCard({ material, category, progress, onPress, size = 148, caption }: Props) {
+export const MaterialCard = memo(function MaterialCard({
+  material,
+  category,
+  progress,
+  onPress,
+  size = 148,
+  caption,
+}: Props) {
   const active = progress?.status === 'in_progress';
   return (
     <Touchable

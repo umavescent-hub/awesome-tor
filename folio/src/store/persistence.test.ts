@@ -143,9 +143,17 @@ describe('migrate: materials', () => {
   });
 
   it('accepts only ISO-8601 timestamps, not whatever the JS engine happens to parse', () => {
-    const addedAt = (value: unknown) => migrate(withRaw((r) => (r.materials.m1.addedAt = value)))?.materials.m1?.addedAt;
+    const addedAt = (value: unknown) =>
+      migrate(withRaw((r) => (r.materials.m1.addedAt = value)))?.materials.m1?.addedAt;
     // V8 parses these, Hermes (the app's engine) may not: the stored library must not depend on which.
-    for (const loose of ['1', '2026/11/02', 'Nov 2 2026', '2026-11-02T13:00:00', '2026-11-02T13:00:00.5Z', ' 2026-11-02']) {
+    for (const loose of [
+      '1',
+      '2026/11/02',
+      'Nov 2 2026',
+      '2026-11-02T13:00:00',
+      '2026-11-02T13:00:00.5Z',
+      ' 2026-11-02',
+    ]) {
       expect(addedAt(loose), loose).toBeUndefined();
     }
     for (const iso of [T0, '2026-11-02', '2026-11-02T13:00Z', '2026-11-02T13:00:00.500+05:30']) {
@@ -156,9 +164,7 @@ describe('migrate: materials', () => {
 
   it('keeps prototype-named ids as plain own entries', () => {
     const raw = JSON.parse(
-      JSON.stringify(valid())
-        .replaceAll('"m1"', '"__proto__"')
-        .replaceAll('"m2"', '"constructor"'),
+      JSON.stringify(valid()).replaceAll('"m1"', '"__proto__"').replaceAll('"m2"', '"constructor"'),
     );
     const migrated = migrate(raw);
     expect(Object.getPrototypeOf(migrated?.materials)).toBe(Object.prototype);

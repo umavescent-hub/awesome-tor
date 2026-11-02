@@ -11,11 +11,7 @@ const DEFAULT_SUGGESTIONS = 5;
  * One suggestion per indexed term, spelled as its most frequent matching word, so the user
  * sees "thomas" rather than the stem "thoma". A word already typed in full is not suggested.
  */
-export function suggestTerms(
-  index: SearchIndex,
-  partial: string,
-  limit: number = DEFAULT_SUGGESTIONS,
-): string[] {
+export function suggestTerms(index: SearchIndex, partial: string, limit: number = DEFAULT_SUGGESTIONS): string[] {
   const built = asBuiltIndex(index);
   const typed = endsMidWord(partial) ? tokenize(partial).at(-1) : undefined;
   if (typed === undefined) return [];
@@ -33,8 +29,7 @@ export function suggestTerms(
   return [...spellings]
     .sort(
       ([termA, wordA], [termB, wordB]) =>
-        documentFrequency(built, termB) - documentFrequency(built, termA) ||
-        compareText(wordA, wordB),
+        documentFrequency(built, termB) - documentFrequency(built, termA) || compareText(wordA, wordB),
     )
     .slice(0, Math.max(0, limit))
     .map(([, word]) => word);

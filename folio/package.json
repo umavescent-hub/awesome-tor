@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "prettier": "^3.9.10",
     "typescript": "~6.0.3",
     "vitest": "^3.2.7"
   },
@@ -35,7 +36,9 @@
     "export:web": "expo export --platform web",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm run format:check && npm test",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\" \"*.{json,md,ts}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx}\" \"*.{json,md,ts}\""
   },
   "private": true
 }

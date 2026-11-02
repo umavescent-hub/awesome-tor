@@ -35,7 +35,15 @@ export function createLibraryActions(
       const now = at();
       dispatch({
         type: 'playlist/create',
-        playlist: { id, name, description, materialIds: [...materialIds], pinned: false, createdAt: now, updatedAt: now },
+        playlist: {
+          id,
+          name,
+          description,
+          materialIds: [...materialIds],
+          pinned: false,
+          createdAt: now,
+          updatedAt: now,
+        },
       });
       return id;
     },

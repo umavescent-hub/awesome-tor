@@ -19,14 +19,7 @@ import {
 import { AppState } from 'react-native';
 
 import { createSeedLibrary } from '@/data/seed';
-import type {
-  ID,
-  LibraryState,
-  Material,
-  Playlist,
-  ReviewGrade,
-  Settings,
-} from '@/domain/types';
+import type { ID, LibraryState, Material, Playlist, ReviewGrade, Settings } from '@/domain/types';
 import { buildSearchIndex, type SearchIndex } from '@/search';
 import type { Action } from './actions';
 import { createLibraryActions } from './libraryActions';

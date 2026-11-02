@@ -16,7 +16,9 @@ export function category(id: string, overrides: Partial<Category> = {}): Categor
 }
 
 /** The user-supplied part of a material (what `addMaterial` takes). */
-export function materialInput(overrides: Partial<Omit<Material, 'id' | 'addedAt'>> = {}): Omit<Material, 'id' | 'addedAt'> {
+export function materialInput(
+  overrides: Partial<Omit<Material, 'id' | 'addedAt'>> = {},
+): Omit<Material, 'id' | 'addedAt'> {
   return {
     title: 'Untitled',
     authors: ['Author'],
@@ -44,13 +46,15 @@ export function progress(materialId: string, overrides: Partial<Progress> = {}):
   return { materialId, status: 'queued', percent: 0, sessions: 0, ...overrides };
 }
 
-export function library(parts: {
-  categories?: Category[];
-  materials?: Material[];
-  playlists?: Playlist[];
-  progress?: Progress[];
-} = {}): LibraryState {
-  const byId = <T,>(items: T[], key: (item: T) => string) => Object.fromEntries(items.map((item) => [key(item), item]));
+export function library(
+  parts: {
+    categories?: Category[];
+    materials?: Material[];
+    playlists?: Playlist[];
+    progress?: Progress[];
+  } = {},
+): LibraryState {
+  const byId = <T>(items: T[], key: (item: T) => string) => Object.fromEntries(items.map((item) => [key(item), item]));
   return {
     version: 1,
     categories: byId(parts.categories ?? [category('cat_a')], (c) => c.id),

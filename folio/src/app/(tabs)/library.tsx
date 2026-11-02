@@ -124,7 +124,12 @@ function PlaylistRow({ playlist }: { playlist: Playlist }) {
       accessibilityLabel={`Playlist ${playlist.name}, ${s.count} items, ${formatPercent(s.percent)} complete`}
       style={styles.row}
     >
-      <PlaylistCover materials={playlistMaterials(state, playlist.id)} categories={state.categories} size={60} radius={4} />
+      <PlaylistCover
+        materials={playlistMaterials(state, playlist.id)}
+        categories={state.categories}
+        size={60}
+        radius={4}
+      />
       <View style={styles.flex}>
         <Text style={type.bodyStrong} numberOfLines={1}>
           {playlist.name}
@@ -157,7 +162,13 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: color.bg },
   flex: { flex: 1, minWidth: 0 },
   list: { paddingBottom: space.huge, maxWidth: 760, width: '100%', alignSelf: 'center' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: GUTTER, paddingTop: space.md, gap: space.sm },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: GUTTER,
+    paddingTop: space.md,
+    gap: space.sm,
+  },
   stats: {
     flexDirection: 'row',
     marginHorizontal: GUTTER,
@@ -168,7 +179,13 @@ const styles = StyleSheet.create({
   },
   stat: { flex: 1, alignItems: 'center', gap: 2 },
   chips: { paddingHorizontal: GUTTER, paddingVertical: space.lg, gap: space.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: GUTTER, paddingVertical: space.sm },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingHorizontal: GUTTER,
+    paddingVertical: space.sm,
+  },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   newTile: {
     width: 60,

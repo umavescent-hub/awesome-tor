@@ -21,7 +21,19 @@ import type { Material } from '@/domain/types';
 import { useRecommendations } from '@/hooks';
 import { search } from '@/search';
 import { playlistMaterials, playlistStats, progressOf, useLibrary } from '@/store';
-import { GUTTER, alpha, color, formatMinutes, formatPercent, haptic, materialByline, mix, radius, space, type } from '@/theme';
+import {
+  GUTTER,
+  alpha,
+  color,
+  formatMinutes,
+  formatPercent,
+  haptic,
+  materialByline,
+  mix,
+  radius,
+  space,
+  type,
+} from '@/theme';
 
 type SheetKind = 'add' | 'edit' | 'delete' | null;
 
@@ -50,7 +62,12 @@ export default function PlaylistScreen() {
   if (!playlist) {
     return (
       <View style={styles.fill}>
-        <EmptyState icon="albums-outline" title="Playlist not found" actionLabel="Go to library" onAction={() => router.replace('/library')} />
+        <EmptyState
+          icon="albums-outline"
+          title="Playlist not found"
+          actionLabel="Go to library"
+          onAction={() => router.replace('/library')}
+        />
       </View>
     );
   }
@@ -99,7 +116,12 @@ export default function PlaylistScreen() {
             actions.updatePlaylist(id, { pinned: !playlist.pinned });
           }}
         />
-        <IconButton icon="add-circle-outline" label="Add materials" tint={color.textMuted} onPress={() => setSheet('add')} />
+        <IconButton
+          icon="add-circle-outline"
+          label="Add materials"
+          tint={color.textMuted}
+          onPress={() => setSheet('add')}
+        />
         <IconButton
           icon={editing ? 'checkmark-done' : 'swap-vertical'}
           label={editing ? 'Done reordering' : 'Reorder'}
@@ -168,7 +190,13 @@ export default function PlaylistScreen() {
             trailing={
               editing ? (
                 <View style={styles.reorder}>
-                  <IconButton icon="chevron-up" label={`Move ${item.title} up`} size={18} disabled={index === 0} onPress={() => actions.movePlaylistItem(id, index, index - 1)} />
+                  <IconButton
+                    icon="chevron-up"
+                    label={`Move ${item.title} up`}
+                    size={18}
+                    disabled={index === 0}
+                    onPress={() => actions.movePlaylistItem(id, index, index - 1)}
+                  />
                   <IconButton
                     icon="chevron-down"
                     label={`Move ${item.title} down`}
@@ -176,7 +204,13 @@ export default function PlaylistScreen() {
                     disabled={index === items.length - 1}
                     onPress={() => actions.movePlaylistItem(id, index, index + 1)}
                   />
-                  <IconButton icon="remove-circle-outline" label={`Remove ${item.title} from playlist`} size={18} tint={color.danger} onPress={() => actions.removeFromPlaylist(id, item.id)} />
+                  <IconButton
+                    icon="remove-circle-outline"
+                    label={`Remove ${item.title} from playlist`}
+                    size={18}
+                    tint={color.danger}
+                    onPress={() => actions.removeFromPlaylist(id, item.id)}
+                  />
                 </View>
               ) : undefined
             }

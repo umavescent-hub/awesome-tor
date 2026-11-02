@@ -36,18 +36,21 @@ function chunks(raw: string): Chunk[] {
 
 type YearRange = { from?: number; to?: number };
 
-/** 2011 | 2005..2015 | 2005.. | ..2015 | >2010 | >=2010 | <2000 | <=2000 (bounds inclusive). */
+/**
+ * 2011 | 2005..2015 | 2005.. | ..2015 | >2010 | >=2010 | <2000 | <=2000 (bounds inclusive).
+ * Years are four digits, so a half-typed `year:20` is ignored rather than filtering to year 20.
+ */
 function parseYears(value: string): YearRange | undefined {
-  const exact = /^(\d{1,4})$/.exec(value);
+  const exact = /^(\d{4})$/.exec(value);
   if (exact) return { from: Number(exact[1]), to: Number(exact[1]) };
-  const range = /^(\d{1,4})?\.\.(\d{1,4})?$/.exec(value);
+  const range = /^(\d{4})?\.\.(\d{4})?$/.exec(value);
   if (range && (range[1] || range[2])) {
     const from = range[1] ? Number(range[1]) : undefined;
     const to = range[2] ? Number(range[2]) : undefined;
     const reversed = from !== undefined && to !== undefined && from > to;
     return reversed ? { from: to, to: from } : { from, to };
   }
-  const comparison = /^([<>]=?)(\d{1,4})$/.exec(value);
+  const comparison = /^([<>]=?)(\d{4})$/.exec(value);
   if (!comparison) return undefined;
   const [, operator, digits] = comparison;
   const year = Number(digits);
@@ -139,11 +142,7 @@ function partialOf(word: string, raw: string): QueryPlan['partial'] {
 }
 
 /** Adds one chunk to the query; returns the partial word when the chunk is free text. */
-function addChunk(
-  builder: QueryBuilder,
-  { word, quoted }: Chunk,
-  raw: string,
-): QueryPlan['partial'] {
+function addChunk(builder: QueryBuilder, { word, quoted }: Chunk, raw: string): QueryPlan['partial'] {
   const operator = OPERATOR.exec(word);
   if (quoted !== undefined) {
     if (word === '-') {

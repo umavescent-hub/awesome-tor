@@ -177,10 +177,7 @@ describe('search — term matching', () => {
   });
 
   it('breaks score ties by title', () => {
-    const twins = buildSearchIndex([
-      material('z', { title: 'Beta Koji' }),
-      material('y', { title: 'Alpha Koji' }),
-    ]);
+    const twins = buildSearchIndex([material('z', { title: 'Beta Koji' }), material('y', { title: 'Alpha Koji' })]);
 
     expect(ids(search(twins, 'koji'))).toEqual(['y', 'z']);
   });
@@ -222,8 +219,7 @@ describe('search — operators', () => {
     const studies = buildSearchIndex([
       material('davies', { title: 'Bread', authors: ['Ruth Davies'], tags: ['case studies'] }),
     ]);
-    const typing = (word: string): string[] =>
-      Array.from({ length: word.length - 1 }, (_, i) => word.slice(0, i + 2));
+    const typing = (word: string): string[] => Array.from({ length: word.length - 1 }, (_, i) => word.slice(0, i + 2));
 
     for (const partial of typing('studies')) {
       expect(ids(search(studies, `tag:${partial}`)), partial).toEqual(['davies']);

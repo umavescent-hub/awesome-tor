@@ -13,7 +13,12 @@ interface Options {
 }
 
 /** Memoised engine call; recomputes when the library or the clock changes. */
-export function useRecommendations({ limit = 10, playlistId, categoryId, includeReviews = true }: Options = {}): Recommendation[] {
+export function useRecommendations({
+  limit = 10,
+  playlistId,
+  categoryId,
+  includeReviews = true,
+}: Options = {}): Recommendation[] {
   const { state } = useLibrary();
   const now = useNow();
   return useMemo(

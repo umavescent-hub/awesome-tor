@@ -17,7 +17,11 @@ function expectNoOp(state: LibraryState, action: Action): void {
 
 const base = () =>
   library({
-    materials: [material('m1'), material('m2', { prerequisites: ['m1'] }), material('m3', { prerequisites: ['m1', 'm2'] })],
+    materials: [
+      material('m1'),
+      material('m2', { prerequisites: ['m1'] }),
+      material('m3', { prerequisites: ['m1', 'm2'] }),
+    ],
     playlists: [playlist('p1', ['m1', 'm2']), playlist('p2', ['m3'])],
   });
 
@@ -161,9 +165,19 @@ describe('progress/set', () => {
       rating: 5,
       sessions: 4,
     });
-    const next = reduce({ ...base(), progress: { m1: done } }, { type: 'progress/set', id: 'm1', percent: 0.5, at: T0 });
+    const next = reduce(
+      { ...base(), progress: { m1: done } },
+      { type: 'progress/set', id: 'm1', percent: 0.5, at: T0 },
+    );
     expect(next.progress.m1).toEqual(
-      progress('m1', { status: 'in_progress', percent: 0.5, startedAt: at(-600), rating: 5, sessions: 4, lastOpenedAt: T0 }),
+      progress('m1', {
+        status: 'in_progress',
+        percent: 0.5,
+        startedAt: at(-600),
+        rating: 5,
+        sessions: 4,
+        lastOpenedAt: T0,
+      }),
     );
   });
 
@@ -224,7 +238,10 @@ describe('progress/skip', () => {
 
   it('is a no-op for an unknown material or one already skipped', () => {
     expectNoOp(base(), { type: 'progress/skip', id: 'nope', at: T0 });
-    expectNoOp({ ...base(), progress: { m1: progress('m1', { status: 'skipped' }) } }, { type: 'progress/skip', id: 'm1', at: T0 });
+    expectNoOp(
+      { ...base(), progress: { m1: progress('m1', { status: 'skipped' }) } },
+      { type: 'progress/skip', id: 'm1', at: T0 },
+    );
   });
 
   it('leaves completed work completed, so a later start cannot revive its review card', () => {
@@ -304,7 +321,10 @@ describe('progress/rate', () => {
 
   it('is a no-op for an unknown material or an unchanged rating', () => {
     expectNoOp(base(), { type: 'progress/rate', id: 'nope', rating: 3 });
-    expectNoOp({ ...base(), progress: { m1: progress('m1', { rating: 3 }) } }, { type: 'progress/rate', id: 'm1', rating: 3 });
+    expectNoOp(
+      { ...base(), progress: { m1: progress('m1', { rating: 3 }) } },
+      { type: 'progress/rate', id: 'm1', rating: 3 },
+    );
   });
 });
 
@@ -343,7 +363,9 @@ describe('playlist/update', () => {
       patch: { name: 'Renamed', pinned: true },
       at: at(5),
     });
-    expect(next.playlists.p1).toEqual(playlist('p1', ['m1', 'm2'], { name: 'Renamed', pinned: true, updatedAt: at(5) }));
+    expect(next.playlists.p1).toEqual(
+      playlist('p1', ['m1', 'm2'], { name: 'Renamed', pinned: true, updatedAt: at(5) }),
+    );
   });
 
   it('is a no-op for an unknown id', () => {
@@ -402,7 +424,13 @@ describe('playlist/move', () => {
   });
 
   it('is a no-op when out of range, not an integer, from === to, or the playlist is unknown', () => {
-    for (const [from, to] of [[0, 3], [-1, 0], [0, -1], [0.5, 1], [1, 1]] as const) {
+    for (const [from, to] of [
+      [0, 3],
+      [-1, 0],
+      [0, -1],
+      [0.5, 1],
+      [1, 1],
+    ] as const) {
       expectNoOp(withThree(), { type: 'playlist/move', id: 'p1', from, to, at: T0 });
     }
     expectNoOp(withThree(), { type: 'playlist/move', id: 'nope', from: 0, to: 1, at: T0 });
@@ -427,7 +455,9 @@ describe('settings/update', () => {
     expect(reduce(base(), { type: 'settings/update', patch: { displayName: '  Ana  ' } }).settings.displayName).toBe(
       'Ana',
     );
-    expect(reduce(base(), { type: 'settings/update', patch: { displayName: '   ' } }).settings.displayName).toBe('Chef');
+    expect(reduce(base(), { type: 'settings/update', patch: { displayName: '   ' } }).settings.displayName).toBe(
+      'Chef',
+    );
   });
 
   it('clamps and rounds dailyMinutes, ignoring NaN', () => {

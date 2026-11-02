@@ -12,13 +12,7 @@ import type { Material, SearchField } from '@/domain/types';
 import type { SearchIndex } from './types';
 
 /** Field order used for every per-field array in the index. */
-export const FIELDS = [
-  'title',
-  'tags',
-  'authors',
-  'venue',
-  'abstract',
-] as const satisfies readonly SearchField[];
+export const FIELDS = ['title', 'tags', 'authors', 'venue', 'abstract'] as const satisfies readonly SearchField[];
 export const FIELD_COUNT = FIELDS.length;
 
 const BOOST: Readonly<Record<SearchField, number>> = {
@@ -75,9 +69,7 @@ export function asBuiltIndex(index: SearchIndex): BuiltIndex {
 }
 
 const stems = (words: readonly string[]): string[] => words.map(stem);
-const stemsAndWords = (words: readonly string[]): string[] => [
-  ...new Set([...stems(words), ...words]),
-];
+const stemsAndWords = (words: readonly string[]): string[] => [...new Set([...stems(words), ...words])];
 
 /** The document record plus its content words per field, in FIELDS order. */
 function prepare(material: Material): { doc: IndexedDoc; fields: readonly (readonly string[])[] } {

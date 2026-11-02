@@ -179,7 +179,9 @@ function mergeSettings(settings: Settings, patch: Partial<Settings>): Settings {
     ...settings,
     ...patch,
     dailyMinutes:
-      dailyMinutes === undefined || Number.isNaN(dailyMinutes) ? settings.dailyMinutes : clampDailyMinutes(dailyMinutes),
+      dailyMinutes === undefined || Number.isNaN(dailyMinutes)
+        ? settings.dailyMinutes
+        : clampDailyMinutes(dailyMinutes),
     displayName: displayName?.trim() || settings.displayName,
   };
 }

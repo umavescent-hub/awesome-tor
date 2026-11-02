@@ -74,7 +74,12 @@ export default function HomeScreen() {
               accessibilityLabel={`Playlist ${p.name}`}
               style={styles.quickTile}
             >
-              <PlaylistCover materials={playlistMaterials(state, p.id)} categories={state.categories} size={52} radius={0} />
+              <PlaylistCover
+                materials={playlistMaterials(state, p.id)}
+                categories={state.categories}
+                size={52}
+                radius={0}
+              />
               <Text style={[type.captionStrong, styles.quickLabel]} numberOfLines={2}>
                 {p.name}
               </Text>

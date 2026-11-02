@@ -18,10 +18,7 @@ export function withinEditDistance(a: string, b: string, max: number): boolean {
         (previous[j - 1] ?? Infinity) + substitution,
       );
       const transposed =
-        i > 1 &&
-        j > 1 &&
-        a.charCodeAt(i - 1) === b.charCodeAt(j - 2) &&
-        a.charCodeAt(i - 2) === b.charCodeAt(j - 1);
+        i > 1 && j > 1 && a.charCodeAt(i - 1) === b.charCodeAt(j - 2) && a.charCodeAt(i - 2) === b.charCodeAt(j - 1);
       if (transposed) distance = Math.min(distance, (beforePrevious[j - 2] ?? Infinity) + 1);
       current.push(distance);
       rowMin = Math.min(rowMin, distance);

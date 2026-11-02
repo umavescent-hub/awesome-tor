@@ -11,7 +11,13 @@ const AT = NOW.toISOString();
 
 function recorder() {
   const actions: Action[] = [];
-  return { actions, api: createLibraryActions((action) => actions.push(action), () => NOW) };
+  return {
+    actions,
+    api: createLibraryActions(
+      (action) => actions.push(action),
+      () => NOW,
+    ),
+  };
 }
 
 describe('createLibraryActions', () => {
@@ -87,9 +93,12 @@ describe('createLibraryActions', () => {
 
   it('round-trips through the reducer', () => {
     let state = library({ materials: [material('m1')] });
-    const api = createLibraryActions((action) => {
-      state = libraryReducer(state, action);
-    }, () => NOW);
+    const api = createLibraryActions(
+      (action) => {
+        state = libraryReducer(state, action);
+      },
+      () => NOW,
+    );
     const playlistId = api.createPlaylist({ name: 'Corn', materialIds: ['m1'] });
     api.start('m1');
     expect(state.playlists[playlistId]?.materialIds).toEqual(['m1']);

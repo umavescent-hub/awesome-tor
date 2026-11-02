@@ -59,8 +59,7 @@ function buildCorpus(materials: Record<ID, Material>, categories: Record<ID, Cat
     }
   }
   // Smoothed IDF: always positive, so terms shared by every document still count a little.
-  const idf = (term: string): number =>
-    Math.log((1 + ids.length) / (1 + (documentFrequency.get(term) ?? 0))) + 1;
+  const idf = (term: string): number => Math.log((1 + ids.length) / (1 + (documentFrequency.get(term) ?? 0))) + 1;
   const vectors = new Map<ID, SparseVector>();
   for (const [id, termCounts] of counts) {
     const weighted = new Map<string, number>();
@@ -73,10 +72,7 @@ function buildCorpus(materials: Record<ID, Material>, categories: Record<ID, Cat
 const cache = new WeakMap<Record<ID, Material>, WeakMap<Record<ID, Category>, Corpus>>();
 
 /** Corpus for a library, memoised on the (immutable) materials and categories records. */
-export function corpusFor(
-  materials: Record<ID, Material>,
-  categories: Record<ID, Category>,
-): Corpus {
+export function corpusFor(materials: Record<ID, Material>, categories: Record<ID, Category>): Corpus {
   let byCategories = cache.get(materials);
   if (byCategories === undefined) {
     byCategories = new WeakMap();
@@ -107,9 +103,12 @@ export function norm(vector: SparseVector): number {
   return Math.sqrt(sum);
 }
 
-/** Cosine similarity; 0 when either vector is empty. */
-export function cosine(a: SparseVector, b: SparseVector): number {
-  const lengths = norm(a) * norm(b);
+/**
+ * Cosine similarity; 0 when either vector is empty. Pass `normA` when `a` is compared with many
+ * vectors: its length is then computed once instead of on every call.
+ */
+export function cosine(a: SparseVector, b: SparseVector, normA: number = norm(a)): number {
+  const lengths = normA * norm(b);
   return lengths === 0 ? 0 : dot(a, b) / lengths;
 }
 

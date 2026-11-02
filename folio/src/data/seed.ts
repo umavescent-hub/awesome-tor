@@ -25,7 +25,8 @@ const PLAYLISTS: readonly PlaylistSeed[] = [
   {
     id: 'p_road_to_the_fourth_star',
     name: 'Road to the Fourth Star',
-    description: 'From knife work and seasoning to the frontier of modern cuisine and hospitality, in the order to build it.',
+    description:
+      'From knife work and seasoning to the frontier of modern cuisine and hospitality, in the order to build it.',
     pinned: true,
     createdDaysAgo: 110,
     updatedDaysAgo: 2,
@@ -50,7 +51,8 @@ const PLAYLISTS: readonly PlaylistSeed[] = [
   {
     id: 'p_pueblo_foodways',
     name: 'Pueblo Foodways & Food Sovereignty',
-    description: 'Beginning at home with the Tewa world, then outward to Native agriculture, seeds and the movement to restore Indigenous food systems.',
+    description:
+      'Beginning at home with the Tewa world, then outward to Native agriculture, seeds and the movement to restore Indigenous food systems.',
     pinned: true,
     createdDaysAgo: 35,
     updatedDaysAgo: 1,

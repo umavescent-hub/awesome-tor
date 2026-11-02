@@ -3,16 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { LibraryState, Recommendation } from '@/domain/types';
 
 import { recommend } from './index';
-import {
-  category,
-  daysAgo,
-  fermentationLibrary,
-  library,
-  material,
-  NOW,
-  playlist,
-  progress,
-} from './testing';
+import { category, daysAgo, fermentationLibrary, library, material, NOW, playlist, progress } from './testing';
 
 const ids = (recommendations: Recommendation[]): string[] =>
   recommendations.map((recommendation) => recommendation.materialId);
@@ -74,14 +65,12 @@ describe('recommend — study lane', () => {
   });
 
   it('says a material was unlocked when its last prerequisite was finished recently', () => {
-    const recent = recommend(
-      fermentationLibrary([progress('intro', 'completed', { completedAt: daysAgo(3) })]),
-      { now: NOW },
-    );
-    const old = recommend(
-      fermentationLibrary([progress('intro', 'completed', { completedAt: daysAgo(30) })]),
-      { now: NOW },
-    );
+    const recent = recommend(fermentationLibrary([progress('intro', 'completed', { completedAt: daysAgo(3) })]), {
+      now: NOW,
+    });
+    const old = recommend(fermentationLibrary([progress('intro', 'completed', { completedAt: daysAgo(30) })]), {
+      now: NOW,
+    });
 
     expect(reasonOf(find(recent, 'lacto'), 'unlocked')?.text).toBe(
       'Unlocked — you finished “Introduction to Fermentation”',
@@ -137,10 +126,7 @@ describe('recommend — study lane', () => {
 
     expect(total).toBeCloseTo(1, 10);
     const [a, b] = result;
-    expect(a && b && a.confidence / b.confidence).toBeCloseTo(
-      Math.exp(((a?.score ?? 0) - (b?.score ?? 0)) / 0.15),
-      10,
-    );
+    expect(a && b && a.confidence / b.confidence).toBeCloseTo(Math.exp(((a?.score ?? 0) - (b?.score ?? 0)) / 0.15), 10);
   });
 
   it('does not inflate confidence when the list is cut short', () => {
@@ -192,27 +178,17 @@ describe('recommend — diversity', () => {
   });
 
   it('keeps pure relevance order at diversity 1', () => {
-    expect(ids(recommend(state, { now: NOW, diversity: 1 }))).toEqual([
-      'f1',
-      'f2',
-      'f3',
-      'stars',
-      'blocked',
-    ]);
+    expect(ids(recommend(state, { now: NOW, diversity: 1 }))).toEqual(['f1', 'f2', 'f3', 'stars', 'blocked']);
   });
 
   it('pushes a different-topic item up by default and says why', () => {
     const result = recommend(state, { now: NOW });
 
     expect(ids(result).slice(0, 2)).toEqual(['f1', 'stars']);
-    expect(reasonOf(find(result, 'stars'), 'fresh')?.text).toBe(
-      'Something different from your recent reading',
-    );
+    expect(reasonOf(find(result, 'stars'), 'fresh')?.text).toBe('Something different from your recent reading');
     expect(reasonOf(find(result, 'f2'), 'fresh')).toBeUndefined();
     // Order changes, scores do not: they stay the base score.
-    expect(find(result, 'stars')?.score).toBe(
-      find(recommend(state, { now: NOW, diversity: 1 }), 'stars')?.score,
-    );
+    expect(find(result, 'stars')?.score).toBe(find(recommend(state, { now: NOW, diversity: 1 }), 'stars')?.score);
   });
 
   it('treats a NaN diversity as the default instead of inverting the ranking', () => {
@@ -278,6 +254,41 @@ describe('recommend — affinity reason', () => {
 
     expect(affinity?.text ?? '').not.toContain('lactic');
   });
+
+  it('shows real words, never internal stems', () => {
+    const state = library({
+      materials: [
+        material('done', { title: 'Gastrophysics Primer', tags: [], abstract: 'Gastrophysics and plating.' }),
+        material('next', { title: 'Applied Gastrophysics', tags: [], abstract: 'More gastrophysics for chefs.' }),
+      ],
+      progress: [progress('done', 'completed', { completedAt: daysAgo(1), rating: 5 })],
+    });
+    const affinity = reasonOf(find(recommend(state, { now: NOW }), 'next'), 'affinity');
+
+    expect(affinity?.text).toContain('gastrophysics');
+    expect(affinity?.text).not.toMatch(/gastrophysic(?!s)/);
+  });
+});
+
+describe('recommend — ratings', () => {
+  const rated = (rating: 1 | 5): LibraryState =>
+    library({
+      materials: [
+        material('done', { title: 'Koji Basics', tags: ['koji'], abstract: 'Growing koji on rice.' }),
+        material('koji', { title: 'Advanced Koji', tags: ['koji'], abstract: 'Koji on grains and legumes.' }),
+        material('other', { title: 'Wine Service', tags: ['wine'], abstract: 'Pouring and decanting wine.' }),
+      ],
+      progress: [progress('done', 'completed', { completedAt: daysAgo(1), rating })],
+    });
+
+  it('lifts work similar to something you rated highly', () => {
+    expect(find(recommend(rated(5), { now: NOW }), 'koji')?.breakdown.affinity).toBeGreaterThan(0);
+  });
+
+  it('never lifts work similar to something you rated one star', () => {
+    expect(find(recommend(rated(1), { now: NOW }), 'koji')?.breakdown.affinity).toBe(0);
+    expect(reasonOf(find(recommend(rated(1), { now: NOW }), 'koji'), 'affinity')).toBeUndefined();
+  });
 });
 
 describe('recommend — review lane', () => {
@@ -323,9 +334,7 @@ describe('recommend — review lane', () => {
   });
 
   it('can be turned off and respects the category filter', () => {
-    expect(recommend(reviewState(), { now: NOW, includeReviews: false }).some((r) => r.lane === 'review')).toBe(
-      false,
-    );
+    expect(recommend(reviewState(), { now: NOW, includeReviews: false }).some((r) => r.lane === 'review')).toBe(false);
     expect(recommend(reviewState(), { now: NOW, categoryId: 'astro' })).toEqual([]);
   });
 

@@ -27,7 +27,13 @@ interface Props {
 export function ReasonList({ reasons, max = 3, tint = color.accent }: Props) {
   if (reasons.length === 0) return null;
   return (
-    <View style={styles.list} accessibilityLabel={`Why: ${reasons.slice(0, max).map((r) => r.text).join('. ')}`}>
+    <View
+      style={styles.list}
+      accessibilityLabel={`Why: ${reasons
+        .slice(0, max)
+        .map((r) => r.text)
+        .join('. ')}`}
+    >
       {reasons.slice(0, max).map((r) => (
         <View key={r.code} style={styles.item}>
           <Icon name={REASON_ICON[r.code]} size={15} color={tint} />

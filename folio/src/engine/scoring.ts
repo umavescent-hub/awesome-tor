@@ -48,14 +48,12 @@ export function contribution(breakdown: ScoreBreakdown, component: WeightedCompo
 }
 
 export function baseScore(breakdown: ScoreBreakdown): number {
-  return WEIGHTED_COMPONENTS.reduce(
-    (sum, component) => sum + contribution(breakdown, component),
-    breakdown.blocked,
-  );
+  return WEIGHTED_COMPONENTS.reduce((sum, component) => sum + contribution(breakdown, component), breakdown.blocked);
 }
 
-export function affinity(profile: SparseVector, candidate: SparseVector): number {
-  return Math.max(0, cosine(profile, candidate));
+/** `profileNorm` is the profile's precomputed length, when known. */
+export function affinity(profile: SparseVector, candidate: SparseVector, profileNorm?: number): number {
+  return Math.max(0, cosine(profile, candidate, profileNorm));
 }
 
 export function readiness(prerequisites: PrerequisiteStatus): number {

@@ -47,6 +47,9 @@ describe('parseQuery', () => {
     ['year:<=2000', { yearTo: 2000 }],
     ['year:2000..2020 year:>2010', { yearFrom: 2011, yearTo: 2020 }],
     ['year:soon', {}],
+    ['year:20', {}],
+    ['year:201', {}],
+    ['year:>20', {}],
   ])('parses %s', (raw, years) => {
     expect(parseQuery(raw)).toEqual({ ...empty, ...years });
   });

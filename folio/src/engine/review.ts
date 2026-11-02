@@ -37,18 +37,11 @@ function gradeAdjusted(interval: number, grade: ReviewGrade): number {
   return interval;
 }
 
-export function scheduleReview(
-  card: ReviewCard | undefined,
-  grade: ReviewGrade,
-  now: Date,
-): ReviewCard {
+export function scheduleReview(card: ReviewCard | undefined, grade: ReviewGrade, now: Date): ReviewCard {
   const current = card ?? initialReviewCard(now);
   const ease = nextEase(current.ease, grade);
   const reps = grade === 'again' ? 0 : current.reps + 1;
-  const intervalDays =
-    grade === 'again'
-      ? 1
-      : gradeAdjusted(successInterval(reps, current.intervalDays, ease), grade);
+  const intervalDays = grade === 'again' ? 1 : gradeAdjusted(successInterval(reps, current.intervalDays, ease), grade);
   return {
     ease,
     intervalDays,

@@ -38,7 +38,13 @@ export function NowStudyingBar() {
         <View style={styles.play}>
           <Icon name="play" size={22} color={color.text} />
         </View>
-        <ProgressBar value={progress.percent} height={2} tint={color.text} track={alpha('#FFFFFF', 0.18)} style={styles.progress} />
+        <ProgressBar
+          value={progress.percent}
+          height={2}
+          tint={color.text}
+          track={alpha('#FFFFFF', 0.18)}
+          style={styles.progress}
+        />
       </Touchable>
     </View>
   );
