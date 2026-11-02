@@ -32,10 +32,11 @@ export function similarMaterials(
   return Object.values(state.materials)
     .filter((material) => material.id !== materialId)
     .map((material) => {
-      const sharedAuthors = new Set(material.authors.map(authorKey).filter((a) => targetAuthors.has(a)));
+      const authors = new Set(material.authors.map(authorKey));
+      const sharedAuthors = [...authors].filter((author) => targetAuthors.has(author));
       const bonus =
         (material.categoryId === target.categoryId ? SAME_CATEGORY_BONUS : 0) +
-        Math.min(MAX_AUTHOR_BONUS, sharedAuthors.size * SHARED_AUTHOR_BONUS);
+        Math.min(MAX_AUTHOR_BONUS, sharedAuthors.length * SHARED_AUTHOR_BONUS);
       const similarity = dot(targetVector, vectorOf(corpus, material.id)) + bonus;
       return { materialId: material.id, similarity: Math.min(1, similarity) };
     })

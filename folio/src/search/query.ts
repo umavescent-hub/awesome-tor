@@ -36,7 +36,7 @@ function chunks(raw: string): Chunk[] {
 
 type YearRange = { from?: number; to?: number };
 
-/** year:2011 | year:2005..2015 | year:..2015 | year:>2010 | year:>=2010 | year:<2000 | year:<=2000 */
+/** 2011 | 2005..2015 | 2005.. | ..2015 | >2010 | >=2010 | <2000 | <=2000 (bounds inclusive). */
 function parseYears(value: string): YearRange | undefined {
   const exact = /^(\d{1,4})$/.exec(value);
   if (exact) return { from: Number(exact[1]), to: Number(exact[1]) };
@@ -44,7 +44,8 @@ function parseYears(value: string): YearRange | undefined {
   if (range && (range[1] || range[2])) {
     const from = range[1] ? Number(range[1]) : undefined;
     const to = range[2] ? Number(range[2]) : undefined;
-    return from !== undefined && to !== undefined && from > to ? { from: to, to: from } : { from, to };
+    const reversed = from !== undefined && to !== undefined && from > to;
+    return reversed ? { from: to, to: from } : { from, to };
   }
   const comparison = /^([<>]=?)(\d{1,4})$/.exec(value);
   if (!comparison) return undefined;
@@ -83,7 +84,7 @@ class QueryBuilder {
     this.excluded.push(...analyze(text));
   }
 
-  /** Applies a known operator and returns true; an unknown one is left alone (false) to be read as text. */
+  /** Applies a known operator (true); an unknown one is left alone (false) to be read as text. */
   tryOperator(name: string, value: string): boolean {
     switch (name.toLowerCase()) {
       case 'author':
@@ -138,7 +139,11 @@ function partialOf(word: string, raw: string): QueryPlan['partial'] {
 }
 
 /** Adds one chunk to the query; returns the partial word when the chunk is free text. */
-function addChunk(builder: QueryBuilder, { word, quoted }: Chunk, raw: string): QueryPlan['partial'] {
+function addChunk(
+  builder: QueryBuilder,
+  { word, quoted }: Chunk,
+  raw: string,
+): QueryPlan['partial'] {
   const operator = OPERATOR.exec(word);
   if (quoted !== undefined) {
     if (word === '-') {

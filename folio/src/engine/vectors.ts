@@ -15,7 +15,14 @@ export interface Corpus {
 const EMPTY_VECTOR: SparseVector = new Map();
 
 /** How many times each field's tokens count towards term frequency. */
-const FIELD_WEIGHTS = { title: 2, tags: 2, category: 1, authors: 1, venue: 1, abstract: 1 } as const;
+const FIELD_WEIGHTS = {
+  title: 2,
+  tags: 2,
+  category: 1,
+  authors: 1,
+  venue: 1,
+  abstract: 1,
+} as const;
 
 function weightedTermCounts(material: Material, categoryName: string): Map<string, number> {
   const counts = new Map<string, number>();
@@ -66,7 +73,10 @@ function buildCorpus(materials: Record<ID, Material>, categories: Record<ID, Cat
 const cache = new WeakMap<Record<ID, Material>, WeakMap<Record<ID, Category>, Corpus>>();
 
 /** Corpus for a library, memoised on the (immutable) materials and categories records. */
-export function corpusFor(materials: Record<ID, Material>, categories: Record<ID, Category>): Corpus {
+export function corpusFor(
+  materials: Record<ID, Material>,
+  categories: Record<ID, Category>,
+): Corpus {
   let byCategories = cache.get(materials);
   if (byCategories === undefined) {
     byCategories = new WeakMap();

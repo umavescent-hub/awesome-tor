@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Stack } from 'expo-router/stack';
 import { useMemo } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 
@@ -7,7 +8,7 @@ import { EmptyState, Icon, MaterialRow } from '@/components';
 import type { Material } from '@/domain/types';
 import { useRecommendations } from '@/hooks';
 import { materialsInCategory, progressOf, useLibrary } from '@/store';
-import { GUTTER, alpha, color, space, type } from '@/theme';
+import { GUTTER, alpha, color, mix, space, type } from '@/theme';
 
 /** A category in recommended order: your next steps first, finished work after. */
 export default function CategoryScreen() {
@@ -32,6 +33,7 @@ export default function CategoryScreen() {
 
   return (
     <View style={styles.fill}>
+      <Stack.Screen options={{ headerStyle: { backgroundColor: mix(category.color, color.bg, 0.55) } }} />
       <FlatList
         data={ordered}
         keyExtractor={(m) => m.id}

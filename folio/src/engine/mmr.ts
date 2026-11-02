@@ -24,7 +24,8 @@ export function normalizeToUnit(values: readonly number[]): number[] {
 }
 
 /**
- * Greedy Maximal Marginal Relevance: repeatedly pick argmax λ·relevance − (1−λ)·maxSim(picked).
+ * Greedy Maximal Marginal Relevance: repeatedly pick the item maximising
+ *   λ·relevance − (1−λ)·maxSim(item, already picked).
  * Exact objective ties go to the smaller id, so the order is fully deterministic.
  */
 export function mmrRerank<T extends MmrItem>(

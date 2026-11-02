@@ -68,7 +68,9 @@ export function documentFilter(
 
   if (isSet(kinds)) predicates.push(({ material }) => kinds.includes(material.kind));
   if (isSet(query.kinds)) predicates.push(({ material }) => query.kinds.includes(material.kind));
-  if (isSet(categoryIds)) predicates.push(({ material }) => categoryIds.includes(material.categoryId));
+  if (isSet(categoryIds)) {
+    predicates.push(({ material }) => categoryIds.includes(material.categoryId));
+  }
   if (isSet(statuses)) {
     predicates.push(({ material }) =>
       statuses.includes(opts.progress?.[material.id]?.status ?? 'queued'),
@@ -85,11 +87,17 @@ export function documentFilter(
   for (const phrase of query.phrases) {
     const sequence = phrase.split(' ');
     predicates.push(
-      (doc) => containsSequence(doc.titleTokens, sequence) || containsSequence(doc.abstractTokens, sequence),
+      (doc) =>
+        containsSequence(doc.titleTokens, sequence) ||
+        containsSequence(doc.abstractTokens, sequence),
     );
   }
-  for (const author of query.authors) predicates.push((doc) => anyEntryMatches(doc.authorTokens, author));
-  for (const tag of query.tags) predicates.push((doc) => anyEntryMatches(doc.tagTokens, tag));
+  for (const author of query.authors) {
+    predicates.push((doc) => anyEntryMatches(doc.authorTokens, author));
+  }
+  for (const tag of query.tags) {
+    predicates.push((doc) => anyEntryMatches(doc.tagTokens, tag));
+  }
 
   return (docIndex) => {
     const doc = index.docs[docIndex];

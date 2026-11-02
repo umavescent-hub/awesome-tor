@@ -152,7 +152,10 @@ function scoreCandidate(context: StudyContext, material: Material): Candidate {
     readiness: score.readiness(prerequisites),
     momentum: score.momentum(progress, now),
     foundation: score.foundation(dependentCount, context.unfinished.size),
-    effortFit: score.effortFit(score.remainingMinutes(material, progress), state.settings.dailyMinutes),
+    effortFit: score.effortFit(
+      score.remainingMinutes(material, progress),
+      state.settings.dailyMinutes,
+    ),
     stretch: score.stretch(material.difficulty, context.recentLevel),
     sequence: score.sequence(playlistRank),
     blocked: score.blockedPenalty(prerequisites),
@@ -252,7 +255,9 @@ function reviewLane(
 
 /* ──────────────────────────────── Assembly ──────────────────────────────── */
 
-const byRecommendationRank = byScoreThenId((recommendation: Recommendation) => recommendation.materialId);
+const byRecommendationRank = byScoreThenId(
+  (recommendation: Recommendation) => recommendation.materialId,
+);
 
 /** Merge two lanes by score, preserving each lane's own order (merge sort's merge step). */
 function mergeLanes(
@@ -291,7 +296,7 @@ export function recommend(state: LibraryState, opts: RecommendOptions): Recommen
   const limit = Math.max(0, Math.floor(opts.limit ?? DEFAULT_LIMIT));
   if (limit === 0) return [];
   const inScope = scopeFilter(state, opts);
-  // Due reviews get reserved slots (up to a third of the list) so study items cannot crowd them out.
+  // Due reviews get reserved slots (up to a third of the list): study items cannot crowd them out.
   const reviews =
     (opts.includeReviews ?? true)
       ? reviewLane(state, inScope, opts.now).slice(0, Math.ceil(limit / 3))

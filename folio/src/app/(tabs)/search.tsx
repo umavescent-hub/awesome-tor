@@ -146,7 +146,7 @@ export default function SearchScreen() {
                 accessibilityLabel={`Category ${c.name}`}
                 style={[styles.tile, { backgroundColor: shade(c.color, 0.25) }]}
               >
-                <Text style={[type.heading, styles.tileText]} numberOfLines={2}>
+                <Text style={[type.bodyStrong, styles.tileText]} numberOfLines={2}>
                   {c.name}
                 </Text>
                 <View style={[styles.tileIcon, { backgroundColor: alpha('#000000', 0.18) }]}>
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     padding: space.md,
     overflow: 'hidden',
   },
-  tileText: { width: '70%' },
+  tileText: { paddingRight: space.xxl },
   tileIcon: {
     position: 'absolute',
     right: -6,

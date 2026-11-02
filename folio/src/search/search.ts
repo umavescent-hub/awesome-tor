@@ -3,7 +3,7 @@
  * each scored per document with BM25F. Free terms take the best of their exact, prefix and
  * typo expansions; the document score is Σ clause scores × coverage².
  */
-import { compareText, endsMidWord, tokenize } from '@/domain/text';
+import { compareText } from '@/domain/text';
 import type { Material, SearchField, SearchHit } from '@/domain/types';
 
 import {
@@ -18,13 +18,12 @@ import {
   type IndexedDoc,
   type Posting,
 } from './build';
-import { byDocumentFrequency, createExpander, type Expander, type Expansion, termsWithPrefix } from './expand';
+import { createExpander, type Expander, type Expansion } from './expand';
 import { documentFilter, hasConstraints } from './filters';
 import { planQuery, type QueryPlan } from './query';
 import type { ParsedQuery, SearchIndex, SearchOptions } from './types';
 
 const DEFAULT_LIMIT = 50;
-const DEFAULT_SUGGESTIONS = 5;
 
 /** One index term matched inside a document. */
 interface TermMatch {
@@ -110,9 +109,11 @@ function summedMatches(perToken: readonly Map<number, ClauseMatch>[]): Map<numbe
 }
 
 function clausesFor(index: BuiltIndex, { query, partial }: QueryPlan, expand: Expander): Clause[] {
+  const prefixFor = (term: string): string | undefined =>
+    partial?.term === term ? partial.prefix : undefined;
   const freeTerms = query.terms.map((term) => ({
     queryTerm: term,
-    matches: bestMatches(index, expand(term, { prefix: partial?.term === term ? partial.prefix : undefined })),
+    matches: bestMatches(index, expand(term, { prefix: prefixFor(term) })),
   }));
   const phrases = query.phrases.map((phrase) => ({
     matches: summedMatches(
@@ -120,18 +121,24 @@ function clausesFor(index: BuiltIndex, { query, partial }: QueryPlan, expand: Ex
     ),
   }));
   // Operator values match their own field only, exactly or as a prefix.
-  const fieldValues = (values: readonly string[], field: SearchField): Clause[] =>
-    values.map((value) => ({
-      field: fieldIndex(field),
+  const fieldValues = (values: readonly string[], fieldName: SearchField): Clause[] => {
+    const field = fieldIndex(fieldName);
+    return values.map((value) => ({
+      field,
       matches: summedMatches(
-        value
-          .split(' ')
-          .map((token) =>
-            bestMatches(index, expand(token, { prefix: token, typos: false }), fieldIndex(field)),
-          ),
+        value.split(' ').map((token) => {
+          const expansions = expand(token, { prefix: token, typos: false });
+          return bestMatches(index, expansions, field);
+        }),
       ),
     }));
-  return [...freeTerms, ...phrases, ...fieldValues(query.authors, 'authors'), ...fieldValues(query.tags, 'tags')];
+  };
+  return [
+    ...freeTerms,
+    ...phrases,
+    ...fieldValues(query.authors, 'authors'),
+    ...fieldValues(query.tags, 'tags'),
+  ];
 }
 
 /* ──────────────────────────────── Hits ───────────────────────────────── */
@@ -146,7 +153,8 @@ function matchedFields(index: BuiltIndex, clauses: readonly Clause[], doc: numbe
       const total = boostedTf(posting, position, clause.field);
       for (let field = 0; field < FIELD_COUNT; field += 1) {
         if (clause.field !== undefined && clause.field !== field) continue;
-        contributions[field] = (contributions[field] ?? 0) + (score * fieldTf(posting, position, field)) / total;
+        const share = fieldTf(posting, position, field) / total;
+        contributions[field] = (contributions[field] ?? 0) + score * share;
       }
     }
   }
@@ -201,14 +209,21 @@ function browse(
   accept: (doc: number) => boolean,
   limit: number,
 ): SearchHit[] {
-  const operatorFields = FIELDS.filter(
-    (field) => (field === 'tags' && query.tags.length > 0) || (field === 'authors' && query.authors.length > 0),
-  );
+  const operatorValues: Partial<Record<SearchField, readonly string[]>> = {
+    tags: query.tags,
+    authors: query.authors,
+  };
+  const operatorFields = FIELDS.filter((field) => (operatorValues[field]?.length ?? 0) > 0);
   return index.docs
     .filter((_, doc) => accept(doc))
     .sort((a, b) => b.material.year - a.material.year || byTitleThenId(a, b))
     .slice(0, limit)
-    .map((doc) => ({ materialId: doc.material.id, score: 0, matchedFields: [...operatorFields], fuzzyTerms: [] }));
+    .map((doc) => ({
+      materialId: doc.material.id,
+      score: 0,
+      matchedFields: [...operatorFields],
+      fuzzyTerms: [],
+    }));
 }
 
 /**
@@ -225,13 +240,4 @@ export function search(index: SearchIndex, query: string, opts: SearchOptions = 
     return hasConstraints(plan.query, opts.filters) ? browse(built, plan.query, accept, limit) : [];
   }
   return rank(built, plan, accept, limit);
-}
-
-/** Autocomplete: vocabulary terms starting with the last partial word, most frequent first. */
-export function suggestTerms(index: SearchIndex, partial: string, limit: number = DEFAULT_SUGGESTIONS): string[] {
-  const built = asBuiltIndex(index);
-  const word = endsMidWord(partial) ? tokenize(partial).at(-1) : undefined;
-  if (word === undefined) return [];
-  const completions = termsWithPrefix(built, word).filter((term) => term !== word);
-  return byDocumentFrequency(built, completions).slice(0, Math.max(0, limit));
 }

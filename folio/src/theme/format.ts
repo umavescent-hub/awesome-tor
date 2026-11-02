@@ -91,6 +91,16 @@ export function alpha(hex: string, a: number): string {
   return `rgba(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255}, ${a})`;
 }
 
+/** Solid colour equal to `hex` at opacity `a` painted over `base` — lets headers meet gradients seamlessly. */
+export function mix(hex: string, base: string, a: number): string {
+  const parse = (h: string) => Number.parseInt(h.replace('#', ''), 16);
+  const fg = parse(hex);
+  const bg = parse(base);
+  if (Number.isNaN(fg) || Number.isNaN(bg)) return base;
+  const ch = (shift: number) => Math.round(((fg >> shift) & 255) * a + ((bg >> shift) & 255) * (1 - a));
+  return `#${((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)}`;
+}
+
 /** Stable 32-bit FNV-1a hash — drives deterministic cover art. */
 export function hash(input: string): number {
   let h = 0x811c9dc5;

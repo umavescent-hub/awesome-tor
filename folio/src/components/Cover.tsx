@@ -1,4 +1,4 @@
-import { memo, type ReactElement } from 'react';
+import { memo, useId, type ReactElement } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
@@ -25,7 +25,9 @@ const SHADOW = 'rgba(0,0,0,0.22)';
 export const Cover = memo(function Cover({ material, category, size, radius = 6 }: Props) {
   const base = category?.color ?? palette.accent;
   const seed = hash(material.id);
-  const gradientId = `g-${material.id}`;
+  // Unique per instance: on web, a duplicate id inside a hidden (navigated-away) screen
+  // makes url(#id) resolve to an unpainted gradient.
+  const gradientId = `cover${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const showGlyph = size >= 64;
 
   return (

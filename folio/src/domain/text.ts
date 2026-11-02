@@ -65,11 +65,14 @@ export function stem(token: string): string {
   return token;
 }
 
+/** Words that carry meaning: tokenized, stopwords dropped, not yet stemmed. */
+export function contentWords(text: string): string[] {
+  return tokenize(text).filter((token) => !isStopword(token));
+}
+
 /** Index/query terms: tokenize, drop stopwords, stem. */
 export function analyze(text: string): string[] {
-  return tokenize(text)
-    .filter((token) => !isStopword(token))
-    .map(stem);
+  return contentWords(text).map(stem);
 }
 
 /** Code-point order, independent of device locale, for deterministic tie-breaks. */

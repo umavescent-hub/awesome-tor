@@ -25,9 +25,9 @@ describe('parseQuery', () => {
   });
 
   it('accepts quoted operator values and excluded phrases', () => {
-    expect(parseQuery('author:"Thomas Keller" -"sous vide"')).toEqual({
+    expect(parseQuery('author:"Ferran Adrià" -"sous vide"')).toEqual({
       ...empty,
-      authors: ['thomas keller'],
+      authors: ['ferran adria'],
       excluded: ['sous', 'vide'],
     });
   });

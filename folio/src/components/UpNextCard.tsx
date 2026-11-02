@@ -44,8 +44,7 @@ export function UpNextCard({ recommendation, material, category, progress, eyebr
             {materialByline(material)}
           </Text>
           <Text style={type.caption}>
-            {formatMinutes(remaining)} {progress.status === 'in_progress' ? 'left' : ''}
-            {category ? ` · ${category.name}` : ''}
+            {[`${formatMinutes(remaining)}${progress.status === 'in_progress' ? ' left' : ''}`, category?.name].filter(Boolean).join(' · ')}
           </Text>
         </View>
       </Touchable>

@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Stack } from 'expo-router/stack';
 import { useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -20,7 +21,7 @@ import type { Material } from '@/domain/types';
 import { useRecommendations } from '@/hooks';
 import { search } from '@/search';
 import { playlistMaterials, playlistStats, progressOf, useLibrary } from '@/store';
-import { GUTTER, alpha, color, formatMinutes, formatPercent, haptic, materialByline, radius, space, type } from '@/theme';
+import { GUTTER, alpha, color, formatMinutes, formatPercent, haptic, materialByline, mix, radius, space, type } from '@/theme';
 
 type SheetKind = 'add' | 'edit' | 'delete' | null;
 
@@ -142,6 +143,7 @@ export default function PlaylistScreen() {
 
   return (
     <View style={styles.fill}>
+      <Stack.Screen options={{ headerStyle: { backgroundColor: mix(tint, color.bg, 0.45) } }} />
       <FlatList
         data={items}
         keyExtractor={(m) => m.id}

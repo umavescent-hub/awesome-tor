@@ -51,7 +51,7 @@ export function dependentsIndex(materials: Record<ID, Material>): ReadonlyMap<ID
   return index;
 }
 
-/** Every material that depends on `materialId` directly or through a chain (cycle-safe, excludes itself). */
+/** Materials depending on `materialId` directly or through a chain; cycle-safe, never itself. */
 export function transitiveDependents(
   index: ReadonlyMap<ID, readonly ID[]>,
   materialId: ID,

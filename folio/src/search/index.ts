@@ -4,4 +4,5 @@
  */
 export type { ParsedQuery, SearchIndex, SearchOptions } from './types';
 export { parseQuery } from './query';
-export { buildSearchIndex, search, suggestTerms } from './search';
+export { buildSearchIndex, search } from './search';
+export { suggestTerms } from './suggest';

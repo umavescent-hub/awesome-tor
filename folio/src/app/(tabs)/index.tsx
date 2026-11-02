@@ -31,7 +31,9 @@ export default function HomeScreen() {
   const recs = useRecommendations({ limit: 8 });
   const stats = libraryStats(state, now);
   const continuing = inProgress(state);
-  const quick = sortedPlaylists(state).slice(0, 6);
+  // An even count keeps the two-column quick grid tidy.
+  const playlists = sortedPlaylists(state).slice(0, 6);
+  const quick = playlists.length > 1 ? playlists.slice(0, playlists.length - (playlists.length % 2)) : playlists;
   const [skipped, setSkipped] = useState<ID | null>(null);
 
   useEffect(() => {

@@ -2,7 +2,7 @@
  * Query-term expansion: which indexed terms a query term may match, and how strongly.
  * Strength order is exact > prefix > typo; a vocabulary term keeps only its strongest kind.
  */
-import { compareText } from '@/domain/text';
+import { compareText, stem } from '@/domain/text';
 
 import type { BuiltIndex } from './build';
 import { withinEditDistance } from './distance';
@@ -31,34 +31,39 @@ export function typoBudget(length: number): number {
   return length >= 4 ? 1 : 0;
 }
 
-function documentFrequency(index: BuiltIndex, term: string): number {
+export function documentFrequency(index: BuiltIndex, term: string): number {
   return index.postings.get(term)?.docs.length ?? 0;
 }
 
 /** Most documents first, then alphabetical. */
-export function byDocumentFrequency(index: BuiltIndex, terms: readonly string[]): string[] {
+function byDocumentFrequency(index: BuiltIndex, terms: Iterable<string>): string[] {
   return [...terms].sort(
     (a, b) => documentFrequency(index, b) - documentFrequency(index, a) || compareText(a, b),
   );
 }
 
-/** All vocabulary terms starting with `prefix`, via binary search on the sorted vocabulary. */
-export function termsWithPrefix(index: BuiltIndex, prefix: string): string[] {
-  const { vocabulary } = index;
+/** Indexed (unstemmed) words starting with `prefix`, via binary search on the sorted list. */
+export function wordsWithPrefix(index: BuiltIndex, prefix: string): string[] {
+  const { words } = index;
   let low = 0;
-  let high = vocabulary.length;
+  let high = words.length;
   while (low < high) {
     const middle = (low + high) >>> 1;
-    if ((vocabulary[middle] ?? '') < prefix) low = middle + 1;
+    if ((words[middle] ?? '') < prefix) low = middle + 1;
     else high = middle;
   }
   const matches: string[] = [];
-  for (let i = low; i < vocabulary.length; i += 1) {
-    const term = vocabulary[i];
-    if (term === undefined || !term.startsWith(prefix)) break;
-    matches.push(term);
+  for (let i = low; i < words.length; i += 1) {
+    const word = words[i];
+    if (word === undefined || !word.startsWith(prefix)) break;
+    matches.push(word);
   }
   return matches;
+}
+
+/** Stemmed terms of the words starting with `prefix`. */
+function termsWithPrefix(index: BuiltIndex, prefix: string): Set<string> {
+  return new Set(wordsWithPrefix(index, prefix).map(stem));
 }
 
 function termsWithinTypos(index: BuiltIndex, term: string): string[] {
@@ -80,7 +85,11 @@ export interface ExpandOptions {
   typos?: boolean;
 }
 
-function expand(index: BuiltIndex, term: string, { prefix, typos = true }: ExpandOptions): Expansion[] {
+function expand(
+  index: BuiltIndex,
+  term: string,
+  { prefix, typos = true }: ExpandOptions,
+): Expansion[] {
   const expansions = new Map<string, Expansion>();
   // Offered strongest kind first, so the first offer for a vocabulary term wins.
   const offer = (candidate: string, kind: MatchKind): void => {

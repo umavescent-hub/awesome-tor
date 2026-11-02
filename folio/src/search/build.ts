@@ -1,14 +1,24 @@
 /**
  * Inverted index for BM25F. Term frequencies are length-normalised per field at build time,
  * so a query only has to apply field boosts, IDF and the k1 saturation.
+ *
+ * Postings are keyed by stemmed terms. The unstemmed words are kept as well: prefix matching
+ * scans them (typing "studie" should reach "study") and suggestions show them ("thomas",
+ * never the stem "thoma").
  */
-import { analyze, normalize } from '@/domain/text';
+import { contentWords, normalize, stem } from '@/domain/text';
 import type { Material, SearchField } from '@/domain/types';
 
 import type { SearchIndex } from './types';
 
 /** Field order used for every per-field array in the index. */
-export const FIELDS = ['title', 'tags', 'authors', 'venue', 'abstract'] as const satisfies readonly SearchField[];
+export const FIELDS = [
+  'title',
+  'tags',
+  'authors',
+  'venue',
+  'abstract',
+] as const satisfies readonly SearchField[];
 export const FIELD_COUNT = FIELDS.length;
 
 const BOOST: Readonly<Record<SearchField, number>> = {
@@ -27,10 +37,10 @@ export interface IndexedDoc {
   readonly material: Material;
   /** Normalised title, for locale-independent tie-breaks. */
   readonly sortTitle: string;
-  /** Analysed tokens in reading order, for phrase matching. */
+  /** Stemmed terms in reading order, for phrase matching. */
   readonly titleTokens: readonly string[];
   readonly abstractTokens: readonly string[];
-  /** Analysed tokens per author and per tag, for the author: and tag: operators. */
+  /** Stemmed terms per author and per tag, for the author: and tag: operators. */
   readonly authorTokens: readonly (readonly string[])[];
   readonly tagTokens: readonly (readonly string[])[];
 }
@@ -45,11 +55,14 @@ export interface Posting {
 
 export interface BuiltIndex extends SearchIndex {
   readonly docs: readonly IndexedDoc[];
+  /** Stemmed term → posting list. */
   readonly postings: ReadonlyMap<string, Posting>;
-  /** Every indexed term in code-point order, for prefix range scans. */
-  readonly vocabulary: readonly string[];
-  /** Terms grouped by length, so typo lookup only visits plausible candidates. */
+  /** Stemmed terms grouped by length, so typo lookup only visits plausible candidates. */
   readonly termsByLength: ReadonlyMap<number, readonly string[]>;
+  /** Every distinct unstemmed word, in code-point order, for prefix range scans. */
+  readonly words: readonly string[];
+  /** Occurrences of each unstemmed word, to show the most familiar spelling of a term. */
+  readonly wordFrequency: ReadonlyMap<string, number>;
 }
 
 export function asBuiltIndex(index: SearchIndex): BuiltIndex {
@@ -57,26 +70,25 @@ export function asBuiltIndex(index: SearchIndex): BuiltIndex {
   return index as BuiltIndex;
 }
 
-function indexDoc(material: Material): IndexedDoc {
-  return {
-    material,
-    sortTitle: normalize(material.title),
-    titleTokens: analyze(material.title),
-    abstractTokens: analyze(material.abstract),
-    authorTokens: material.authors.map(analyze),
-    tagTokens: material.tags.map(analyze),
-  };
-}
+const stems = (words: readonly string[]): string[] => words.map(stem);
 
-/** Tokens of each field, in FIELDS order. */
-function fieldTokens(doc: IndexedDoc): readonly (readonly string[])[] {
-  return [
-    doc.titleTokens,
-    doc.tagTokens.flat(),
-    doc.authorTokens.flat(),
-    analyze(doc.material.venue ?? ''),
-    doc.abstractTokens,
-  ];
+/** The document record plus its content words per field, in FIELDS order. */
+function prepare(material: Material): { doc: IndexedDoc; fields: readonly (readonly string[])[] } {
+  const title = contentWords(material.title);
+  const abstract = contentWords(material.abstract);
+  const authors = material.authors.map(contentWords);
+  const tags = material.tags.map(contentWords);
+  return {
+    doc: {
+      material,
+      sortTitle: normalize(material.title),
+      titleTokens: stems(title),
+      abstractTokens: stems(abstract),
+      authorTokens: authors.map(stems),
+      tagTokens: tags.map(stems),
+    },
+    fields: [title, tags.flat(), authors.flat(), contentWords(material.venue ?? ''), abstract],
+  };
 }
 
 /** Robertson-Spärck Jones IDF with the +1 that keeps it positive for very common terms. */
@@ -84,22 +96,29 @@ function idf(documentCount: number, documentFrequency: number): number {
   return Math.log(1 + (documentCount - documentFrequency + 0.5) / (documentFrequency + 0.5));
 }
 
-export function buildIndex(materials: readonly Material[]): BuiltIndex {
-  const docs = materials.map(indexDoc);
-  const tokensByDoc = docs.map(fieldTokens);
-  const averageLength = FIELDS.map((_, field) => {
-    const total = tokensByDoc.reduce((sum, fields) => sum + (fields[field]?.length ?? 0), 0);
-    return docs.length === 0 ? 0 : total / docs.length;
+function averageFieldLengths(fieldsByDoc: readonly (readonly (readonly string[])[])[]): number[] {
+  return FIELDS.map((_, field) => {
+    const total = fieldsByDoc.reduce((sum, fields) => sum + (fields[field]?.length ?? 0), 0);
+    return fieldsByDoc.length === 0 ? 0 : total / fieldsByDoc.length;
   });
+}
 
+export function buildIndex(materials: readonly Material[]): BuiltIndex {
+  const prepared = materials.map(prepare);
+  const fieldsByDoc = prepared.map((entry) => entry.fields);
+  const averageLength = averageFieldLengths(fieldsByDoc);
+  const wordFrequency = new Map<string, number>();
   const growing = new Map<string, { docs: number[]; normalizedTf: number[] }>();
-  tokensByDoc.forEach((fields, doc) => {
+
+  fieldsByDoc.forEach((fields, doc) => {
     const counts = new Map<string, number[]>();
-    fields.forEach((tokens, field) => {
-      for (const token of tokens) {
-        const perField = counts.get(token) ?? new Array<number>(FIELD_COUNT).fill(0);
+    fields.forEach((words, field) => {
+      for (const word of words) {
+        wordFrequency.set(word, (wordFrequency.get(word) ?? 0) + 1);
+        const term = stem(word);
+        const perField = counts.get(term) ?? new Array<number>(FIELD_COUNT).fill(0);
         perField[field] = (perField[field] ?? 0) + 1;
-        counts.set(token, perField);
+        counts.set(term, perField);
       }
     });
     for (const [term, perField] of counts) {
@@ -118,16 +137,17 @@ export function buildIndex(materials: readonly Material[]): BuiltIndex {
   const postings = new Map<string, Posting>();
   const termsByLength = new Map<number, string[]>();
   for (const [term, posting] of growing) {
-    postings.set(term, { ...posting, idf: idf(docs.length, posting.docs.length) });
+    postings.set(term, { ...posting, idf: idf(prepared.length, posting.docs.length) });
     const bucket = termsByLength.get(term.length);
     if (bucket) bucket.push(term);
     else termsByLength.set(term.length, [term]);
   }
   return {
-    size: docs.length,
-    docs,
+    size: prepared.length,
+    docs: prepared.map((entry) => entry.doc),
     postings,
-    vocabulary: [...postings.keys()].sort(),
     termsByLength,
+    words: [...wordFrequency.keys()].sort(),
+    wordFrequency,
   };
 }

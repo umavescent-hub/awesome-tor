@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Stack } from 'expo-router/stack';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -31,6 +32,7 @@ import {
   formatMinutes,
   formatPercent,
   haptic,
+  mix,
   radius,
   space,
   type,
@@ -91,6 +93,7 @@ export default function MaterialScreen() {
 
   return (
     <View style={styles.fill}>
+      <Stack.Screen options={{ headerStyle: { backgroundColor: mix(tint, color.bg, 0.5) } }} />
       <ScrollView contentContainerStyle={styles.content}>
         <LinearGradient colors={[alpha(tint, 0.5), color.bg]} style={styles.backdrop} pointerEvents="none" />
 
