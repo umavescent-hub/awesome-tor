@@ -61,7 +61,8 @@ legend { padding: 0; }
 .wrap--narrow { max-width: calc(42rem + 2 * var(--gutter)); }
 .section { padding-block: var(--section); }
 .section-head { max-width: 46rem; margin: 0 auto 2.5rem; text-align: center; }
-.section-head h2 { font-size: clamp(2rem, 1.6rem + 1.8vw, 3rem); }
+/* Big headings never outgrow a narrow screen at large text sizes (no words split, no sideways scroll). */
+.section-head h2 { font-size: min(clamp(2rem, 1.6rem + 1.8vw, 3rem), 10.5vw); }
 .section-head p { margin-top: 0.75rem; color: var(--muted); font-size: 1.125rem; }
 
 /* ---------------------------------------------------------------- buttons & links */
@@ -76,7 +77,7 @@ legend { padding: 0; }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn--primary { background: var(--black); color: var(--cream); }
 .btn--outline { background: transparent; color: var(--black); border-color: var(--black); }
-.btn--lg { min-height: var(--tap-lg); padding-inline: 1.5rem; font-size: 1.125rem; }
+.btn--lg { min-height: var(--tap-lg); padding-inline: min(1.5rem, 4vw); font-size: 1.125rem; }
 .btn--small { padding-inline: 1rem; }
 .btn--block { width: 100%; }
 .btn--text {
@@ -119,7 +120,7 @@ legend { padding: 0; }
   max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto; padding-block: 0.5rem;
   padding-inline: max(var(--gutter), env(safe-area-inset-left)) max(var(--gutter), env(safe-area-inset-right));
 }
-.brand { display: inline-flex; align-items: center; gap: 0.75rem; min-height: var(--tap); text-decoration: none; }
+.brand { display: inline-flex; align-items: center; justify-content: center; gap: 0.75rem; min-width: var(--tap); min-height: var(--tap); text-decoration: none; }
 .brand__mark { width: 2.5rem; height: 2.5rem; border-radius: 0.5rem; box-shadow: 0 0 0 2px var(--black); }
 .brand__word {
   font: 800 1rem/1 var(--font-display); letter-spacing: var(--tracking-wordmark); text-transform: uppercase;
@@ -159,6 +160,10 @@ legend { padding: 0; }
 .hero__next .skeleton { padding: 0; }
 .hero__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
 .hero__actions .btn { flex: 1 1 16rem; }
+/* Phones: a smaller logo, so "Order food for pickup" is on the first screen even with larger text. */
+@media (max-width: 63.99em) {
+  .hero__logo { width: 3.5rem; border-radius: 0.75rem; box-shadow: 0 0 0 2px var(--black); }
+}
 @media (min-width: 64em) {
   .hero__inner { grid-template-columns: minmax(0, 1fr) minmax(0, 26rem); align-items: center; column-gap: 4rem; padding-block: 3rem 4.5rem; }
   .hero__logo { grid-column: 2; grid-row: 1; width: 100%; border-radius: 2rem; box-shadow: 0 0 0 4px var(--black); }
@@ -200,10 +205,10 @@ legend { padding: 0; }
 /* ---------------------------------------------------------------- catering */
 
 .catering__panel {
-  display: grid; gap: 2rem; padding: clamp(var(--pad), 4vw, 4rem);
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; padding: clamp(var(--pad), 4vw, 4rem);
   border-radius: var(--radius-lg); background: var(--adobe); color: var(--black);
 }
-.catering__intro h2 { font-size: clamp(2rem, 1.6rem + 1.8vw, 3rem); }
+.catering__intro h2 { font-size: min(clamp(2rem, 1.6rem + 1.8vw, 3rem), 10.5vw); }
 .catering__blurb { margin-top: 1rem; max-width: 40rem; font-size: 1.125rem; font-weight: 600; }
 .catering__points { display: grid; margin-top: 1.5rem; border-top: 2px solid var(--black); }
 .catering__points li { display: grid; padding-block: 0.75rem; border-bottom: 1px solid rgb(10 8 6 / 0.3); font-weight: 600; }
@@ -223,7 +228,7 @@ legend { padding: 0; }
 .field { display: grid; gap: 0.375rem; align-content: start; min-width: 0; }
 .field__label { font-weight: 800; }
 .field__label .optional { font-weight: 500; color: var(--muted); }
-.field__hint { color: var(--muted); font-size: var(--fs-help); line-height: 1.45; }
+.field__hint { color: var(--muted); font-size: var(--fs-help); line-height: 1.5; }
 .field__hint[hidden] { display: none; }
 .field__foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 0.75rem; }
 .field__count { margin-left: auto; color: var(--muted); font-size: var(--fs-tiny); font-variant-numeric: tabular-nums; }
@@ -250,7 +255,8 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 /* Big buttons on real radio inputs: the chosen one is filled black and carries a check mark. */
 .choices { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .choices--times { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(8.5rem, 100%), 1fr)); }
-.choices--tips { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(6.5rem, 100%), 1fr)); }
+/* Tips: two columns (a 2×2 block for four choices); one column when large text leaves no room for two. */
+.choices--tips { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr)); }
 .choice { position: relative; display: block; }
 .choice__input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .choice__box {
@@ -289,12 +295,20 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
   display: inline-flex; align-items: center; gap: 0.375rem; min-height: var(--tap); margin-left: -0.25rem; padding-inline: 0.25rem 0.75rem;
   font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.25em;
 }
-.event-title { margin-top: 0.75rem; font-size: clamp(2rem, 1.5rem + 2.4vw, 3.25rem); }
+.event-title { margin-top: 0.75rem; font-size: min(clamp(2rem, 1.5rem + 2.4vw, 3.25rem), 10.5vw); }
 .facts { display: grid; gap: 1rem; margin-top: 1.25rem; }
 .facts dt { color: var(--muted); font-weight: 700; font-size: var(--fs-help); }
 .facts dd { font-weight: 700; font-size: 1.125rem; }
 .facts dd .muted { display: block; font-weight: 500; font-size: var(--fs-help); }
 @media (min-width: 45em) { .facts { grid-template-columns: repeat(3, minmax(0, max-content)); column-gap: 3rem; } }
+/* Phones: date and times side by side when the text size leaves room, so the menu starts sooner.
+   The "Menu" heading stays for screen readers; the category headings already label the list. */
+@media (max-width: 44.99em) {
+  .facts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: 0.75rem 1rem; }
+  .facts > div:last-child { grid-column: 1 / -1; }
+  .event-menu { margin-top: 1.5rem; }
+  .event-menu__title { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 .event-note { max-width: 42rem; margin-top: 1.25rem; font-size: 1.125rem; }
 .event-howto { max-width: 42rem; margin-top: 1.25rem; padding: 0.875rem var(--pad); border-radius: var(--radius); background: var(--cream-200); font-weight: 700; }
 
@@ -318,7 +332,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .dish__price { font-weight: 700; font-size: 1.125rem; }
 .dish__desc { max-width: 40rem; color: var(--muted); font-size: var(--fs-help); line-height: 1.55; }
 .marks { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.25rem; }
-.mark { padding: 0.125rem 0.5rem; border: 1px solid var(--line-strong); border-radius: 0.375rem; font-size: var(--fs-tiny); font-weight: 700; }
+.mark { padding: 0.125rem 0.5rem; border: 1px solid var(--line-strong); border-radius: 0.375rem; font-size: var(--fs-help); font-weight: 700; }
 .dish__note { color: var(--adobe-700); font-weight: 800; font-size: var(--fs-help); }
 .dish--soldout .dish__name, .dish--soldout .dish__price { color: var(--muted); }
 .dish__soldout { display: inline-flex; align-items: center; min-height: var(--tap); font-weight: 800; color: var(--muted); }
@@ -332,6 +346,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 @media (hover: hover) { .btn--add:hover { background: var(--black); color: var(--cream); } }
 .amount { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
 .amount__note { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--kelly-700); font-weight: 800; font-size: var(--fs-help); }
+.amount .btn--text { padding-inline: 0; }     /* lines up with the stepper above it */
 @media (min-width: 40em) { .amount { flex-direction: column; align-items: flex-end; } }
 
 /* Big amount buttons: − amount + */
@@ -350,17 +365,22 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .panel-slot { display: none; }
 @media (min-width: 64em) {
   .panel-slot {
-    display: block; position: sticky; top: 1rem; max-height: calc(100svh - 2rem); overflow-y: auto; overscroll-behavior: contain;
-    padding: 1.5rem 1.5rem 0; border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong);
+    display: flex; flex-direction: column; position: sticky; top: 1rem; max-height: calc(100svh - 2rem); overflow: hidden;
+    border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong);
   }
+  /* The steps scroll; Pay, its amount and what is still missing stay in view below them. */
+  .panel-slot .order-form { display: flex; flex-direction: column; min-height: 0; }
+  .panel-slot .order-form__steps { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1.5rem 1.5rem 0; }
+  .panel-slot .pay { flex: none; margin-top: 0; padding: 1rem 1.5rem 1.5rem; box-shadow: 0 -1px 0 var(--line-strong); }
+  .panel-slot .totals { padding-bottom: 1.5rem; }
 }
-.order-form { display: grid; }
-.order-form > .error-summary { margin-top: 1rem; }
+.order-form, .order-form__steps { display: grid; }
+.order-form__steps > .error-summary { margin-top: 1rem; }
 .order-form__title { font-size: 1.75rem; }
 .demo-flag { margin-top: 0.75rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: var(--adobe-100); font-weight: 700; font-size: var(--fs-help); }
 .action-status {
   display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
-  background: var(--kelly-100); font-weight: 700; line-height: 1.4;
+  background: var(--kelly-100); font-weight: 700; line-height: 1.5;
 }
 .action-status .icon { margin-top: 0.1em; }
 .action-status[data-tone="info"] { background: var(--cream-200); }
@@ -375,12 +395,17 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 }
 .step__text { display: grid; gap: 0.125rem; min-width: 0; }
 .step__title { font-weight: 800; font-size: 1.25rem; line-height: 1.3; }
-.step__help { color: var(--muted); font-size: var(--fs-help); line-height: 1.45; }
+.step__help { color: var(--muted); font-size: var(--fs-help); line-height: 1.5; }
 .step .field__error { margin-top: 0.625rem; }
+/* A fieldset draws its <legend> on its top border. Floated, the legend sits inside like any other
+   heading: the divider above the step shows in full and no extra gap opens under the heading. */
+fieldset.step > legend, fieldset.tip > legend { float: left; width: 100%; }
+fieldset.step > legend ~ *, fieldset.tip > legend ~ * { clear: both; }
 
 .lines { display: grid; }
 .line { padding-block: 0.875rem; border-bottom: 1px solid var(--line); }
 .line:first-child { padding-top: 0; }
+.line:last-child { border-bottom: 0; }   /* the next step or the totals bring their own rule */
 .line__top { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-weight: 700; }
 .line__name { min-width: 0; overflow-wrap: anywhere; }
 .line__total { white-space: nowrap; }
@@ -419,9 +444,11 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
   background: var(--black); color: var(--cream); font: 600 var(--fs-body)/1.3 var(--font-body); text-align: center; cursor: pointer;
 }
 .order-bar .action-status { padding: 0.375rem 0.75rem; font-size: var(--fs-help); }
-/* With very large text on a short screen the bar keeps only its button; the dish row still shows
-   "In your order" where it was tapped, and screen readers still hear "Added: ...". */
-.order-bar.is-compact .action-status { display: none; }
+/* "Added: ..." takes one line, so the bar never hides the dish just added; the dish row says
+   "In your order" and screen readers hear the full sentence. Limit messages are shown in full. */
+.order-bar .action-status[data-tone="done"] > span { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* With large text on a short screen the bar keeps only its button (and any limit message). */
+.order-bar.is-compact .action-status[data-tone="done"] { display: none; }
 .order-bar__button strong { font-weight: 800; }
 @media (min-width: 64em) { .order-bar { display: none !important; } }
 
@@ -437,19 +464,23 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
   transform: translateY(1.5rem); opacity: 0; transition: transform 240ms var(--ease-out), opacity 240ms var(--ease);
 }
 .sheet.is-open .sheet__panel { transform: none; opacity: 1; }
+/* The fixed head holds only Close, so it stays small with large text; the title scrolls with the body. */
 .sheet__head {
-  flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem;
-  padding: 0.75rem var(--gutter); box-shadow: inset 0 -1px 0 var(--line);
+  flex: none; display: flex; justify-content: flex-end;
+  padding: 0.5rem var(--gutter); box-shadow: inset 0 -1px 0 var(--line);
 }
-.sheet__title { font: 800 1.375rem/1.2 var(--font-body); }
+.sheet .sheet__close { padding-inline: 0.75rem; }
+.sheet__title { padding-top: 1.25rem; font: 800 1.375rem/1.2 var(--font-body); }
 .sheet__body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--gutter) var(--safe-bottom); -webkit-overflow-scrolling: touch; }
 .sheet .order-form__title { display: none; }
+/* Step 1 lists the dishes, so a repeated "Added: ..." would only push it down. Limit messages stay. */
+.sheet .action-status--panel[data-tone="done"] { display: none; }
 
 /* ---------------------------------------------------------------- order status */
 
 .status-page { padding-block: 2rem var(--section); }
-.status-hero { display: grid; justify-items: center; gap: 1rem; text-align: center; }
-.status-hero h1 { font-size: clamp(2rem, 1.5rem + 2.4vw, 3rem); }
+.status-hero { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 1rem; text-align: center; }
+.status-hero h1 { font-size: min(clamp(2rem, 1.5rem + 2.4vw, 3rem), 10.5vw); }
 .status-when { max-width: 34rem; font-size: 1.25rem; font-weight: 600; line-height: 1.5; }
 .code-plate {
   container-type: inline-size; display: grid; justify-items: center; gap: 0.25rem; width: 100%; max-width: 30rem;
@@ -471,15 +502,15 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .status-details dd { font-weight: 700; }
 .status-details dd .muted { display: block; font-weight: 500; }
 .receipt { margin-top: 2.5rem; }
-.receipt h2 { margin-bottom: 1rem; font-size: 1.5rem; }
+.receipt h2 { margin-bottom: 1rem; font-size: min(1.5rem, 9vw); }
 .receipt__paid { margin-top: 1rem; color: var(--muted); font-size: var(--fs-help); }
 
 /* ---------------------------------------------------------------- demo payment */
 
-.demo-pay { display: grid; place-items: center; padding-block: 2rem var(--section); }
+.demo-pay { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding-block: 2rem var(--section); }
 .demo-card { width: 100%; max-width: 30rem; padding: clamp(var(--pad), 4vw, 2rem); border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .demo-card .demo-flag { margin: 0 0 1.25rem; }
-.demo-card h1 { font-size: 1.75rem; }
+.demo-card h1 { font-size: min(1.75rem, 9vw); }
 .demo-card__code { margin-top: 0.25rem; color: var(--muted); font-weight: 700; }
 .demo-card__amount { margin-top: 1rem; font: 800 2.5rem/1.1 var(--font-body); }
 .demo-card .lines { margin-top: 1rem; padding-top: 0.875rem; border-top: 1px solid var(--line); }

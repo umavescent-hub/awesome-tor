@@ -20,7 +20,7 @@ function buildForm(site, onDone) {
   const minDate = today();
   const name = field({ name: 'name', label: 'Your name', attrs: { autocomplete: 'name', autocapitalize: 'words', maxlength: 80, enterkeyhint: 'next' },
     validate: (v) => (clean(v) ? null : 'Enter your name.') });
-  const email = field({ name: 'email', label: 'Email', type: 'email', hint: 'We reply by email. For example: name@example.com',
+  const email = field({ name: 'email', label: 'Email', type: 'email', hint: ['We reply by email. For example: name', h('wbr'), '@example.com'],
     attrs: { autocomplete: 'email', inputmode: 'email', autocapitalize: 'off', spellcheck: 'false', maxlength: 254 },
     validate: emailError });
   const phone = field({ name: 'phone', label: 'Phone number', type: 'tel', optional: true, hint: 'For example: 505 555 0142',
@@ -76,7 +76,8 @@ function buildForm(site, onDone) {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const problems = [];
-    for (const f of [name, email, phone, date, guests, location]) {
+    // In the order the fields appear on the page, so the summary reads top to bottom.
+    for (const f of [name, email, phone, location, date, guests]) {
       const problem = f.check();
       if (problem) problems.push({ message: problem, target: f.input });
     }

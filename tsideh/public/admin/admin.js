@@ -804,7 +804,9 @@ function fact(label, value, wide = false) {
 function inquiryCard(inquiry) {
   const id = `inquiry-${inquiry.id}`;
   const selectId = `inquiry-status-${inquiry.id}`;
-  const validEmail = /^[^\s@<>]+@[^\s@<>]+$/.test(inquiry.email);
+  // Only a plain address becomes a mailto: link. Anything with ?, &, % or the like could add
+  // Bcc, subject or body headers to the kitchen's reply, so it is shown as text instead.
+  const validEmail = /^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(inquiry.email);
   return h('article', { class: ['inquiry', `is-${inquiry.status}`], 'aria-labelledby': id },
     h('header', { class: 'inquiry-head' },
       h('div', { class: 'inquiry-who' },

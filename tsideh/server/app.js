@@ -13,7 +13,7 @@ import { createOrders } from './orders.js';
 import { createPayments } from './payments.js';
 import { adminRoutes } from './routes/admin.js';
 import { publicRoutes } from './routes/public.js';
-import { clientInfo, createRateLimiter, HSTS, securityHeaders } from './security.js';
+import { clientInfo, createHoldLimiter, createRateLimiter, HSTS, rateKey, securityHeaders } from './security.js';
 import { createStaticHandler } from './static.js';
 import { createStripeClient } from './stripe.js';
 import { fixedClock, systemClock } from './time.js';
@@ -25,6 +25,8 @@ const RATE_LIMITS = {
   lookup: { limit: 60, windowMs: 60_000 },
   api: { limit: 120, windowMs: 60_000 },
 };
+// Unpaid holds one client may keep open at once (a customer normally has one).
+const OPEN_HOLDS_PER_CLIENT = 2;
 const HOUSEKEEPING_MS = 60_000;
 const NO_INDEX = /^\/(?:api\/)?admin(?:\/|$)/;
 
@@ -56,7 +58,9 @@ function createApp({
     : null;
   const payments = createPayments({ config, catalog, db, orders, stripe, notifier, log, clock: appClock });
 
-  const context = { config, catalog, clock: appClock, orders, catering, auth, payments, notifier };
+  const holds = createHoldLimiter({ limit: OPEN_HOLDS_PER_CLIENT, isOpen: (code) => orders.find(code)?.status === 'pending' });
+
+  const context = { config, catalog, clock: appClock, orders, catering, auth, payments, notifier, holds };
   const router = createRouter([...publicRoutes(context), ...adminRoutes(context)]);
   const limiters = Object.fromEntries(Object.entries(RATE_LIMITS).map(([name, rule]) => [name, createRateLimiter(rule)]));
   const serveStatic = createStaticHandler(publicDir);
@@ -65,7 +69,7 @@ function createApp({
   async function handleApi(req, res, url, client) {
     res.setHeader('Cache-Control', 'no-store');
     const match = router.match(req.method === 'HEAD' ? 'GET' : req.method, url.pathname);
-    const wait = limiters[match?.route?.limit ?? 'api'].take(client.ip, appClock.now());
+    const wait = limiters[match?.route?.limit ?? 'api'].take(rateKey(client.ip), appClock.now());
     if (wait) {
       throw new ApiError(429, 'rate_limited', 'Too many requests. Please wait a moment and try again.', { headers: { 'Retry-After': String(wait) } });
     }
@@ -123,6 +127,7 @@ function createApp({
       orders.expireLapsed(now);
       auth.prune(now);
       payments.prune(now);
+      holds.sweep(now);
       for (const limiter of Object.values(limiters)) limiter.sweep(now);
     } catch (error) {
       log.error(`housekeeping failed: ${error.stack ?? error}`);

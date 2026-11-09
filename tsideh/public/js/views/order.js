@@ -67,7 +67,9 @@ function confirmed(order, site) {
         h('p', { class: 'code-plate__code' }, order.code),
         h('p', { class: 'code-plate__hint' }, 'Show this code when you pick up your food.')),
       site?.payments?.mode === 'stripe' && order.status === 'paid'
-        ? h('p', { class: 'status-note' }, 'Stripe is emailing your receipt to the address you gave.')
+        ? h('p', { class: 'status-note' }, order.emailHint
+          ? `A receipt was sent to ${order.emailHint}.`
+          : 'Stripe is emailing your receipt to the address you gave.')
         : null,
       h('div', { class: 'status-actions' },
         order.status === 'picked_up' ? null

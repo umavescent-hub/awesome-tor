@@ -95,8 +95,11 @@ function testClock(start = T0) {
 
 let nextIp = 1;
 
-/** Starts the real server on an ephemeral port with fixture config and a temp data dir. */
-export async function startTestServer({ env = {}, content = fixtureContent(), publicDir } = {}) {
+/**
+ * Starts the real server on an ephemeral port with fixture config and a temp data dir. `fetch`
+ * stands in for Stripe and the alert webhook when a test needs to control them in-process.
+ */
+export async function startTestServer({ env = {}, content = fixtureContent(), publicDir, fetch: serviceFetch } = {}) {
   const dir = tempDir();
   const configDir = path.join(dir, 'config');
   writeConfig(configDir, content);
@@ -109,12 +112,12 @@ export async function startTestServer({ env = {}, content = fixtureContent(), pu
     publicDir: publicDir ?? path.join(dir, 'public'),
     clock,
     log,
+    fetch: serviceFetch,
   });
   const base = `http://127.0.0.1:${running.port}`;
 
   /** A distinct client (its own X-Forwarded-For address, so rate limits do not bleed between tests). */
-  function client() {
-    const ip = `198.51.100.${nextIp++ % 250}`;
+  function client(ip = `198.51.100.${nextIp++ % 250}`) {
     async function call(method, url, { body, headers = {}, raw = false } = {}) {
       const init = { method, headers: { 'X-Forwarded-For': ip, ...headers }, redirect: 'manual' };
       if (body !== undefined) {

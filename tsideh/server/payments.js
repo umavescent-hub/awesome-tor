@@ -16,7 +16,12 @@ const WEBHOOK_RETENTION_MS = 30 * 86_400_000;
 const TIP_LABEL = 'Tip for the crew';
 
 const idOf = (value) => (typeof value === 'string' ? value : isPlainObject(value) && typeof value.id === 'string' ? value.id : null);
-const redact = (text) => text.replace(/\b(sk|rk)_(live|test)_[A-Za-z0-9]+/g, '$1_$2_[redacted]');
+// Stripe's error text can quote the secret key or the customer's email ("Invalid email address: …").
+const redact = (text) => text
+  .replace(/\b(sk|rk)_(live|test)_[A-Za-z0-9]+/g, '$1_$2_[redacted]')
+  .replace(/[^\s@:]+@[^\s@]+\.[^\s@]+/g, '[email]');
+// Customers' order pages ask Stripe about an unpaid return at most this often.
+const CONFIRM_INTERVAL_MS = 5_000;
 const describe = (error) => redact([error.message, error.status && `status ${error.status}`, error.type, error.code].filter(Boolean).join(' · '));
 
 const alreadyPaid = () => new ApiError(409, 'already_paid', 'This order is already paid. Contact us if you need to change it.');
@@ -28,6 +33,7 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
     record: db.prepare('INSERT INTO webhook_events (id, type, received_at) VALUES (?, ?, ?)'),
     prune: db.prepare('DELETE FROM webhook_events WHERE received_at <= ?'),
   };
+  const lastConfirm = new Map();
 
   function announcePaid(order) {
     const title = catalog.events.get(order.eventId)?.title ?? order.eventSnapshot.title;
@@ -142,11 +148,15 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
 
     /**
      * Customer is back from Stripe with ?session_id=... but the webhook has not landed yet:
-     * ask Stripe directly and record the payment if it went through.
+     * ask Stripe directly (at most once every few seconds per order) and record the payment if it
+     * went through.
      */
     async confirmReturn(order, sessionId) {
       if (config.paymentsMode !== 'stripe' || !sessionId || sessionId !== order.stripeSessionId) return order;
       if (order.status !== 'pending' && order.status !== 'expired') return order;
+      const now = clock.now();
+      if (now - (lastConfirm.get(order.code) ?? -Infinity) < CONFIRM_INTERVAL_MS) return order;
+      lastConfirm.set(order.code, now);
       let session;
       try {
         session = await stripe.retrieveCheckoutSession(sessionId);
@@ -214,6 +224,7 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
 
     prune(now) {
       sql.prune.run(now - WEBHOOK_RETENTION_MS);
+      for (const [code, at] of lastConfirm) if (now - at >= CONFIRM_INTERVAL_MS) lastConfirm.delete(code);
     },
   };
 }

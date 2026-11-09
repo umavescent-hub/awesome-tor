@@ -166,7 +166,7 @@ describe('checkout and payment (demo)', () => {
     const c = server.client();
     assert.equal((await checkout(c, { slot: '11:45' })).status, 200);
     assert.equal((await checkout(c, { slot: '11:45' })).status, 200);
-    const third = await checkout(c, { slot: '11:45' });
+    const third = await checkout(server.client(), { slot: '11:45' });
     assert.equal(third.status, 409);
     assert.equal(third.body.error.code, 'slot_unavailable');
     const { body } = await c.get('/api/events/winter');
@@ -182,13 +182,14 @@ describe('checkout and payment (demo)', () => {
 
   test('pending holds expire after holdMinutes and release capacity', async () => {
     const c = server.client();
+    const other = server.client();
     const first = await checkout(c, { slot: '12:00' });
     await checkout(c, { slot: '12:00' });
-    assert.equal((await checkout(c, { slot: '12:00' })).body.error.code, 'slot_unavailable');
+    assert.equal((await checkout(other, { slot: '12:00' })).body.error.code, 'slot_unavailable');
 
     server.clock.advance(30 * MINUTE - 1);
     try {
-      assert.equal((await checkout(c, { slot: '12:00' })).body.error.code, 'slot_unavailable', 'still held one ms before expiry');
+      assert.equal((await checkout(other, { slot: '12:00' })).body.error.code, 'slot_unavailable', 'still held one ms before expiry');
       assert.equal((await c.get(`/api/orders/${first.body.code}?k=${first.body.viewToken}`)).body.order.status, 'pending');
 
       server.clock.advance(1);
@@ -246,7 +247,7 @@ describe('checkout and payment (demo)', () => {
     const c = server.client();
     const a = await checkout(c, { eventId: 'today', slot: '10:30' });
     const b = await checkout(c, { eventId: 'today', slot: '10:30' });
-    assert.equal((await checkout(c, { eventId: 'today', slot: '10:30' })).body.error.code, 'slot_unavailable');
+    assert.equal((await checkout(server.client(), { eventId: 'today', slot: '10:30' })).body.error.code, 'slot_unavailable');
 
     assert.deepEqual((await c.post(`/api/orders/${a.body.code}/cancel`, { k: a.body.viewToken })).body, { ok: true });
     assert.deepEqual((await c.post(`/api/orders/${a.body.code}/cancel`, { k: a.body.viewToken })).body, { ok: true, status: 'canceled' });

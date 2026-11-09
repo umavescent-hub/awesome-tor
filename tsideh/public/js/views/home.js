@@ -1,4 +1,4 @@
-// Home: the adobe hero (logo, wordmark, headline, the next pop-up and two buttons), the press
+// Home: the adobe hero (logo, wordmark, headline, two buttons and the next pop-up), the press
 // line, the list of upcoming pop-ups, and catering. /catering is this same page, scrolled to the
 // catering block.
 
@@ -29,10 +29,11 @@ function heroSection() {
       h('div', { class: 'hero__copy' },
         h('h1', { class: 'hero__word', id: 'hero-title' }, 'Tsideh'),
         headline,
-        next,
+        // The two buttons come before the next pop-up's details, so they are on the first screen.
         h('div', { class: 'hero__actions' },
           orderButton,
-          h('a', { class: 'btn btn--outline btn--lg', href: '/catering', 'data-link': '' }, 'Ask about catering')))));
+          h('a', { class: 'btn btn--outline btn--lg', href: '/catering', 'data-link': '' }, 'Ask about catering')),
+        next)));
 
   function fill(site, events) {
     headline.textContent = site.heroHeadline || site.tagline;
@@ -111,10 +112,11 @@ function popupCard(event) {
 
 function popupsSection() {
   const list = h('div', { class: 'popups__list' }, skeleton(4, { className: 'skeleton--block' }));
+  const heading = h('h2', { id: 'popups-title', tabindex: '-1' }, 'Upcoming pop-ups');
   const node = h('section', { class: 'section popups', id: 'popups', 'aria-labelledby': 'popups-title' },
     h('div', { class: 'wrap' },
       h('header', { class: 'section-head' },
-        h('h2', { id: 'popups-title' }, 'Upcoming pop-ups'),
+        heading,
         h('p', null, 'Order ahead online, choose a pickup time, then come and get your food.')),
       list));
 
@@ -133,7 +135,7 @@ function popupsSection() {
     mount(list, h('ul', { class: 'popup-list' }, events.map(popupCard)));
   }
 
-  return { node, fill };
+  return { node, fill, focusHeading: () => heading.focus({ preventScroll: true }) };
 }
 
 /* ---------------------------------------------------------------- page */
@@ -152,6 +154,8 @@ export function render(ctx) {
       catering.focusHeading();
     } else {
       next.scrollToTarget(next.hash, { smooth });
+      // Keyboard and screen reader users continue from the list they were taken to.
+      if (next.hash === '#popups') popups.focusHeading();
     }
   }
 

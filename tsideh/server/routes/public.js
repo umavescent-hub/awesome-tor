@@ -2,10 +2,10 @@
 // Stripe webhook.
 
 import { eventSummary, isListed, menuView } from '../catalog.js';
-import { invalid, notFound, sendJson } from '../http.js';
+import { ApiError, invalid, notFound, sendJson } from '../http.js';
 import { CODE_PATTERN, TOKEN_PATTERN } from '../orders.js';
 import { computeTotals, priceCart, tipPercentFrom } from '../pricing.js';
-import { readBody, readJson, WEBHOOK_LIMIT_BYTES } from '../security.js';
+import { rateKey, readBody, readJson, WEBHOOK_LIMIT_BYTES } from '../security.js';
 import { addDays, localDate, timeLabel, toIso } from '../time.js';
 import * as validate from '../validate.js';
 
@@ -13,8 +13,12 @@ const EVENT_ID = /^[a-z0-9-]{1,64}$/;
 const SESSION_ID = /^cs_[A-Za-z0-9_]{1,250}$/;
 const CATERING_HORIZON_DAYS = 730;
 
-export function publicRoutes({ catalog, orders, payments, catering, notifier, clock }) {
+const digits = (value) => value.replace(/\D/g, '');
+const samePerson = (a, b) => a.email.toLowerCase() === b.email.toLowerCase() || digits(a.phone) === digits(b.phone);
+
+export function publicRoutes({ catalog, orders, payments, catering, notifier, clock, holds }) {
   const site = catalog.site;
+  const holdMs = site.order.holdMinutes * 60_000;
 
   const siteView = {
     name: site.name,
@@ -90,6 +94,33 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
     };
   }
 
+  /**
+   * Counts a checkout against the client's open holds (see createHoldLimiter). Someone starting a
+   * pop-up's order again, for example after pressing Back on the payment page, replaces their own
+   * earlier unpaid attempts for it instead of being turned away.
+   */
+  async function claimHold(key, event, customer) {
+    const claim = () => holds.claim(key, clock.now(), clock.now() + holdMs);
+    const first = claim();
+    if (first) return first;
+    for (const { code } of holds.open(key, clock.now())) {
+      const earlier = code && orders.find(code);
+      if (earlier?.status !== 'pending' || earlier.eventId !== event.id || !samePerson(earlier.customer, customer)) continue;
+      try {
+        await payments.cancel(earlier);
+      } catch (error) {
+        if (!(error instanceof ApiError)) throw error;
+      }
+    }
+    const hold = claim();
+    if (hold) return hold;
+    const soonest = Math.min(...holds.open(key, clock.now()).map((entry) => entry.expiresAt));
+    const minutes = Math.max(1, Math.ceil((soonest - clock.now()) / 60_000));
+    throw new ApiError(429, 'too_many_holds',
+      `Other orders from this internet connection are still waiting for payment. Finish paying for one of them, or try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+      { headers: { 'Retry-After': String(minutes * 60) } });
+  }
+
   function cateringDate(value, now) {
     const date = validate.date(value, 'eventDate');
     const today = localDate(now, catalog.timeZone);
@@ -133,7 +164,7 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
       method: 'POST',
       path: '/api/checkout',
       limit: 'checkout',
-      handler: async (req, res) => {
+      handler: async (req, res, { client }) => {
         payments.ensureAvailable();
         const body = await readJson(req);
         if (typeof body.eventId !== 'string' || body.eventId === '') throw invalid('eventId', 'Choose a pop-up.');
@@ -144,7 +175,16 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
         const notes = validate.text(body.notes, { field: 'notes', label: 'your notes', max: 300, multiline: true });
         const tipPercent = tipPercentFrom(body.tipPercent, site.tipPresetsPercent);
         const totals = computeTotals(lines, { taxRatePercent: site.taxRatePercent, tipPercent });
-        const result = await payments.checkout({ event, slot: body.slot, lines, customer, notes, tipPercent, totals });
+        const key = rateKey(client.ip);
+        const hold = await claimHold(key, event, customer);
+        let result;
+        try {
+          result = await payments.checkout({ event, slot: body.slot, lines, customer, notes, tipPercent, totals });
+        } catch (error) {
+          holds.drop(key, hold);
+          throw error;
+        }
+        hold.code = result.code;
         sendJson(res, 200, { code: result.code, viewToken: result.viewToken, url: result.url, totals: result.totals });
       },
     },

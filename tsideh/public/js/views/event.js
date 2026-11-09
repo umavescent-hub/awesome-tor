@@ -102,9 +102,15 @@ function buildPage(site, detail, ctx, pageNotices) {
 
   function stepper(item, qty) {
     return h('div', { class: 'stepper', role: 'group', 'aria-label': `${item.name}: ${qty} in your order` },
-      h('button', { class: 'stepper__btn', type: 'button', dataset: { role: 'dec' }, 'aria-label': qty === 1 ? `Remove ${item.name}` : `One fewer ${item.name}`, onclick: () => change(item, qty - 1) }, icon('minus')),
+      h('button', { class: 'stepper__btn', type: 'button', dataset: { role: 'dec' }, 'aria-label': `One fewer ${item.name}`, onclick: () => change(item, qty - 1) }, icon('minus')),
       h('span', { class: 'stepper__qty num', 'aria-hidden': 'true' }, String(qty)),
       h('button', { class: 'stepper__btn', type: 'button', dataset: { role: 'inc' }, 'aria-label': `One more ${item.name}`, onclick: () => change(item, qty + 1) }, icon('plus')));
+  }
+
+  /** Takes the dish out of the order, in words (the − button does the same one at a time). */
+  function removeButton(item) {
+    return h('button', { class: 'btn btn--text', type: 'button', dataset: { role: 'remove' }, onclick: () => change(item, 0) },
+      'Remove', h('span', { class: 'visually-hidden' }, ` ${item.name}`));
   }
 
   function control(item) {
@@ -112,7 +118,8 @@ function buildPage(site, detail, ctx, pageNotices) {
     if (qty > 0) {
       return h('div', { class: 'amount' },
         stepper(item, qty),
-        h('p', { class: 'amount__note' }, icon('check'), 'In your order'));
+        h('p', { class: 'amount__note' }, icon('check'), 'In your order'),
+        removeButton(item));
     }
     if (capFor(item) === 0) return h('p', { class: 'dish__soldout' }, 'Sold out');
     return h('button', { class: 'btn btn--add', type: 'button', dataset: { role: 'add' }, onclick: () => change(item, 1) },
@@ -120,7 +127,7 @@ function buildPage(site, detail, ctx, pageNotices) {
   }
 
   /** Focus the button in `slot` that best continues from a button with data-role `role`. */
-  const FOCUS_NEXT = { add: ['inc', 'add'], inc: ['inc', 'dec'], dec: ['dec', 'add', 'inc'], remove: [] };
+  const FOCUS_NEXT = { add: ['inc', 'add'], inc: ['inc', 'dec'], dec: ['dec', 'add', 'inc'], remove: ['add'] };
   function focusLike(slot, role) {
     for (const candidate of FOCUS_NEXT[role] ?? []) {
       const target = slot.querySelector(`[data-role="${candidate}"]`);
@@ -223,7 +230,7 @@ function buildPage(site, detail, ctx, pageNotices) {
   const phone = field({ name: 'phone', label: 'Mobile number', type: 'tel', hint: 'For example: 505 555 0142',
     attrs: { autocomplete: 'tel', inputmode: 'tel', maxlength: 20, enterkeyhint: 'next', value: draft.phone ?? '' },
     validate: (v) => phoneError(v, { required: true }) });
-  const email = field({ name: 'email', label: 'Email', type: 'email', hint: 'For your receipt. For example: name@example.com',
+  const email = field({ name: 'email', label: 'Email', type: 'email', hint: ['For your receipt. For example: name', h('wbr'), '@example.com'],
     attrs: { autocomplete: 'email', inputmode: 'email', autocapitalize: 'off', spellcheck: 'false', maxlength: 254, enterkeyhint: 'done', value: draft.email ?? '' },
     validate: emailError });
   const notes = field({ name: 'notes', label: 'Note for the kitchen', optional: true, multiline: true, max: 300, hint: 'Allergies or anything else we should know.',
@@ -262,7 +269,8 @@ function buildPage(site, detail, ctx, pageNotices) {
     payButton,
     h('p', { class: 'pay__next' }, icon('lock'), PAY_NEXT));
 
-  const form = h('form', { class: 'order-form', novalidate: true, 'aria-labelledby': 'order-title' },
+  // On desktop the steps scroll inside the panel and Pay stays in view below them.
+  const steps = h('div', { class: 'order-form__steps' },
     h('h2', { class: 'order-form__title', id: 'order-title' }, 'Your order'),
     site.payments?.mode === 'demo' ? h('p', { class: 'demo-flag' }, 'Demo mode — no real charges') : null,
     site.payments?.mode === 'disabled' ? h('p', { class: 'demo-flag' }, 'Online payment is switched off right now, so orders cannot be placed.') : null,
@@ -272,8 +280,8 @@ function buildPage(site, detail, ctx, pageNotices) {
     slotGroup.node,
     detailsStep,
     tipGroup.node,
-    totals,
-    pay);
+    totals);
+  const form = h('form', { class: 'order-form', novalidate: true, 'aria-labelledby': 'order-title' }, steps, pay);
 
   function computeTotals() {
     const subtotal = lineItems().reduce((sum, { item, qty }) => sum + item.priceCents * qty, 0);
@@ -314,10 +322,7 @@ function buildPage(site, detail, ctx, pageNotices) {
         h('span', { class: 'line__name' }, item.name),
         h('span', { class: 'line__total num' }, formatMoney(item.priceCents * qty))),
       h('p', { class: 'line__unit num' }, `${formatMoney(item.priceCents)} each`),
-      h('div', { class: 'line__controls' },
-        stepper(item, qty),
-        h('button', { class: 'btn btn--text', type: 'button', dataset: { role: 'remove' }, onclick: () => change(item, 0) },
-          'Remove', h('span', { class: 'visually-hidden' }, ` ${item.name}`)))));
+      h('div', { class: 'line__controls' }, stepper(item, qty), removeButton(item))));
     mount(linesBox, rows.length ? rows : h('li', { class: 'lines-empty' }, 'No dishes yet. Use the Add buttons on the menu.'));
     if (focusLine) {
       const slot = linesBox.querySelector(`[data-line="${CSS.escape(focusLine)}"]`);
@@ -352,7 +357,7 @@ function buildPage(site, detail, ctx, pageNotices) {
     // Keep focused and scrolled-to content clear of the bar: the page's scroll padding follows its height.
     const root = document.documentElement;
     const sizer = new ResizeObserver(() => {
-      wrap.classList.toggle('is-compact', button.offsetHeight > innerHeight * 0.2);
+      wrap.classList.toggle('is-compact', button.offsetHeight > innerHeight * 0.15);
       root.style.setProperty('--order-bar-h', `${wrap.offsetHeight}px`);
     });
     sizer.observe(wrap);
@@ -388,7 +393,7 @@ function buildPage(site, detail, ctx, pageNotices) {
 
   function openOrder() {
     if (desktop.matches) {
-      panelSlot.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'instant' : 'smooth' });
+      steps.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'instant' : 'smooth' });
       document.getElementById(itemsTitleId)?.focus({ preventScroll: true });
       return;
     }

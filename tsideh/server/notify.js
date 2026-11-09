@@ -5,13 +5,19 @@ const TIMEOUT_MS = 5_000;
 
 const formatCents = (cents) => `$${(cents / 100).toFixed(2)}`;
 
+/**
+ * Slack reads <!channel>, <!here> and <url|label> in `text` as commands. Alerts carry what
+ * customers typed, so &, < and > are escaped the way Slack documents and show up as plain text.
+ */
+export const slackEscape = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 export function createNotifier({ url, log, fetch: fetchImpl = globalThis.fetch }) {
   function send(text) {
     if (!url) return;
     fetchImpl(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: slackEscape(text) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
       .then((response) => {

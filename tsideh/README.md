@@ -5,6 +5,10 @@ pop-ups, pre-order from the menu, choose a pickup time and pay by card, Apple Pa
 Google Pay. Hosts can send a catering inquiry. The kitchen runs service from a private
 screen at `/admin`.
 
+The home page is kept plain on purpose: the Tsideh logo on the adobe-orange field, the next
+pop-up, and two big buttons, **Order food for pickup** and **Ask about catering**. Nothing moves
+and nothing sits behind the text, so anyone can find their way on a phone or a computer.
+
 - **No monthly software fees** beyond hosting and Stripe's per-payment fee.
 - **No card numbers on this server.** Payment happens on Stripe's secure page.
 - **Everything you change lives in three files** in `config/`: the site, the menu, the pop-ups.
@@ -192,7 +196,7 @@ Good to know:
 
 Sign in at `https://YOURDOMAIN/admin` with `ADMIN_PASSWORD`. A sign-in lasts 12 hours on that
 device, or ends sooner after 2 hours with the screen closed. Sign-in allows five attempts a
-minute, so guessing the password is impractical.
+minute from any one connection, so guessing the password is impractical.
 
 - **Orders:** pick a pop-up and see its paid orders by pickup time. Mark each one **Ready**,
   then **Picked up**. Orders flagged **oversold** were paid after their hold ran out and the
@@ -217,7 +221,8 @@ Get a message in Slack for every paid order and every catering inquiry:
 A message looks like:
 `New paid order TS-7KQ4 · Winter Pop-up · pickup 11:15 AM · Maria · 2× Bison Red Chile Tacos · $36.78`.
 Alerts include a first name, the items and the total, never email addresses, phone numbers
-or payment details.
+or payment details. Whatever a customer typed shows as plain text, so it cannot ping the whole
+channel or disguise a link.
 
 ---
 
@@ -225,7 +230,10 @@ or payment details.
 
 1. The customer picks a pop-up, items and a pickup time, then taps **Pay**.
 2. The site checks prices and stock itself (the browser never sets a price) and **holds** the
-   pickup time and any limited items for 30 minutes.
+   pickup time and any limited items for 30 minutes. One internet connection can have at most two
+   unpaid orders waiting at once, so nobody can sell out your dishes without paying. If the same
+   person starts their order again (for example after pressing Back on the payment page), the
+   new order simply replaces their unpaid one.
 3. The customer pays on Stripe's page and comes back to their order page with a pickup code
    such as `TS-7KQ4`.
 4. Stripe confirms the payment to the site (the webhook). If the customer closes the page
@@ -248,12 +256,14 @@ or payment details.
   isolation): pages load only this site's own files and never turn text into code. No
   trackers, ad scripts, third-party fonts or embeds. Pages cannot be framed by other sites.
 - **HTTPS only** on the live site, with HSTS. Requests are size-limited, rate-limited per
-  visitor, and every text field is cleaned before it is stored.
+  visitor (every address of one IPv6 home or phone network counts as one visitor), and every
+  text field is cleaned before it is stored.
 - **Stripe webhooks are verified** by signature and timestamp; repeats are ignored. A payment
   is recorded only if Stripe charged exactly the order's total; anything else is left unpaid
   and sent to your Slack alerts for review.
 - **Logs** record method, path, status and timing only: never card data, keys, contact details
-  or private order links.
+  or private order links. Error messages from Stripe are logged with keys and email addresses
+  removed.
 - **Your data stays yours:** one database file on your Render disk.
 
 Keep these secret: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `ADMIN_PASSWORD` and the Slack
@@ -296,7 +306,8 @@ server/
   payments.js    Stripe Checkout, webhook, confirm-on-return, cancel, demo pay
   stripe.js      Stripe REST client and webhook signature check
   auth.js        kitchen sessions
-  security.js    headers, client IP, rate limiter, body limits
+  security.js    headers, client IP, rate and open-hold limits, body limits
+  notify.js      kitchen alerts (Slack-compatible webhook)
   static.js      static files, compression, caching, SPA fallback
   routes/        public and admin API
 config/          site.json, menu.json, events.json
@@ -318,3 +329,7 @@ API summary (JSON; errors are `{ "error": { "code", "message", "field"?, "detail
 | POST | `/api/stripe/webhook` | Stripe events (signed) |
 | POST | `/api/demo/pay/:code` | Demo mode only: simulate payment |
 | * | `/api/admin/…` | Kitchen: session, events, orders, prep, order status, catering |
+
+Rate limits count an IPv6 /64 as one client. `POST /api/checkout` also answers `429 too_many_holds`
+(with `Retry-After`) when that client already has two unpaid orders; the same person starting the same
+pop-up's order again replaces their unpaid ones instead.

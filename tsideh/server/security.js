@@ -58,6 +58,62 @@ export function clientInfo(req, trustProxy) {
   return { ip, https: forwardedProto ? forwardedProto === 'https' : encrypted, forwardedProto };
 }
 
+/**
+ * What a client is counted as for rate limits. IPv4 addresses count one by one. IPv6 addresses
+ * count per /64, the block one home or phone is given, so rotating addresses inside it does not
+ * reset a limit. Addresses in ::/64 (loopback, IPv4-mapped) keep their full form.
+ */
+export function rateKey(ip) {
+  const address = String(ip).split('%')[0].toLowerCase();
+  if (!address.includes(':')) return address;
+  const [head, tail = ''] = address.split('::');
+  // An embedded IPv4 tail (a.b.c.d) fills the last two groups, never the /64 prefix.
+  const groups = (part) => (part ? part.split(':') : []).flatMap((group) => (group.includes('.') ? ['0', '0'] : [group]));
+  const front = groups(head);
+  const back = groups(tail);
+  const full = [...front, ...Array(Math.max(0, 8 - front.length - back.length)).fill('0'), ...back];
+  const prefix = full.slice(0, 4).map((group) => group.replace(/^0+(?=.)/, '')).join(':');
+  return prefix === '0:0:0:0' ? address : `${prefix}::/64`;
+}
+
+/**
+ * Unpaid holds per client: at most `limit` open at once, so one visitor cannot tie up a pop-up's
+ * limited dishes and pickup times without paying. A hold stops counting when it expires or
+ * `isOpen(code)` says it is no longer waiting for payment (paid, canceled, failed).
+ */
+export function createHoldLimiter({ limit, isOpen }) {
+  const holds = new Map();
+
+  /** This key's holds still open. A hold whose checkout is still running has code null. */
+  function open(key, now) {
+    const live = (holds.get(key) ?? []).filter((hold) => hold.expiresAt > now && (hold.code === null || isOpen(hold.code)));
+    if (live.length) holds.set(key, live);
+    else holds.delete(key);
+    return live;
+  }
+
+  return {
+    open,
+    /** Starts counting one more hold, or returns null when the key already has `limit` open. Set `.code` once known. */
+    claim(key, now, expiresAt) {
+      const live = open(key, now);
+      if (live.length >= limit) return null;
+      const hold = { code: null, expiresAt };
+      holds.set(key, [...live, hold]);
+      return hold;
+    },
+    /** Stops counting a hold whose checkout failed. */
+    drop(key, hold) {
+      const rest = (holds.get(key) ?? []).filter((entry) => entry !== hold);
+      if (rest.length) holds.set(key, rest);
+      else holds.delete(key);
+    },
+    sweep(now) {
+      for (const key of [...holds.keys()]) open(key, now);
+    },
+  };
+}
+
 /** Sliding-window limiter: at most `limit` hits per `windowMs` per key. */
 export function createRateLimiter({ limit, windowMs }) {
   const hits = new Map();

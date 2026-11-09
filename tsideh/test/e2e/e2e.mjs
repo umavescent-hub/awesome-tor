@@ -102,17 +102,44 @@ async function doubleTextSize(context) {
   });
 }
 
+/**
+ * Compares with the screen width the context was made with: on a phone the browser widens its
+ * layout viewport (and innerWidth) to fit a page that is too wide, which would hide the problem.
+ */
 async function expectNoSidewaysScroll(page, where) {
-  const { scrollWidth, innerWidth, wide } = await page.evaluate(() => {
+  const screenWidth = page.viewportSize().width;
+  const { scrollWidth, wide } = await page.evaluate(() => {
     const sheet = document.querySelector('dialog[open] .sheet__body');
     return {
       scrollWidth: document.documentElement.scrollWidth,
-      innerWidth,
       wide: sheet && sheet.scrollWidth > sheet.clientWidth ? `${sheet.scrollWidth}px in ${sheet.clientWidth}px` : null,
     };
   });
-  assert.ok(scrollWidth <= innerWidth, `${where}: page is ${scrollWidth}px wide in a ${innerWidth}px viewport`);
+  assert.ok(scrollWidth <= screenWidth, `${where}: page is ${scrollWidth}px wide on a ${screenWidth}px screen`);
   assert.equal(wide, null, `${where}: the order sheet scrolls sideways`);
+}
+
+/** Big headings fit their box and never break inside a word ("Upco / ming"). */
+async function expectWholeWordHeadings(page, where) {
+  const broken = await page.evaluate(() => {
+    const out = [];
+    const range = document.createRange();
+    for (const el of document.querySelectorAll('h1, h2')) {
+      if (el.clientWidth <= 1 || el.closest('.visually-hidden, [hidden], dialog:not([open])')) continue;
+      if (el.scrollWidth > el.clientWidth + 1) out.push(`"${el.textContent.trim()}" is wider than its box`);
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        for (const word of node.textContent.matchAll(/[^\s-]+/g)) {
+          range.setStart(node, word.index);
+          range.setEnd(node, word.index + word[0].length);
+          const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+          if (lines.size > 1) out.push(`"${word[0]}" is split across lines in "${el.textContent.trim()}"`);
+        }
+      }
+    }
+    return out;
+  });
+  assert.deepEqual(broken, [], `${where}: headings`);
 }
 
 /**
@@ -149,6 +176,7 @@ async function expectReadableText(page, run, where) {
 
 async function expectPageBasics(page, run, where) {
   if (run.phone) await expectNoSidewaysScroll(page, where);
+  await expectWholeWordHeadings(page, where);
   await expectReadableText(page, run, where);
   assert.equal(await page.locator('canvas').count(), 0, `${where}: no drawn art (canvas) on the page`);
 }
@@ -157,18 +185,24 @@ async function expectPageBasics(page, run, where) {
 
 /**
  * After "Add": screen readers hear "Added: <dish>" and it is on screen: in the order panel on
- * desktop, above the "View order" bar on phones. With very large text the bar keeps only its button,
- * and the dish row's "In your order" is the visible confirmation.
+ * desktop, above the "View order" bar on phones (one line). With very large text the bar keeps only
+ * its button, and the dish row's "In your order" is the visible confirmation. The bar never takes
+ * more than a third of the screen, so the dish just added stays in view.
  */
 async function expectAdded(page, run, dish, name) {
   await page.locator('[aria-live="polite"]', { hasText: `Added: ${name}` }).waitFor({ state: 'attached' });
   await dish.locator('.amount__note', { hasText: 'In your order' }).waitFor();
+  await dish.getByRole('button', { name: `Remove ${name}` }).waitFor();
   if (!run.phone) {
     await page.locator('.panel-slot .action-status', { hasText: `Added: ${name}` }).waitFor();
-  } else if (await page.locator('.order-bar.is-compact').count() === 0) {
+    return;
+  }
+  if (await page.locator('.order-bar.is-compact').count() === 0) {
     assert.equal(run.bigText ?? false, false, 'the bar keeps only its button with very large text on a short screen');
     await page.locator('.order-bar .action-status', { hasText: `Added: ${name}` }).waitFor();
   }
+  const { bar, screen } = await page.evaluate(() => ({ bar: document.querySelector('.order-bar').offsetHeight, screen: innerHeight }));
+  assert.ok(bar <= screen / 3, `the View order bar is ${bar}px of a ${screen}px screen`);
 }
 
 async function orderAndPay(page, run, base) {
@@ -190,6 +224,15 @@ async function orderAndPay(page, run, base) {
   assert.equal(await orderLink.getAttribute('href'), open.length === 1 ? `/e/${open[0].id}` : '/#popups',
     'Order food for pickup goes straight to the menu only when exactly one pop-up is open');
   await hero.getByRole('link', { name: 'Ask about catering' }).waitFor();
+  if (!run.phone && open.length !== 1) {
+    // Keyboard: Enter on "Order food for pickup" moves on to the list of pop-ups, so the next Tab
+    // reaches the first pop-up's "Order food" instead of jumping back into the hero.
+    await orderLink.focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.activeElement?.id === 'popups-title');
+    await page.keyboard.press('Tab');
+    assert.match(await page.evaluate(() => document.activeElement.textContent), /^Order food from the /);
+  }
   assert.match(await page.locator('.press').innerText(), /Food & Wine/);
   assert.match(await cards.first().innerText(), /Taking orders now/);
   await expectPageBasics(page, run, 'home');

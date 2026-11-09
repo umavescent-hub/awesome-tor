@@ -47,16 +47,17 @@ export function handleHistoryBack() {
 }
 
 /**
- * A panel that rises from the bottom with a title and a Close button. key names its history entry,
+ * A panel that rises from the bottom with a Close button and a title. key names its history entry,
  * so a page that loads on that entry (Back from the payment page) can open it again in place.
  * Returns { el, body, open(), close(), isOpen(), ownsEntry() }.
  */
 export function createSheet({ title, key, className = '', onClose }) {
   const id = key ?? nextId('sheet');
   const titleId = `${id}-title`;
-  const body = h('div', { class: 'sheet__body' });
+  // The title opens the scrolling body; the fixed head holds only Close, so it stays one row high
+  // even with very large text on a narrow phone.
+  const body = h('div', { class: 'sheet__body' }, h('h2', { class: 'sheet__title', id: titleId }, title));
   const head = h('div', { class: 'sheet__head' },
-    h('h2', { class: 'sheet__title', id: titleId }, title),
     h('button', { class: 'btn btn--outline btn--small sheet__close', type: 'button', 'data-close': '' }, icon('close'), 'Close'));
   const panel = h('div', { class: 'sheet__panel' }, head, body);
   const el = h('dialog', { class: ['sheet', className], 'aria-labelledby': titleId }, panel);
