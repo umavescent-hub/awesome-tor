@@ -3,7 +3,7 @@
 
 const TIMEOUT_MS = 5_000;
 
-export const formatCents = (cents) => `$${(cents / 100).toFixed(2)}`;
+const formatCents = (cents) => `$${(cents / 100).toFixed(2)}`;
 
 export function createNotifier({ url, log, fetch: fetchImpl = globalThis.fetch }) {
   function send(text) {

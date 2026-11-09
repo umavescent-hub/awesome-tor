@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-export const ORDER_STATUSES = ['pending', 'paid', 'ready', 'picked_up', 'canceled', 'expired', 'failed', 'refunded'];
+const ORDER_STATUSES = ['pending', 'paid', 'ready', 'picked_up', 'canceled', 'expired', 'failed', 'refunded'];
 export const CATERING_STATUSES = ['new', 'contacted', 'booked', 'declined'];
 
 const list = (values) => values.map((value) => `'${value}'`).join(', ');

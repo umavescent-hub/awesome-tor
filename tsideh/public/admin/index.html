@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0a0806">
+  <meta name="color-scheme" content="light">
+  <title>Tsideh Kitchen</title>
+  <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/assets/favicon-48.png" sizes="48x48" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/syne-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script type="module" src="/admin/admin.js"></script>
+</head>
+<body>
+  <main id="login" class="login" hidden>
+    <form id="login-form" class="login-card" novalidate>
+      <img class="login-mark" src="/assets/logo-192.webp" width="88" height="88" alt="">
+      <p class="wordmark">Tsideh</p>
+      <h1 class="login-title">Kitchen</h1>
+      <p id="login-notice" class="notice" role="alert" hidden></p>
+      <div class="field" id="password-field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="field" id="totp-field" hidden>
+        <label for="totp">Authenticator code</label>
+        <input id="totp" name="totp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" spellcheck="false">
+      </div>
+      <button id="login-submit" class="btn btn-primary btn-block" type="submit">Sign in</button>
+    </form>
+  </main>
+
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-mark" src="/assets/logo-192.webp" width="40" height="40" alt="">
+        <span class="brand-name"><span class="visually-hidden">Tsideh </span>Kitchen</span>
+      </div>
+
+      <div class="event-picker">
+        <label class="visually-hidden" for="event-select">Event</label>
+        <span class="select-wrap select-dark">
+          <select id="event-select"></select>
+        </span>
+        <p id="event-meta" class="event-meta"></p>
+      </div>
+
+      <div class="topbar-tools">
+        <p id="live" class="live" data-state="connecting">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="live-text">Connecting</span>
+        </p>
+        <button id="sound-toggle" class="bar-btn" type="button" aria-pressed="false">
+          <svg class="icon icon-sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/></svg>
+          <svg class="icon icon-sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5m0-5-5 5"/></svg>
+          <span class="bar-btn-label">Sound</span>
+        </button>
+        <button id="logout" class="bar-btn" type="button">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4.5H5.5v15H10M14.5 8l4 4-4 4M18.5 12H9.5"/></svg>
+          <span class="bar-btn-label">Sign out</span>
+        </button>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Kitchen views">
+        <button class="tab" type="button" role="tab" id="tab-orders" aria-controls="panel-orders" data-tab="orders">Orders<span class="tab-count" id="count-orders" hidden></span></button>
+        <button class="tab" type="button" role="tab" id="tab-prep" aria-controls="panel-prep" data-tab="prep">Prep</button>
+        <button class="tab" type="button" role="tab" id="tab-catering" aria-controls="panel-catering" data-tab="catering">Catering<span class="tab-count tab-count-new" id="count-catering" hidden></span></button>
+        <button class="tab" type="button" role="tab" id="tab-activity" aria-controls="panel-activity" data-tab="activity" hidden>Activity</button>
+      </div>
+    </header>
+
+    <div id="paused-banner" class="paused-banner" hidden>
+      <p><strong>Online ordering is paused.</strong> Customers can’t place new pre-orders for this event.</p>
+      <button id="banner-resume" class="btn btn-ink" type="button">Resume online ordering</button>
+    </div>
+
+    <section id="panel-orders" class="panel" role="tabpanel" aria-labelledby="tab-orders" hidden>
+      <h2 class="visually-hidden">Orders</h2>
+      <div class="toolbar">
+        <div class="segmented" role="group" aria-label="Show orders">
+          <button class="segment" type="button" data-filter="active" aria-pressed="true">Active<span class="segment-count" data-count="active"></span></button>
+          <button class="segment" type="button" data-filter="ready" aria-pressed="false">Ready<span class="segment-count" data-count="ready"></span></button>
+          <button class="segment" type="button" data-filter="picked_up" aria-pressed="false">Picked up<span class="segment-count" data-count="picked_up"></span></button>
+          <button class="segment" type="button" data-filter="all" aria-pressed="false">All<span class="segment-count" data-count="all"></span></button>
+        </div>
+        <div class="search">
+          <label class="visually-hidden" for="order-search">Search orders by code, name or phone</label>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
+          <input id="order-search" type="search" placeholder="Code, name or phone" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search">
+        </div>
+      </div>
+      <div id="board" class="board" aria-live="off"></div>
+      <div id="board-empty" class="empty" hidden></div>
+    </section>
+
+    <section id="panel-prep" class="panel" role="tabpanel" aria-labelledby="tab-prep" hidden>
+      <header class="panel-head">
+        <div>
+          <h2 class="panel-title">Prep sheet</h2>
+          <p id="prep-event" class="panel-sub"></p>
+        </div>
+        <div class="panel-actions">
+          <button id="print" class="btn btn-quiet" type="button">Print</button>
+          <a id="csv" class="btn btn-quiet" download>Download CSV</a>
+        </div>
+      </header>
+
+      <div class="ordering">
+        <p class="ordering-state">
+          <span>Online ordering</span>
+          <strong id="ordering-state" class="pill"></strong>
+        </p>
+        <button id="pause-toggle" class="btn btn-quiet" type="button">Pause online ordering</button>
+      </div>
+
+      <div class="table-scroll">
+        <table class="prep-table">
+          <caption class="table-note">Committed counts paid orders, including ready and picked up. Pending orders are still at checkout and may not complete.</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="col-item">Item</th>
+              <th scope="col" class="num">Committed</th>
+              <th scope="col" class="num">Pending</th>
+              <th scope="col" class="num col-limit">Limit</th>
+              <th scope="col" class="num">Remaining</th>
+              <th scope="col" class="col-86"><abbr title="Mark sold out">86</abbr></th>
+            </tr>
+          </thead>
+          <tbody id="prep-rows"></tbody>
+          <tfoot id="prep-total"></tfoot>
+        </table>
+      </div>
+
+      <h3 class="section-title" id="matrix-title">By pickup time</h3>
+      <div id="matrix-scroll" class="table-scroll matrix-scroll" role="region" aria-labelledby="matrix-title" tabindex="0">
+        <table id="matrix" class="matrix"></table>
+      </div>
+      <div id="matrix-empty" class="empty" hidden></div>
+    </section>
+
+    <section id="panel-catering" class="panel" role="tabpanel" aria-labelledby="tab-catering" hidden>
+      <header class="panel-head">
+        <div>
+          <h2 class="panel-title">Catering inquiries</h2>
+          <p id="catering-summary" class="panel-sub"></p>
+        </div>
+      </header>
+      <div id="inquiries" class="inquiries"></div>
+      <div id="catering-empty" class="empty" hidden></div>
+    </section>
+
+    <section id="panel-activity" class="panel" role="tabpanel" aria-labelledby="tab-activity" hidden>
+      <header class="panel-head">
+        <div>
+          <h2 class="panel-title">Activity</h2>
+          <p class="panel-sub">Sign-ins and kitchen changes, newest first. This log can’t be edited.</p>
+        </div>
+      </header>
+      <ol id="activity" class="activity"></ol>
+      <div id="activity-empty" class="empty" hidden></div>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+      <p id="toast-text" class="toast-text"></p>
+      <button id="toast-action" class="toast-action" type="button" hidden></button>
+    </div>
+
+    <dialog id="confirm" class="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+      <form method="dialog" class="confirm-form">
+        <h2 id="confirm-title" class="confirm-title"></h2>
+        <p id="confirm-body" class="confirm-body"></p>
+        <div class="confirm-actions">
+          <button class="btn btn-quiet" value="cancel" type="submit">Cancel</button>
+          <button id="confirm-ok" class="btn btn-primary" value="confirm" type="submit"></button>
+        </div>
+      </form>
+    </dialog>
+  </div>
+</body>
+</html>

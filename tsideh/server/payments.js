@@ -16,7 +16,8 @@ const WEBHOOK_RETENTION_MS = 30 * 86_400_000;
 const TIP_LABEL = 'Tip for the crew';
 
 const idOf = (value) => (typeof value === 'string' ? value : isPlainObject(value) && typeof value.id === 'string' ? value.id : null);
-const describe = (error) => [error.message, error.status && `status ${error.status}`, error.type, error.code].filter(Boolean).join(' · ');
+const redact = (text) => text.replace(/\b(sk|rk)_(live|test)_[A-Za-z0-9]+/g, '$1_$2_[redacted]');
+const describe = (error) => redact([error.message, error.status && `status ${error.status}`, error.type, error.code].filter(Boolean).join(' · '));
 
 const alreadyPaid = () => new ApiError(409, 'already_paid', 'This order is already paid. Contact us if you need to change it.');
 

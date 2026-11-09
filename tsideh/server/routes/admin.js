@@ -16,7 +16,7 @@ const FAILED_LOGIN_DELAY_MS = 250;
 const CSV_COLUMNS = ['code', 'status', 'slot', 'name', 'phone', 'email', 'items', 'notes', 'total'];
 
 /** Every cell quoted; cells that a spreadsheet would read as a formula are defused with a leading quote. */
-export function csvCell(value) {
+function csvCell(value) {
   let text = String(value);
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return `"${text.replaceAll('"', '""')}"`;

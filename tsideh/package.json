@@ -8,8 +8,8 @@
     "node": ">=22.13"
   },
   "scripts": {
-    "start": "node --disable-warning=ExperimentalWarning server/index.js",
-    "dev": "node --disable-warning=ExperimentalWarning --watch-path=server --watch-path=config server/index.js",
+    "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch-path=server --watch-path=config server/index.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
   }
 }

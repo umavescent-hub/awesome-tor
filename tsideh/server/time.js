@@ -1,7 +1,6 @@
 // Time zone math with Intl only. Event dates and times in config are local wall time in the
 // site's time zone; everything stored or compared is a UTC epoch in milliseconds.
 
-const MINUTE = 60_000;
 const formatters = new Map();
 
 function formatterFor(timeZone) {
@@ -33,7 +32,7 @@ export function isTimeZone(value) {
 }
 
 /** Wall-clock fields of an instant as seen in `timeZone`. */
-export function wallClock(ms, timeZone) {
+function wallClock(ms, timeZone) {
   const fields = {};
   for (const { type, value } of formatterFor(timeZone).formatToParts(ms)) fields[type] = Number(value);
   return {
@@ -115,8 +114,6 @@ export function timeLabel(time) {
 export function toIso(ms) {
   return ms === null || ms === undefined ? null : new Date(ms).toISOString();
 }
-
-export const minutes = (n) => n * MINUTE;
 
 /** The single source of "now" for the whole server. A fixed clock is for tests and previews. */
 export function systemClock() {

@@ -35,7 +35,7 @@ const consoleLog = { info: console.log, warn: console.warn, error: console.error
  * Builds the whole application without listening. Options exist for tests and previews:
  * a controllable clock, alternative config/public directories, a fetch for Stripe and alerts.
  */
-export function createApp({
+function createApp({
   env = process.env,
   configDir = path.join(ROOT, 'config'),
   publicDir = path.join(ROOT, 'public'),
@@ -66,7 +66,7 @@ export function createApp({
 
   async function handleApi(req, res, url, client) {
     res.setHeader('Cache-Control', 'no-store');
-    const match = router.match(req.method, url.pathname);
+    const match = router.match(req.method === 'HEAD' ? 'GET' : req.method, url.pathname);
     const wait = limiters[match?.route?.limit ?? 'api'].take(client.ip, appClock.now());
     if (wait) {
       throw new ApiError(429, 'rate_limited', 'Too many requests. Please wait a moment and try again.', { headers: { 'Retry-After': String(wait) } });
@@ -86,6 +86,14 @@ export function createApp({
     res.on('close', () => log.info(`${req.method} ${pathname} ${res.statusCode} ${Math.round(performance.now() - started)}ms`));
     try {
       for (const [name, value] of Object.entries(baseHeaders)) res.setHeader(name, value);
+      if (!req.url.startsWith('/')) {
+        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Bad request');
+        return;
+      }
+      const url = new URL(`http://localhost${req.url}`);
+      pathname = url.pathname;
+
       const client = clientInfo(req, config.trustProxy);
       if (config.production && client.https) res.setHeader('Strict-Transport-Security', HSTS);
       if (config.production && client.forwardedProto === 'http') {
@@ -93,14 +101,7 @@ export function createApp({
         res.end();
         return;
       }
-      if (!req.url.startsWith('/')) {
-        res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Bad request');
-        return;
-      }
 
-      const url = new URL(`http://localhost${req.url}`);
-      pathname = url.pathname;
       api = pathname === '/api' || pathname.startsWith('/api/');
       if (NO_INDEX.test(pathname)) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
       if (api) await handleApi(req, res, url, client);
@@ -163,7 +164,6 @@ export async function startServer(options) {
   }
   return {
     app,
-    server,
     port: server.address().port,
     close: () => new Promise((resolve) => {
       server.close(() => {

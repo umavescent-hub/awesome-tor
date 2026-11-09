@@ -23,14 +23,6 @@ async function main() {
 
   const { app, port } = running;
   const { config } = app;
-  for (const warning of app.warnings) console.warn(`WARNING: ${warning}`);
-  let payments = 'OFF';
-  if (config.paymentsMode === 'stripe') payments = config.stripeSecretKey.includes('_live_') ? 'Stripe (live)' : 'Stripe (test mode)';
-  else if (config.paymentsMode === 'demo') payments = 'demo mode, no real charges';
-  const address = config.production ? config.publicUrl : `http://localhost:${port}`;
-  console.log(`Tsideh is running at ${address}`);
-  console.log(`  payments: ${payments} · kitchen admin: ${config.adminPassword ? `${address}/admin` : 'off'} · data: ${config.dataDir}`);
-  if (config.now !== null) console.log(`  clock frozen at ${new Date(config.now).toISOString()} (NOW)`);
 
   let stopping = false;
   const shutdown = (signal) => {
@@ -48,6 +40,16 @@ async function main() {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+
+  for (const warning of app.warnings) console.warn(`WARNING: ${warning}`);
+  let payments = 'OFF';
+  if (config.paymentsMode === 'stripe') payments = config.stripeSecretKey.includes('_live_') ? 'Stripe (live)' : 'Stripe (test mode)';
+  else if (config.paymentsMode === 'demo') payments = 'demo mode, no real charges';
+  const address = config.production ? config.publicUrl : `http://localhost:${port}`;
+  console.log(`Tsideh is running at http://localhost:${port}`);
+  if (config.production) console.log(`  public address: ${config.publicUrl}`);
+  console.log(`  payments: ${payments} · kitchen admin: ${config.adminPassword ? `${address}/admin` : 'off'} · data: ${config.dataDir}`);
+  if (config.now !== null) console.log(`  clock frozen at ${new Date(config.now).toISOString()} (NOW)`);
 }
 
 await main();

@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const STRIPE_API_VERSION = '2024-06-20';
 const TIMEOUT_MS = 10_000;
-export const WEBHOOK_TOLERANCE_SECONDS = 300;
+const WEBHOOK_TOLERANCE_SECONDS = 300;
 
 export class StripeError extends Error {
   constructor(message, { status = null, type = null, code = null, cause } = {}) {

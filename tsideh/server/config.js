@@ -8,9 +8,9 @@ import { isDateString, isTimeString, isTimeZone, minutesOf } from './time.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const TAGS = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'spicy', 'contains-nuts'];
-export const EVENT_STATUSES = ['open', 'paused', 'closed', 'hidden'];
-export const ADMIN_PASSWORD_MIN = 12;
+const TAGS = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'spicy', 'contains-nuts'];
+const EVENT_STATUSES = ['open', 'paused', 'closed', 'hidden'];
+const ADMIN_PASSWORD_MIN = 12;
 
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
@@ -103,12 +103,12 @@ export function readEnv(env) {
   }
 
   const paymentsMode = stripeSecretKey ? 'stripe' : production ? 'disabled' : 'demo';
-  if (production) {
-    if (!stripeSecretKey) warnings.push('STRIPE_SECRET_KEY is not set: online payments are OFF and checkout will refuse orders.');
-    if (!stripeWebhookSecret) warnings.push('STRIPE_WEBHOOK_SECRET is not set: Stripe cannot confirm payments in the background. Add the webhook endpoint in Stripe and set this.');
-    if (!adminPassword) warnings.push('ADMIN_PASSWORD is not set: the kitchen admin at /admin is switched off.');
-    if (stripeSecretKey?.includes('_test_')) warnings.push('STRIPE_SECRET_KEY is a TEST key: no real money will be collected.');
+  if (production && !stripeSecretKey) warnings.push('STRIPE_SECRET_KEY is not set: online payments are OFF and checkout will refuse orders.');
+  if (production && stripeSecretKey?.includes('_test_')) warnings.push('STRIPE_SECRET_KEY is a TEST key: no real money will be collected.');
+  if ((production || stripeSecretKey) && !stripeWebhookSecret) {
+    warnings.push('STRIPE_WEBHOOK_SECRET is not set: Stripe cannot confirm payments in the background, so an order is marked paid only if the customer returns to the site. Add the webhook endpoint in Stripe and set this.');
   }
+  if (production && !adminPassword) warnings.push('ADMIN_PASSWORD is not set: the kitchen admin at /admin is switched off.');
 
   if (problems.length) throw new ConfigError(problems);
 

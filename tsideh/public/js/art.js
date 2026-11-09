@@ -164,28 +164,30 @@ function trefoil(ctx, S, x, y, angle, len) {
   }
 }
 
-/** Leaf trefoil on a thin stem rising `h` from (x, y); `twin` adds a smaller branch below. */
+/** Leaf trefoil on a thin stem standing on (x, y), `h` tall leaves included; `twin` adds a
+ *  smaller trefoil on a branch from the lower stem. */
 function sprout(ctx, S, x, y, h, sway = 0, twin = false) {
-  const stem = Math.max(1.2, S.lw * 0.8);
-  const tipX = x + Math.sin(sway) * h;
-  const tipY = y - Math.cos(sway) * h;
+  const width = Math.max(1.2, S.lw * 0.8);
+  const stem = h * 0.64;
+  const tipX = x + Math.sin(sway) * stem;
+  const tipY = y - Math.cos(sway) * stem;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(x, y);
-  ctx.quadraticCurveTo(x + h * 0.08 + Math.sin(sway) * h * 0.45, y - h * 0.5, tipX, tipY);
-  ink(ctx, stem);
+  ctx.quadraticCurveTo(x + stem * 0.1 + Math.sin(sway) * stem * 0.45, y - stem * 0.5, tipX, tipY);
+  ink(ctx, width);
   if (twin) {
-    const bx = x + h * 0.04 + Math.sin(sway) * h * 0.24;
-    const by = y - h * 0.3;
-    const ex = bx + h * 0.2;
-    const ey = by - h * 0.07;
+    const bx = x + stem * 0.05 + Math.sin(sway) * stem * 0.24;
+    const by = y - stem * 0.34;
+    const ex = bx + h * 0.16;
+    const ey = by - h * 0.05;
     ctx.beginPath();
     ctx.moveTo(bx, by);
-    ctx.quadraticCurveTo(bx + h * 0.1, by + h * 0.02, ex, ey);
-    ink(ctx, stem);
-    trefoil(ctx, S, ex, ey, -0.4 + sway * 0.6, h * 0.24);
+    ctx.quadraticCurveTo(bx + h * 0.08, by + h * 0.015, ex, ey);
+    ink(ctx, width);
+    trefoil(ctx, S, ex, ey, -0.4 + sway * 0.6, h * 0.2);
   }
-  trefoil(ctx, S, tipX, tipY, -HALF_PI + sway, h * 0.4);
+  trefoil(ctx, S, tipX, tipY, -HALF_PI + sway, h * 0.36);
 }
 
 /** Serrated ink rays standing on the circle (cx, cy, r) from angle a0 across `span`. */
@@ -207,7 +209,7 @@ function rayRing(ctx, cx, cy, r, h, a0, span, n, lean) {
 function terracePath(ctx, x, y, w, h, steps, down) {
   const sy = down ? 1 : -1;
   const sh = h / steps;
-  const inset = steps > 1 ? (w * 0.34) / (steps - 1) : 0;
+  const inset = steps > 1 ? (w * (0.12 + 0.07 * steps)) / (steps - 1) : 0;
   ctx.beginPath();
   ctx.moveTo(x - w / 2, y);
   for (let i = 0; i < steps; i++) {
@@ -223,9 +225,10 @@ function terracePath(ctx, x, y, w, h, steps, down) {
   ctx.closePath();
 }
 
-function silverTerrace(ctx, S, x, y, w, h, down) {
-  const steps = Math.max(2, Math.min(4, Math.round(h / (w * 0.2))));
-  terracePath(ctx, x, y, w, h, steps, down);
+function silverTerrace(ctx, S, x, y, w, h, down, steps = 0) {
+  const levels =
+    steps || Math.max(2, Math.min(4, Math.round(2 + (3 * h) / w), Math.floor(h / (S.lw * 2.2))));
+  terracePath(ctx, x, y, w, h, levels, down);
   fillWith(ctx, metal(ctx, x - w / 2, down ? y : y - h, x + w / 2, down ? y + h : y));
   ctx.lineJoin = 'miter';
   ink(ctx, S.lw);
@@ -257,10 +260,18 @@ function register(ctx, S, x0, x1, y, inward, style = PALETTE.ink) {
   return y2 + (inward * S.lw) / 2;
 }
 
-/** Three sprout stripes in a horizontal band from x0 to x1, top edge at y, total height `th`. */
+const STRIPE = 0.22;
+
+/** Clay gap above the first of three stripes in a band `th` tall. */
+function stripeGap(th) {
+  return (th * (1 - 3 * STRIPE)) / 4;
+}
+
+/** Three sprout stripes in a horizontal band from x0 to x1, top edge at y, total height `th`.
+ *  Returns the y of the first stripe's top edge. */
 function stripeBand(ctx, S, x0, x1, y, th) {
-  const bar = th * 0.22;
-  const gap = (th - bar * 3) / 4;
+  const bar = th * STRIPE;
+  const gap = stripeGap(th);
   ctx.lineJoin = 'miter';
   for (let j = 0; j < 3; j++) {
     ctx.beginPath();
@@ -285,7 +296,7 @@ function medallion(ctx, S, cx, cy, r, { rays = 0, twin = false } = {}) {
     ink(ctx, S.lw);
   }
   if (inner > S.lw * 7) {
-    sprout(ctx, S, cx - inner * 0.06, cy + inner * 0.6, inner * 1.12, 0, twin);
+    sprout(ctx, S, cx - inner * 0.05, cy + inner * 0.64, inner * 1.56, 0, twin);
   } else {
     ctx.beginPath();
     ctx.arc(cx, cy, Math.max(S.lw, r * 0.24), 0, TAU);
@@ -295,44 +306,35 @@ function medallion(ctx, S, cx, cy, r, { rays = 0, twin = false } = {}) {
 
 /* ------------------------------------------------------------- obstacles */
 
-/** Free room from `y` heading `dir` (1 down, -1 up) before obstacle `o`, within [xa, xb].
- *  Obstacles are circles { cx, cy, r } or boxes { x0, x1, y0, y1 }. */
+/** Free room from `y` heading `dir` (1 down, -1 up) before circle `o`, within [xa, xb]. */
 function clearance(o, xa, xb, y, dir) {
-  if ('r' in o) {
-    const dx = Math.min(Math.max(o.cx, xa), xb) - o.cx;
-    if (Math.abs(dx) >= o.r) return Infinity;
-    const edge = o.cy - dir * Math.sqrt(o.r * o.r - dx * dx);
-    return Math.max(0, (edge - y) * dir);
-  }
-  if (xb <= o.x0 || xa >= o.x1) return Infinity;
-  return Math.max(0, ((dir > 0 ? o.y0 : o.y1) - y) * dir);
+  const dx = Math.min(Math.max(o.cx, xa), xb) - o.cx;
+  if (Math.abs(dx) >= o.r) return Infinity;
+  const edge = o.cy - dir * Math.sqrt(o.r * o.r - dx * dx);
+  return Math.max(0, (edge - y) * dir);
 }
 
-/** A rhythm of elements hung from (dir 1) or raised on (dir -1) a register line.
- *  Rigid rows skip any element that would touch an obstacle; adaptive rows let it shrink. */
-function row(ctx, S, { xs, y, dir, width, height, kind, obstacles = [], adaptive = false }) {
+/** A rhythm of ink triangles or silver terraces hung from (dir 1) or raised on (dir -1) a
+ *  register line. A form that would come within a clay gap of an obstacle circle is left out,
+ *  so every form keeps its full size. */
+function row(ctx, S, { xs, y, dir, width, height, kind, obstacles = [], steps = 0 }) {
+  const down = dir > 0;
   xs.forEach((x, i) => {
     const k = kind(i);
-    if (!k) return;
-    let room = height;
-    for (const o of obstacles) {
-      room = Math.min(room, clearance(o, x - width / 2, x + width / 2, y, dir) - S.gap * 2);
-    }
-    if (room < (adaptive ? height * 0.36 : height)) return;
-    const down = dir > 0;
-    if (k === 'triangle') inkTriangle(ctx, x, y, width, room, down);
-    else if (k === 'terrace') silverTerrace(ctx, S, x, y, width, room, down);
-    else if (k === 'sprout') sprout(ctx, S, x, y, room, 0, room > S.lw * 18);
-    else if (k === 'mesa') {
-      const base = Math.min(room * 0.42, width * 0.42);
-      silverTerrace(ctx, S, x, y, width, base, down);
-      sprout(ctx, S, x, y - base, (room - base) * 0.92, 0, room - base > S.lw * 18);
-    }
+    const clear = obstacles.every(
+      (o) => clearance(o, x - width / 2, x + width / 2, y, dir) >= height + S.gap * 2,
+    );
+    if (!k || !clear) return;
+    if (k === 'triangle') inkTriangle(ctx, x, y, width, height, down);
+    else silverTerrace(ctx, S, x, y, width, height, down, steps);
   });
 }
 
-function spaced(x0, x1, unit) {
-  const n = Math.max(1, Math.round((x1 - x0) / unit));
+/** Evenly spaced cell centres across [x0, x1], about `unit` apart; an odd count when asked,
+ *  so a mirrored rhythm has a true centre. */
+function spaced(x0, x1, unit, odd = false) {
+  const count = Math.max(1, Math.round((x1 - x0) / unit));
+  const n = odd && count % 2 === 0 ? count + 1 : count;
   const step = (x1 - x0) / n;
   return { step, xs: Array.from({ length: n }, (_, i) => x0 + (i + 0.5) * step) };
 }
@@ -342,10 +344,11 @@ function spaced(x0, x1, unit) {
 /**
  * Plan a whorl of radius R about the origin: a sprout heart in an ink ring, wrapped by `count`
  * interleaved silver crescents that spiral in from a square end to a tip tucked under the ring.
- * opts: count, dir (+1 clockwise), base (angle of the first square end), stripes (length per
- * blade, 0 for none), rays (indices of rayed blades), fine (room for small detail).
+ * opts: count, dir (+1 clockwise), base (angle of the first square end), tails (feather tail
+ * length per blade from its square end, 0 for none), rays (indices of rayed blades), fine (room
+ * for small detail).
  */
-function planWhorl(rng, S, R, { count, dir, base, stripes, rays, fine }) {
+function planWhorl(rng, S, R, { count, dir, base, tails, rays, fine }) {
   const ring = Math.max(S.lw * 1.5, Math.min(S.band, R * 0.085));
   const heartR = R * 0.35;
   const ri = heartR + ring + R * 0.06;
@@ -360,7 +363,7 @@ function planWhorl(rng, S, R, { count, dir, base, stripes, rays, fine }) {
     W,
     curl: ri - heartR - ring / 2,
     saw: W * 0.17,
-    stripes: stripes[i] || 0,
+    stripes: Math.max(0, (tails[i] || 0) - W * 0.17),
     window: fine && W > 20,
     rays: rays.includes(i) ? { t0: 0.04, t1: 0.66, n: fine ? 7 : 5, h: R * 0.2, lean: 0.28 } : null,
   }));
@@ -369,7 +372,7 @@ function planWhorl(rng, S, R, { count, dir, base, stripes, rays, fine }) {
   for (const b of blades) {
     if (b.stripes) reach = Math.max(reach, Math.hypot(ri + W, b.saw + b.stripes) + S.lw);
   }
-  return { R, dir, ring, heartR, blades, body, reach, twin: fine && heartR > 22 };
+  return { dir, ring, heartR, blades, body, reach, twin: fine && heartR > 34 };
 }
 
 function bladeGeometry(b, t) {
@@ -414,28 +417,79 @@ function bladeRays(ctx, b, cx, cy, a0, time) {
   fillWith(ctx, PALETTE.ink);
 }
 
-/** Ink sawtooth column and three sprout stripes off a blade's square end, in a local frame
- *  whose x runs back along the stripes and whose y crosses the blade from its inner edge. */
-function featherEnd(ctx, S, b, cx, cy, a0) {
-  const { r } = bladeGeometry(b, 0);
-  const c = Math.cos(a0);
-  const s = Math.sin(a0);
-  ctx.save();
-  ctx.transform(b.dir * s, -b.dir * c, c, s, cx + r * c, cy + r * s);
-  stripeBand(ctx, S, b.saw, b.saw + b.stripes, 0, b.W);
-  const teeth = b.W > 36 ? 4 : 3;
-  const tooth = b.W / teeth;
+/** Feather tail in a local frame: x runs away from the blade, y crosses its width [0, W].
+ *  An ink sawtooth column `saw` wide, then three sprout stripes `length` long. */
+function featherTail(ctx, S, W, saw, length) {
+  stripeBand(ctx, S, saw, saw + length, 0, W);
+  const teeth = W > 36 ? 4 : 3;
+  const tooth = W / teeth;
   ctx.beginPath();
   for (let j = 0; j < teeth; j++) {
     ctx.moveTo(0, j * tooth);
-    ctx.lineTo(b.saw, (j + 0.5) * tooth);
+    ctx.lineTo(saw, (j + 0.5) * tooth);
     ctx.lineTo(0, (j + 1) * tooth);
   }
   fillWith(ctx, PALETTE.ink);
   ctx.beginPath();
-  ctx.rect(0, 0, b.saw, b.W);
+  ctx.rect(0, 0, saw, W);
   ink(ctx, S.lw * 0.8);
+}
+
+/** The tail leaves a whorl blade's square end tangentially, against the sweep. */
+function featherEnd(ctx, S, b, cx, cy, a0) {
+  const c = Math.cos(a0);
+  const s = Math.sin(a0);
+  ctx.save();
+  ctx.transform(b.dir * s, -b.dir * c, c, s, cx + b.ri * c, cy + b.ri * s);
+  featherTail(ctx, S, b.W, b.saw, b.stripes);
   ctx.restore();
+}
+
+/** Window: a small clay rectangle outlined in ink, set into a silver form. */
+function windowAt(ctx, S, x, y, angle, w, h) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.rect(-w / 2, -h / 2, w, h);
+  ctx.restore();
+  fillWith(ctx, PALETTE.clay);
+  ctx.lineJoin = 'miter';
+  ink(ctx, S.lw);
+}
+
+/** Extent of everything a whorl paints, relative to its centre. */
+function whorlBounds(wh) {
+  const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  const add = (x, y) => {
+    box.x0 = Math.min(box.x0, x);
+    box.y0 = Math.min(box.y0, y);
+    box.x1 = Math.max(box.x1, x);
+    box.y1 = Math.max(box.y1, y);
+  };
+  const core = wh.heartR + wh.ring;
+  add(-core, -core);
+  add(core, core);
+  for (const b of wh.blades) {
+    for (const [x, y] of bladeEdges(b, 0, 0, b.a0).outer) add(x, y);
+    if (b.rays) {
+      const { t0, t1, n, h } = b.rays;
+      for (let i = 0; i <= n; i++) {
+        const t = t0 + ((t1 - t0) * i) / n;
+        const a = b.a0 + b.dir * b.span * t;
+        const { r, w } = bladeGeometry(b, t);
+        add((r + w + h) * Math.cos(a), (r + w + h) * Math.sin(a));
+      }
+    }
+    if (b.stripes) {
+      const c = Math.cos(b.a0);
+      const s = Math.sin(b.a0);
+      for (const x of [0, b.saw + b.stripes]) {
+        for (const y of [0, b.W]) add(b.dir * s * x + c * (y + b.ri), -b.dir * c * x + s * (y + b.ri));
+      }
+    }
+  }
+  return box;
 }
 
 function bladeBody(ctx, S, b, cx, cy, a0) {
@@ -445,23 +499,16 @@ function bladeBody(ctx, S, b, cx, cy, a0) {
   for (let i = 1; i < outer.length; i++) ctx.lineTo(outer[i][0], outer[i][1]);
   for (let i = inner.length - 1; i >= 0; i--) ctx.lineTo(inner[i][0], inner[i][1]);
   ctx.closePath();
-  const mid = inner[Math.round(inner.length * 0.55)];
-  fillWith(ctx, metal(ctx, outer[0][0], outer[0][1], mid[0], mid[1]));
+  const shade = inner[Math.round(inner.length * 0.55)];
+  fillWith(ctx, metal(ctx, outer[0][0], outer[0][1], shade[0], shade[1]));
   ctx.lineJoin = 'round';
   ink(ctx, S.lw);
   if (!b.window) return;
   const t = 0.22;
   const a = a0 + b.dir * b.span * t;
   const { r, w } = bladeGeometry(b, t);
-  ctx.save();
-  ctx.translate(cx + (r + w / 2) * Math.cos(a), cy + (r + w / 2) * Math.sin(a));
-  ctx.rotate(a + HALF_PI);
-  ctx.beginPath();
-  ctx.rect(-b.W * 0.19, -b.W * 0.13, b.W * 0.38, b.W * 0.26);
-  ctx.restore();
-  fillWith(ctx, PALETTE.clay);
-  ctx.lineJoin = 'miter';
-  ink(ctx, S.lw);
+  const mid = r + w / 2;
+  windowAt(ctx, S, cx + mid * Math.cos(a), cy + mid * Math.sin(a), a + HALF_PI, b.W * 0.38, b.W * 0.26);
 }
 
 /** motion: { turn (radians), sway (sprout lean), time (seconds, or null for a still frame) } */
@@ -476,7 +523,7 @@ function drawWhorl(ctx, S, wh, cx, cy, motion = REST) {
   ink(ctx, wh.ring);
   const r = wh.heartR;
   if (r >= 11) {
-    sprout(ctx, S, cx - r * 0.06, cy + r * 0.62, r * 1.18, motion.sway, wh.twin);
+    sprout(ctx, S, cx - r * 0.05, cy + r * 0.66, r * 1.6, motion.sway, wh.twin);
   } else {
     ctx.beginPath();
     ctx.arc(cx, cy, r * 0.4, 0, TAU);
@@ -491,24 +538,32 @@ function paintItem(ctx, rng, w, h) {
   const S = brush(m, 0.016);
   const fine = m >= 150;
   ground(ctx, w, h);
-  const cx = w / 2;
-  const cy = h / 2;
   const kind = rng.weighted([['whorl', 4], ['pinwheel', 2], ['terrace', 2], ['medallion', 2]]);
 
   if (kind === 'whorl' || kind === 'pinwheel') {
     const pin = kind === 'pinwheel';
-    const R = m * (pin ? 0.4 : 0.36);
     const count = pin ? rng.pick([3, 4]) : rng.weighted([[2, 3], [1, 1]]);
-    const stripe = pin ? 0 : R * rng.range(0.42, 0.58);
-    const wh = planWhorl(rng, S, R, {
+    const opts = {
       count,
       dir: rng.pick([1, -1]),
       base: rng.range(0, TAU),
-      stripes: Array(count).fill(stripe),
-      rays: pin ? (rng.chance(0.5) ? [0, 1, 2, 3] : []) : rng.chance(0.6) ? [0] : [],
+      rays: !pin && rng.chance(0.6) ? [0] : [],
       fine,
-    });
-    drawWhorl(ctx, S, wh, cx, cy);
+    };
+    const tail = pin ? 0 : rng.range(0.5, 0.66);
+    const sub = rng.int(0, 0x7fffffff);
+    const plan = (R) =>
+      planWhorl(createRng(sub), S, R, { ...opts, tails: Array(count).fill(R * tail) });
+    // Fit the whole whorl — tails and rays included — inside the tile, then centre its mass.
+    const R0 = m * (pin ? 0.42 : 0.38);
+    let wh = plan(R0);
+    let box = whorlBounds(wh);
+    const fit = Math.min(1, (w * 0.86) / (box.x1 - box.x0), (h * 0.86) / (box.y1 - box.y0));
+    if (fit < 1) {
+      wh = plan(R0 * fit);
+      box = whorlBounds(wh);
+    }
+    drawWhorl(ctx, S, wh, w / 2 - (box.x0 + box.x1) / 2, h / 2 - (box.y0 + box.y1) / 2);
     return;
   }
 
@@ -518,15 +573,17 @@ function paintItem(ctx, rng, w, h) {
     const bottom = register(ctx, S, 0, w, h - inset, -1);
     const field = bottom - top;
     const tw = w * rng.range(0.52, 0.62);
-    const th = field * rng.range(0.3, 0.36);
-    silverTerrace(ctx, S, cx, bottom, tw, th, false);
+    const th = field * rng.range(0.28, 0.34);
+    silverTerrace(ctx, S, w / 2, bottom, tw, th, false);
     const corner = w * 0.2;
-    for (const x of [corner / 2, w - corner / 2]) inkTriangle(ctx, x, top, corner * 0.82, field * 0.16, true);
-    sprout(ctx, S, cx, bottom - th, (field - th) * 0.66, 0, fine);
+    for (const x of [corner / 2, w - corner / 2]) {
+      inkTriangle(ctx, x, top, corner * 0.82, field * 0.16, true);
+    }
+    sprout(ctx, S, w / 2, bottom - th, (field - th) * 0.82, 0, fine);
     return;
   }
 
-  medallion(ctx, S, cx, cy, m * 0.26, { rays: fine ? 12 : 10, twin: fine });
+  medallion(ctx, S, w / 2, h / 2, m * 0.27, { rays: fine ? 12 : 10, twin: fine });
 }
 
 function paintEvent(ctx, rng, w, h) {
@@ -538,119 +595,115 @@ function paintEvent(ctx, rng, w, h) {
   const bottom = register(ctx, S, 0, w, h - inset, -1);
   const fh = bottom - top;
   const mode = rng.weighted([['single', 5], ['twin', 2], ['center', 2]]);
-  const fringeH = fh * rng.range(0.1, 0.13);
   const fringeKind = rng.pick(['triangle', 'terrace']);
-  const fringeW = fringeH * (fringeKind === 'terrace' ? 2.1 : 1.3);
-  const bleed = S.lw * 4;
-
-  if (mode === 'center') {
-    const R = Math.min(fh * 0.42, w * 0.2);
-    const count = rng.pick([3, 4]);
-    const wh = planWhorl(rng, S, R, {
-      count,
-      dir: rng.pick([1, -1]),
-      base: rng.range(0, TAU),
-      stripes: [],
-      rays: [0, 1, 2, 3],
-      fine,
-    });
-    const keep = { cx: w / 2, cy: top + fh / 2, r: wh.body + S.gap };
-    const riseH = fh * rng.range(0.24, 0.3);
-    bilateral(ctx, w, h, () => {
-      const { step, xs } = spaced(0, w / 2, fringeW * 1.9);
-      row(ctx, S, { xs, y: top, dir: 1, width: fringeW, height: fringeH, kind: () => fringeKind, obstacles: [keep] });
-      row(ctx, S, {
-        xs: spaced(0, w / 2, riseH * 2.4).xs,
-        y: bottom,
-        dir: -1,
-        width: Math.min(step * 2, riseH * 1.9),
-        height: riseH,
-        kind: (i) => (i % 2 ? 'sprout' : 'terrace'),
-        obstacles: [keep],
-      });
-    });
-    drawWhorl(ctx, S, wh, keep.cx, keep.cy);
-    return;
-  }
-
-  // single / twin: a whorl whose lower feather runs out across the card as a planted furrow
-  const twin = mode === 'twin';
-  const R = Math.min(fh * 0.4, w * (twin ? 0.15 : 0.2));
-  const cx = Math.max(R * 1.22, w * (twin ? 0.2 : 0.23));
-  const cy = top + fh * 0.46;
-  const draft = planWhorl(rng, S, R, { count: 2, dir: 1, base: HALF_PI, stripes: [], rays: [], fine });
-  const saw = draft.blades[0].saw;
-  const runTo = twin ? w / 2 + bleed : w + bleed;
-  const wh = planWhorl(rng, S, R, {
-    count: 2,
-    dir: 1,
-    base: HALF_PI,
-    stripes: [runTo - cx - saw, cx - saw + bleed],
-    rays: rng.chance(0.5) ? [0] : [],
-    fine,
-  });
-  const furrowTop = cy + wh.blades[0].ri;
-  const keep = { cx, cy, r: wh.body + S.gap };
-  const fringeFrom = cx + R * 0.7;
-  const fringeTo = twin ? w / 2 : w;
-  const sprouts = twin ? 0 : rng.int(1, 3);
-  const flip = !twin && rng.chance(0.5);
-  const paintHalf = () => {
+  const fringeH = fh * (fringeKind === 'terrace' ? rng.range(0.13, 0.15) : rng.range(0.1, 0.13));
+  const fringeW = fringeH * (fringeKind === 'terrace' ? 2.2 : 1.3);
+  const fringe = (x0, x1, obstacles) =>
     row(ctx, S, {
-      xs: spaced(fringeFrom, fringeTo, fringeW * 1.9).xs,
+      xs: spaced(x0, x1, fringeW * 1.9).xs,
       y: top,
       dir: 1,
       width: fringeW,
       height: fringeH,
       kind: () => fringeKind,
-      obstacles: [keep],
+      obstacles,
+      steps: 3,
     });
+
+  if (mode === 'center') {
+    // A pinwheel set in a ring, the planted furrow passing behind it; mirror-symmetric field.
+    const R = Math.min(fh * 0.38, w * 0.2);
+    const wh = planWhorl(rng, S, R, {
+      count: rng.pick([3, 4]),
+      dir: rng.pick([1, -1]),
+      base: rng.range(0, TAU),
+      tails: [],
+      rays: [],
+      fine,
+    });
+    const cx = w / 2;
+    const cy = top + fh / 2;
+    const ringR = wh.reach + S.gap;
+    const band = fh * 0.2;
+    const furrow = stripeBand(ctx, S, -S.lw, w + S.lw, cy + R * 0.3, band);
+    const keep = { cx, cy, r: ringR + S.lw + S.gap };
+    const room = furrow - top - fringeH - S.gap * 3;
+    bilateral(ctx, w, h, () => {
+      fringe(0, w / 2, [keep]);
+      const lane = cx - keep.r;
+      sprout(ctx, S, lane * rng.range(0.42, 0.58), furrow, room * rng.range(0.7, 0.9), 0, fine);
+    });
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR, 0, TAU);
+    fillWith(ctx, PALETTE.clay);
+    ink(ctx, S.lw);
     drawWhorl(ctx, S, wh, cx, cy);
-    const room = furrowTop - top - S.gap * 3;
-    const lane = spaced(cx + wh.body, w - R * 0.25, (w - R * 0.25 - cx - wh.body) / Math.max(1, sprouts)).xs;
-    lane.slice(0, sprouts).forEach((x) => {
-      const sh = room * rng.range(0.5, 0.78);
-      sprout(ctx, S, x + rng.range(-0.15, 0.15) * R, furrowTop + S.lw, sh, 0, fine && sh > R * 0.8);
-    });
+    return;
+  }
+
+  // single / twin: a whorl whose lower feather runs out across the card as a planted furrow.
+  const twin = mode === 'twin';
+  const bleed = S.lw * 4;
+  const R = Math.min(fh * 0.4, w * (twin ? 0.15 : 0.2));
+  const cx = Math.max(R * 1.3, w * (twin ? 0.2 : 0.23));
+  const cy = top + fh * 0.46;
+  const wh = planWhorl(rng, S, R, {
+    count: 2,
+    dir: 1,
+    base: HALF_PI,
+    tails: [(twin ? w / 2 : w) + bleed - cx, cx + bleed],
+    rays: rng.chance(0.5) ? [0] : [],
+    fine,
+  });
+  const furrow = cy + wh.blades[0].ri + stripeGap(wh.blades[0].W);
+  const keep = { cx, cy, r: wh.body + S.gap };
+  const room = furrow - top - fringeH - S.gap * 3;
+  const paintHalf = () => {
+    fringe(cx + R * 0.7, twin ? w / 2 : w, [keep]);
+    drawWhorl(ctx, S, wh, cx, cy);
   };
   if (twin) {
     bilateral(ctx, w, h, paintHalf);
-    const sh = (furrowTop - top) * 0.72;
-    sprout(ctx, S, w / 2, furrowTop + S.lw, sh, 0, fine);
+    sprout(ctx, S, w / 2, furrow, room * 0.94, 0, fine);
     return;
   }
   ctx.save();
-  if (flip) {
+  if (rng.chance(0.5)) {
     ctx.translate(w, 0);
     ctx.scale(-1, 1);
   }
   paintHalf();
+  // One to three sprouts stand on the furrow in the open lane beside the whorl.
+  const from = cx + wh.body;
+  const lane = spaced(from, w - R * 0.3, (w - R * 0.3 - from) / rng.int(1, 3));
+  for (const x of lane.xs) {
+    const sh = room * rng.range(0.62, 0.92);
+    sprout(ctx, S, x + rng.range(-0.15, 0.15) * R, furrow, sh, 0, fine && sh > R * 0.9);
+  }
   ctx.restore();
 }
 
-/** Horizontal feather centred on (x, y): stripes, sawtooth and a long, slightly drooping blade. */
+/** Horizontal feather centred on (x, y): tail, sawtooth, then a blade tapering to a point. */
 function feather(ctx, S, x, y, len, thick, dir, fine) {
-  const stripes = len * 0.36;
+  const tail = len * 0.34;
   const saw = thick * 0.17;
-  const bigR = thick * 9;
-  const ri = bigR - thick / 2;
-  const bladeLen = len - stripes - saw;
-  const b = {
-    a0: -HALF_PI,
-    span: bladeLen / bigR,
-    dir,
-    ri,
-    W: thick,
-    curl: thick * 0.4,
-    saw,
-    stripes,
-    window: fine && thick > 20,
-    rays: null,
-  };
-  const startX = x - (dir * len) / 2 + dir * (stripes + saw);
-  const centerY = y + ri + thick / 2;
-  featherEnd(ctx, S, b, startX, centerY, b.a0);
-  bladeBody(ctx, S, b, startX, centerY, b.a0);
+  const blade = len - tail - saw;
+  ctx.save();
+  ctx.transform(dir, 0, 0, 1, x - (dir * len) / 2 + dir * (tail + saw), y - thick / 2);
+  ctx.save();
+  ctx.scale(-1, 1);
+  featherTail(ctx, S, thick, saw, tail);
+  ctx.restore();
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(blade * 0.55, 0, blade * 0.86, thick * 0.3, blade, thick * 0.62);
+  ctx.bezierCurveTo(blade * 0.74, thick * 0.94, blade * 0.38, thick, 0, thick);
+  ctx.closePath();
+  fillWith(ctx, metal(ctx, 0, 0, blade, thick));
+  ctx.lineJoin = 'round';
+  ink(ctx, S.lw);
+  if (fine && thick > 20) windowAt(ctx, S, blade * 0.24, thick / 2, 0, thick * 0.38, thick * 0.26);
+  ctx.restore();
 }
 
 function paintBanner(ctx, rng, w, h) {
@@ -664,22 +717,24 @@ function paintBanner(ctx, rng, w, h) {
   const fine = fh >= 90;
   const mid = (top + bottom) / 2;
   const mirrored = rng.chance(0.6);
-  const kind = rng.weighted([['terraces', 3], ['furrow', 2], ['feathers', 2]]);
+  const kind = rng.weighted([['terraces', 3], ['furrow', 3], ['feathers', 2]]);
 
   if (kind === 'terraces') {
-    const { step, xs } = spaced(0, w, fh * rng.range(1.2, 1.5));
-    const n = xs.length;
+    // Interlocking terraces: raised between the cells, hung from the cell edges, with a
+    // medallion standing in for every few raised terraces.
+    const { step, xs } = spaced(0, w, fh * rng.range(1.2, 1.5), mirrored);
+    const centre = (xs.length - 1) / 2;
     const every = rng.pick([3, 4, 5]);
-    const center = Math.floor((n - 1) / 2);
     const phase = mirrored ? 0 : rng.int(0, every - 1);
-    const isMedallion = (i) => ((mirrored ? Math.abs(i - center) : i) + phase) % every === 0;
+    const isMedallion = (i) => ((mirrored ? Math.abs(i - centre) : i) + phase) % every === 0;
     const r = fh * 0.36;
-    const keeps = xs.filter((_, i) => isMedallion(i)).map((x) => ({ cx: x, cy: mid, r: r + S.gap }));
+    const keeps = xs
+      .filter((_, i) => isMedallion(i))
+      .map((x) => ({ cx: x, cy: mid, r: r + S.gap }));
     const hangKind = rng.pick(['triangle', 'terrace']);
-    const edges = Array.from({ length: n + 1 }, (_, i) => i * step);
     const tall = fh * 0.56;
     row(ctx, S, {
-      xs: edges,
+      xs: Array.from({ length: xs.length + 1 }, (_, i) => i * step),
       y: top,
       dir: 1,
       width: step * (hangKind === 'terrace' ? 0.6 : 0.44),
@@ -700,32 +755,41 @@ function paintBanner(ctx, rng, w, h) {
   }
 
   if (kind === 'furrow') {
-    const band = fh * rng.range(0.22, 0.28);
-    const y0 = bottom - S.gap * 2 - band;
-    const lineTop = stripeBand(ctx, S, -S.lw, w + S.lw, y0, band);
-    const fringeH = fh * 0.16;
-    const { step, xs } = spaced(0, w, fringeH * 2.2);
-    row(ctx, S, { xs, y: top, dir: 1, width: step * 0.5, height: fringeH, kind: () => 'triangle' });
-    const lane = spaced(0, w, fh * rng.range(1.3, 1.9)).xs;
-    const room = lineTop - top - fringeH - S.gap * 3;
-    lane.forEach((x, i) => {
-      const k = mirrored ? Math.min(i, lane.length - 1 - i) : i;
-      const sh = room * (k % 2 ? 0.62 : 0.92);
-      sprout(ctx, S, x, lineTop, sh, 0, fine && k % 2 === 0);
+    // A planted furrow: three stripes the full width with sprouts rising in a seeded rhythm.
+    const band = fh * rng.range(0.2, 0.26);
+    const furrow = stripeBand(ctx, S, -S.lw, w + S.lw, bottom - S.gap * 2 - band, band);
+    const fringeKind = rng.pick(['triangle', 'terrace', null]);
+    const fringeH = fringeKind ? fh * 0.15 : 0;
+    if (fringeKind) {
+      const fw = fringeH * (fringeKind === 'terrace' ? 2.2 : 1.3);
+      row(ctx, S, {
+        xs: spaced(0, w, fw * 1.7).xs,
+        y: top,
+        dir: 1,
+        width: fw,
+        height: fringeH,
+        kind: () => fringeKind,
+      });
+    }
+    const rhythm = rng.pick([[1, 0.6], [1], [0.66, 1, 0.66], [1, 0.5, 0.78, 0.5]]);
+    const { xs } = spaced(0, w, fh * rng.range(1.1, 1.7), mirrored);
+    const centre = (xs.length - 1) / 2;
+    const room = furrow - top - fringeH - S.gap * 3;
+    xs.forEach((x, i) => {
+      const sh = room * rhythm[(mirrored ? Math.abs(i - centre) : i) % rhythm.length];
+      sprout(ctx, S, x, furrow, sh, 0, fine && sh > room * 0.8);
     });
     return;
   }
 
-  const { step, xs } = spaced(0, w, fh * rng.range(1.7, 2.1));
-  const thick = fh * 0.44;
+  // A procession of feathers between medallions; mirrored processions meet at the centre.
+  const { step, xs } = spaced(0, w, fh * rng.range(1.7, 2.1), true);
+  const centre = (xs.length - 1) / 2;
+  const thick = fh * 0.42;
   xs.forEach((x, i) => {
-    const k = mirrored ? Math.min(i, xs.length - 1 - i) : i;
-    if (k % 2) {
-      medallion(ctx, S, x, mid, fh * 0.3, { rays: 0 });
-      return;
-    }
-    const dir = mirrored && x > w / 2 ? -1 : 1;
-    feather(ctx, S, x, mid, step * 0.9, thick, dir, fine);
+    const k = mirrored ? Math.abs(i - centre) : i;
+    if (k % 2 === 0) medallion(ctx, S, x, mid, fh * 0.3);
+    else feather(ctx, S, x, mid, step * 0.92, thick, mirrored && x > w / 2 ? -1 : 1, fine);
   });
 }
 
@@ -744,11 +808,11 @@ function circleThrough(a, b, c) {
 function paintSherd(ctx, rng, w, h) {
   const m = Math.min(w, h);
   const S = brush(m, 0.014);
-  const R = m * 0.4;
+  const R = m * 0.43;
   const depth = S.lw * 2;
   const tilt = rng.range(-0.32, 0.32);
 
-  // Local frame: sherd centred on the origin, rim along the top.
+  // Local frame: the sherd centred on the origin, its rim arcing across the top.
   const left = [-R * rng.range(0.82, 0.95), -R * rng.range(0.5, 0.66)];
   const right = [R * rng.range(0.82, 0.95), -R * rng.range(0.5, 0.66)];
   const apex = [(left[0] + right[0]) / 2, (left[1] + right[1]) / 2 - R * rng.range(0.14, 0.2)];
@@ -759,12 +823,12 @@ function paintSherd(ctx, rng, w, h) {
   const vertices = [right];
   for (let i = 1; i <= breaks; i++) {
     const a = aFrom + ((aTo - aFrom) * (i + rng.range(-0.28, 0.28))) / (breaks + 1);
-    const r = R * rng.range(0.76, 1.04);
+    const r = R * rng.range(0.78, 1.04);
     vertices.push([r * Math.cos(a), r * Math.sin(a)]);
   }
   vertices.push(left);
   const bends = vertices.map(() => rng.range(-0.08, 0.08));
-  const toScreen = (dx, dy) => {
+  const place = (dx, dy) => {
     ctx.translate(w / 2 + dx - depth * 0.3, h / 2 + dy - depth * 0.4);
     ctx.rotate(tilt);
   };
@@ -778,14 +842,16 @@ function paintSherd(ctx, rng, w, h) {
       const [x1, y1] = vertices[i];
       const len = Math.hypot(x1 - x0, y1 - y0);
       const bend = len * bends[i];
-      ctx.quadraticCurveTo((x0 + x1) / 2 - ((y1 - y0) / len) * bend, (y0 + y1) / 2 + ((x1 - x0) / len) * bend, x1, y1);
+      const qx = (x0 + x1) / 2 - ((y1 - y0) / len) * bend;
+      const qy = (y0 + y1) / 2 + ((x1 - x0) / len) * bend;
+      ctx.quadraticCurveTo(qx, qy, x1, y1);
     }
     ctx.closePath();
   };
 
   // The broken edge shows the fired body beneath the painted face.
   ctx.save();
-  toScreen(depth * 0.55, depth);
+  place(depth * 0.55, depth);
   outline();
   ctx.restore();
   fillWith(ctx, PALETTE.earth);
@@ -793,12 +859,13 @@ function paintSherd(ctx, rng, w, h) {
   ink(ctx, S.lw);
 
   ctx.save();
-  toScreen(0, 0);
+  place(0, 0);
   outline();
   fillWith(ctx, PALETTE.clay);
   ctx.save();
   ctx.clip();
 
+  // Painted rim band, a register of hanging forms, then a fragment of a whorl below.
   const ringAt = (r, width) => {
     ctx.beginPath();
     ctx.arc(rim.cx, rim.cy, r, 0, TAU);
@@ -808,35 +875,33 @@ function paintSherd(ctx, rng, w, h) {
   ringAt(rBand, S.band);
   const rThin = rBand - S.band / 2 - S.gap - S.lw / 2;
   ringAt(rThin, S.lw);
-  const hangH = R * rng.range(0.17, 0.22);
+  const hangH = R * rng.range(0.16, 0.2);
   const rLow = rThin - hangH - S.gap * 2.4;
   ringAt(rLow, S.lw);
-  const aMid = -HALF_PI;
   const arcStep = (R * rng.range(0.44, 0.54)) / rim.r;
   const hangKind = rng.pick(['terrace', 'triangle']);
   for (let i = -4; i <= 4; i++) {
-    const a = aMid + (i + 0.5) * arcStep;
+    const a = -HALF_PI + (i + 0.5) * arcStep;
     const ew = arcStep * rThin * (hangKind === 'terrace' ? 0.66 : 0.5);
     ctx.save();
     ctx.translate(rim.cx + (rThin - S.lw / 2) * Math.cos(a), rim.cy + (rThin - S.lw / 2) * Math.sin(a));
     ctx.rotate(a + HALF_PI);
-    if (hangKind === 'terrace') silverTerrace(ctx, S, 0, 0, ew, hangH, true);
+    if (hangKind === 'terrace') silverTerrace(ctx, S, 0, 0, ew, hangH, true, 3);
     else inkTriangle(ctx, 0, 0, ew, hangH, true);
     ctx.restore();
   }
-
-  const wr = R * rng.range(0.6, 0.74);
+  const wr = R * rng.range(0.5, 0.6);
   const count = rng.pick([1, 2]);
   const wh = planWhorl(rng, S, wr, {
     count,
     dir: rng.pick([1, -1]),
     base: rng.range(0, TAU),
-    stripes: Array(count).fill(wr * rng.range(0.5, 0.8)),
+    tails: Array(count).fill(wr * rng.range(0.6, 0.9)),
     rays: rng.chance(0.6) ? [0] : [],
     fine: m >= 120,
   });
-  const below = rim.cy - rLow + S.gap * 2;
-  drawWhorl(ctx, S, wh, R * rng.range(-0.42, 0.42), below + wh.body * rng.range(0.82, 0.95));
+  const shoulder = rim.cy - rLow + S.gap * 2;
+  drawWhorl(ctx, S, wh, R * rng.range(-0.3, 0.3), shoulder + wh.body * rng.range(0.86, 0.96));
 
   // Fired-clay grain.
   ctx.fillStyle = PALETTE.earth;
@@ -858,55 +923,71 @@ function paintSherd(ctx, rng, w, h) {
 
 /* ------------------------------------------------------------------- hero */
 
+/** Hero layout: a whorl inside a bowl-rim ring, placed away from the headline zone. */
 function planHero(rng, w, h, zone) {
   const wide = zone === 'left';
-  const R = wide ? Math.min(h * 0.34, w * 0.21) : Math.min(w * 0.4, h * 0.21);
-  const S = brush(R, 0.034);
-  const cx = wide ? w - R * 1.3 : w * 0.6;
-  const cy = wide ? h * 0.5 : h - R * 1.48;
+  const R = wide ? Math.min(h * 0.29, w * 0.18) : Math.min(w * 0.34, h * 0.2);
+  const S = brush(R, 0.036);
   const whorl = planWhorl(rng, S, R, {
     count: 2,
     dir: rng.pick([1, -1]),
     base: rng.range(0, TAU),
-    stripes: [R * rng.range(0.6, 0.72), R * rng.range(0.6, 0.72)],
+    tails: [R * rng.range(0.56, 0.66), R * rng.range(0.56, 0.66)],
     rays: [0],
     fine: true,
   });
-  const reveal = Math.max(Math.hypot(cx, cy), Math.hypot(w - cx, cy), Math.hypot(cx, h - cy), Math.hypot(w - cx, h - cy));
-  return { zone, S, R, cx, cy, whorl, reveal };
+  const rim = whorl.reach + S.gap + S.band / 2;
+  const outer = rim + S.band / 2 + S.gap + S.lw;
+  const inset = S.lw * 1.6 + S.band / 2;
+  const cx = wide ? w - outer - R * 0.12 : w / 2;
+  const cy = wide ? h / 2 : h - inset - outer - S.band - R * 0.1;
+  const reveal = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
+  return { zone, S, R, cx, cy, whorl, rim, outer, inset, reveal };
 }
 
-function paintHeroGround(ctx, rng, plan, w, h) {
-  const { S, R, cx, cy, whorl, zone } = plan;
+function paintHeroGround(ctx, plan, w, h) {
+  const { S, R, cx, cy, rim, outer, inset, zone } = plan;
   ground(ctx, w, h);
-  const keep = whorl.reach + S.gap * 2;
 
-  // Faint concentric ripples spread from the whorl across the calm zone, fading as they go.
+  // Faint ripples spread from the bowl across the calm zone, fading as they travel.
   const far = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
   const stepR = S.band * 3.2;
   ctx.lineWidth = S.lw * 0.6;
   ctx.strokeStyle = PALETTE.earth;
-  for (let r = keep + stepR; r < far; r += stepR) {
-    ctx.globalAlpha = 0.17 * (1 - (r - keep) / (far - keep)) ** 1.6;
+  for (let r = outer + stepR; r < far; r += stepR) {
+    ctx.globalAlpha = 0.17 * (1 - (r - outer) / (far - outer)) ** 1.6;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, TAU);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
 
-  const inset = S.lw * 1.6 + S.band / 2;
-  const obstacles = [{ cx, cy, r: keep }];
+  const obstacles = [{ cx, cy, r: outer + S.gap }];
+  const fringeH = R * 0.15;
+  const terraceH = R * 0.2;
+  const terraces = (x0, bottom) => {
+    const { xs } = spaced(x0, w, terraceH * 3.2);
+    row(ctx, S, {
+      xs,
+      y: bottom,
+      dir: -1,
+      width: terraceH * 2.3,
+      height: terraceH,
+      kind: () => 'terrace',
+      obstacles,
+      steps: 3,
+    });
+  };
   if (zone === 'left') {
     // Registers emerge from the clay toward the art side; the headline side stays open.
-    const calmEdge = Math.max(0, cx - keep);
-    const fade = ctx.createLinearGradient(calmEdge * 0.35, 0, calmEdge, 0);
+    const calmEdge = Math.max(0, cx - outer);
+    const fade = ctx.createLinearGradient(calmEdge * 0.3, 0, calmEdge, 0);
     fade.addColorStop(0, 'rgba(10, 8, 6, 0)');
     fade.addColorStop(1, PALETTE.ink);
     const top = register(ctx, S, 0, w, inset, 1, fade);
     const bottom = register(ctx, S, 0, w, h - inset, -1, fade);
-    const fringeH = R * 0.16;
     row(ctx, S, {
-      xs: spaced(calmEdge, w, fringeH * 2.5).xs,
+      xs: spaced(calmEdge, w, fringeH * 2.4).xs,
       y: top,
       dir: 1,
       width: fringeH * 1.3,
@@ -914,33 +995,18 @@ function paintHeroGround(ctx, rng, plan, w, h) {
       kind: () => 'triangle',
       obstacles,
     });
-    const rise = rng.pick([['mesa', 'terrace'], ['terrace', 'mesa', 'terrace'], ['mesa']]);
-    const { step, xs } = spaced(calmEdge, w, R * rng.range(0.5, 0.62));
-    row(ctx, S, {
-      xs,
-      y: bottom,
-      dir: -1,
-      width: step * 0.72,
-      height: R * 0.7,
-      kind: (i) => rise[i % rise.length],
-      obstacles,
-      adaptive: true,
-    });
-    return;
+    terraces(calmEdge, bottom);
+  } else {
+    terraces(0, register(ctx, S, 0, w, h - inset, -1));
   }
-  const bottom = register(ctx, S, 0, w, h - inset, -1);
-  const rise = rng.pick([['mesa', 'terrace'], ['terrace', 'mesa']]);
-  const { step, xs } = spaced(0, w, R * 0.62);
-  row(ctx, S, {
-    xs,
-    y: bottom,
-    dir: -1,
-    width: step * 0.72,
-    height: R * 0.8,
-    kind: (i) => rise[i % rise.length],
-    obstacles,
-    adaptive: true,
-  });
+
+  // The bowl's rim: a thick band and its thin companion, circling the turning whorl.
+  ctx.beginPath();
+  ctx.arc(cx, cy, rim, 0, TAU);
+  ink(ctx, S.band);
+  ctx.beginPath();
+  ctx.arc(cx, cy, outer - S.lw / 2, 0, TAU);
+  ink(ctx, S.lw);
 }
 
 function heroMotion(seconds, intro, dir) {
@@ -955,7 +1021,8 @@ function heroMotion(seconds, intro, dir) {
 /** Mount the animated hero on `canvas`. safeZone: where the headline sits ('left' | 'top' |
  *  'auto'). Returns { destroy }. */
 export function mountHero(canvas, { seed = 0, safeZone = 'auto' } = {}) {
-  const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  const motionQuery =
+    typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let scene = null;
   let scratch = null;
   let raf = 0;
@@ -967,7 +1034,8 @@ export function mountHero(canvas, { seed = 0, safeZone = 'auto' } = {}) {
 
   const still = () => motionQuery !== null && motionQuery.matches;
   const running = () => !destroyed && scene !== null && onScreen && !document.hidden && !still();
-  const sizeKey = () => `${canvas.clientWidth}x${canvas.clientHeight}@${Math.min(window.devicePixelRatio || 1, 2)}`;
+  const sizeKey = () =>
+    `${canvas.clientWidth}x${canvas.clientHeight}@${Math.min(window.devicePixelRatio || 1, 2)}`;
 
   function build() {
     const key = sizeKey();
@@ -977,15 +1045,15 @@ export function mountHero(canvas, { seed = 0, safeZone = 'auto' } = {}) {
       return;
     }
     const { ctx, w, h, dpr } = fit;
-    const zone = safeZone === 'left' || safeZone === 'top' ? safeZone : w >= h * 1.05 ? 'left' : 'top';
-    const rng = createRng(seed);
-    const plan = planHero(rng, w, h, zone);
+    const auto = w >= h * 1.05 ? 'left' : 'top';
+    const zone = safeZone === 'left' || safeZone === 'top' ? safeZone : auto;
+    const plan = planHero(createRng(seed), w, h, zone);
     const cache = document.createElement('canvas');
     cache.width = canvas.width;
     cache.height = canvas.height;
     const cctx = cache.getContext('2d');
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    paintHeroGround(cctx, rng, plan, w, h);
+    paintHeroGround(cctx, plan, w, h);
     const reach = plan.whorl.reach + plan.S.lw;
     const x = Math.max(0, Math.floor((plan.cx - reach) * dpr));
     const y = Math.max(0, Math.floor((plan.cy - reach) * dpr));
@@ -1014,7 +1082,8 @@ export function mountHero(canvas, { seed = 0, safeZone = 'auto' } = {}) {
     drawWhorl(sctx, plan.S, plan.whorl, plan.cx, plan.cy, motion);
     const soft = plan.R * 0.9;
     const radius = easeInOutCubic(time / INTRO_MS) * (plan.reveal + soft);
-    const mask = sctx.createRadialGradient(plan.cx, plan.cy, Math.max(0, radius - soft), plan.cx, plan.cy, radius);
+    const { cx, cy } = plan;
+    const mask = sctx.createRadialGradient(cx, cy, Math.max(0, radius - soft), cx, cy, radius);
     mask.addColorStop(0, 'rgba(0, 0, 0, 1)');
     mask.addColorStop(1, 'rgba(0, 0, 0, 0)');
     sctx.globalCompositeOperation = 'destination-in';
@@ -1116,7 +1185,8 @@ export function mountHero(canvas, { seed = 0, safeZone = 'auto' } = {}) {
 
 /* ------------------------------------------------------------- public API */
 
-/** Static generative tile. variant: 'item' (small, bold), 'event' (16:9 card), 'banner' (wide frieze). */
+/** Static generative tile. variant: 'item' (small, bold), 'event' (16:9 card) or 'banner'
+ *  (wide frieze). */
 export function drawTile(canvas, { seed = 0, variant = 'item' } = {}) {
   const fit = fitCanvas(canvas);
   if (!fit) return;

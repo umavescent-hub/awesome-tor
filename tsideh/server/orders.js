@@ -16,7 +16,7 @@ const ACTIVE = `(status IN ('paid', 'ready', 'picked_up') OR (status = 'pending'
 const COMMITTED_SQL = `status IN ('paid', 'ready', 'picked_up')`;
 const EMPTY_HASH = Buffer.alloc(32);
 
-export const hashToken = (token) => createHash('sha256').update(token).digest('hex');
+const hashToken = (token) => createHash('sha256').update(token).digest('hex');
 
 function newCode() {
   let code = 'TS-';

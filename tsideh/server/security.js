@@ -3,7 +3,7 @@
 import { ApiError } from './http.js';
 import { isPlainObject } from './validate.js';
 
-export const JSON_LIMIT_BYTES = 16 * 1024;
+const JSON_LIMIT_BYTES = 16 * 1024;
 export const WEBHOOK_LIMIT_BYTES = 256 * 1024;
 export const HSTS = 'max-age=63072000; includeSubDomains';
 
