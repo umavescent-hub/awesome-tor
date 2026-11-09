@@ -47,7 +47,7 @@ function heroSection() {
       h('p', { class: 'hero__next-date' }, formatLongDate(featured.date)),
       h('p', { class: 'num' }, formatTimeRange(featured.start, featured.end)),
       h('p', null, featured.locationName),
-      h('p', { class: ['status', `status--${featured.status}`] }, eventStatusLabel(featured)));
+      orderable(featured) ? null : h('p', { class: ['status', `status--${featured.status}`] }, eventStatusLabel(featured)));
   }
 
   function fail() {

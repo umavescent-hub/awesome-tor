@@ -1,10 +1,11 @@
-// End-to-end check in a real browser, on a phone (390×844, touch) and a desktop (1440×900):
-// a customer orders from the first pop-up and pays in demo mode, sends a catering inquiry, and the
-// kitchen works the order. Every page must load without console errors, page errors or Content
-// Security Policy violations, under the server's own security headers, and without sideways
-// scrolling on the phone.
+// End-to-end check in a real browser, on a phone (390×844, touch), a desktop (1440×900) and an
+// iPhone SE (320×568) with the text size doubled: a customer orders from the first pop-up and pays
+// in demo mode, sends a catering request, and the kitchen works the order. Every page must load
+// without console errors, page errors or Content Security Policy / Trusted Types violations, under
+// the server's own security headers, without sideways scrolling, with readable text sizes and with
+// pinch-zoom left on.
 //
-// Run: npm run e2e   (starts its own server on a free port with a throwaway data folder)
+// Run: npm run e2e   (starts its own servers on free ports with throwaway data folders)
 // Needs Playwright with Chromium: npm install --no-save playwright && npx playwright install chromium
 
 import assert from 'node:assert/strict';
@@ -17,23 +18,8 @@ import { startServer } from '../../server/app.js';
 const ADMIN_PASSWORD = 'kitchen-demo-password-123';
 const CODE = /^TS-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
 const MONEY = /\$\d[\d,]*\.\d{2}/;
-
-const VIEWPORTS = [
-  {
-    name: 'phone',
-    phone: true,
-    options: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
-    customer: { name: 'Rosa Archuleta', phone: '505 555 0142', email: 'rosa@example.com' },
-    catering: { name: 'Lucia Martinez', email: 'lucia@example.com', guests: '60', location: 'Taos' },
-  },
-  {
-    name: 'desktop',
-    phone: false,
-    options: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
-    customer: { name: 'Daniel Ortiz', phone: '(505) 555-0199', email: 'daniel@example.com' },
-    catering: { name: 'Elena Romero', email: 'elena@example.com', guests: '120', location: 'Santa Fe Railyard' },
-  },
-];
+const FIRST_EVENT = '2026-11-21-santa-fe';
+const PAY_NEXT = /Next you.ll pay securely with card, Apple Pay or Google Pay on Stripe.s checkout page\./;
 
 function loadPlaywright() {
   try {
@@ -43,34 +29,40 @@ function loadPlaywright() {
   }
 }
 
+function viewports(devices) {
+  const { defaultBrowserType, ...iPhoneSE } = devices['iPhone SE'];
+  return [
+    {
+      name: 'phone',
+      phone: true,
+      kitchen: true,
+      options: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+      customer: { name: 'Rosa Archuleta', phone: '505 555 0142', email: 'rosa@example.com' },
+      catering: { name: 'Lucia Martinez', email: 'lucia@example.com', guests: '60', location: 'Taos' },
+    },
+    {
+      name: 'desktop',
+      phone: false,
+      kitchen: true,
+      options: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+      customer: { name: 'Daniel Ortiz', phone: '(505) 555-0199', email: 'daniel@example.com' },
+      catering: { name: 'Elena Romero', email: 'elena@example.com', guests: '120', location: 'Santa Fe Railyard' },
+    },
+    {
+      // The smallest common phone with the text size doubled (browser text zoom / Larger Text).
+      name: 'iPhone SE at 200% text',
+      phone: true,
+      kitchen: false,
+      bigText: true,
+      options: iPhoneSE,
+      customer: { name: 'Josephine Naranjo', phone: '505 555 0177', email: 'josephine@example.com' },
+    },
+  ];
+}
+
 /** A date about a month ahead, as the catering form's date input expects it. */
 function monthAhead() {
   return new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-}
-
-/** How much of a canvas is painted, from a sparse sample of its pixels. */
-function canvasStats(canvas) {
-  if (!canvas.width || !canvas.height) return { painted: 0, colors: 0 };
-  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-  const colors = new Set();
-  let painted = 0;
-  for (let i = 0; i < data.length; i += 4 * 61) {
-    if (data[i + 3] === 0) continue;
-    painted += 1;
-    colors.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
-  }
-  return { painted, colors: colors.size };
-}
-
-async function expectPainted(locator, { minColors }) {
-  await locator.waitFor({ state: 'visible' });
-  let stats = { painted: 0, colors: 0 };
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    stats = await locator.evaluate(canvasStats);
-    if (stats.painted > 50 && stats.colors >= minColors) return;
-    await locator.page().waitForTimeout(100);
-  }
-  assert.fail(`canvas is not painted (${stats.painted} sampled pixels, ${stats.colors} colors)`);
 }
 
 const moneyIn = (text) => {
@@ -101,51 +93,155 @@ async function watch(context, problems, responses) {
   });
 }
 
+/** Doubles the root font size before any page script runs (CSSOM only, so the CSP stays strict). */
+async function doubleTextSize(context) {
+  await context.addInitScript(() => {
+    const apply = () => document.documentElement?.style.setProperty('font-size', '200%');
+    apply();
+    document.addEventListener('readystatechange', apply);
+  });
+}
+
 async function expectNoSidewaysScroll(page, where) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth }));
+  const { scrollWidth, innerWidth, wide } = await page.evaluate(() => {
+    const sheet = document.querySelector('dialog[open] .sheet__body');
+    return {
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth,
+      wide: sheet && sheet.scrollWidth > sheet.clientWidth ? `${sheet.scrollWidth}px in ${sheet.clientWidth}px` : null,
+    };
+  });
   assert.ok(scrollWidth <= innerWidth, `${where}: page is ${scrollWidth}px wide in a ${innerWidth}px viewport`);
+  assert.equal(wide, null, `${where}: the order sheet scrolls sideways`);
+}
+
+/**
+ * Nothing on screen below 14px; on phones, dish names, prices, buttons, labels and form fields
+ * at 17px or more. With the text size doubled the floors double too.
+ */
+async function expectReadableText(page, run, where) {
+  const scale = run.bigText ? 2 : 1;
+  const tooSmall = await page.evaluate(({ scale, phone }) => {
+    const visible = (el) => {
+      const box = el.getBoundingClientRect();
+      if (box.width < 2 || box.height < 2) return false;
+      const style = getComputedStyle(el);
+      return style.visibility !== 'hidden' && style.display !== 'none' && !el.closest('.visually-hidden, [hidden], dialog:not([open])');
+    };
+    const out = [];
+    for (const el of document.body.querySelectorAll('*')) {
+      const hasText = [...el.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim());
+      if (!hasText || !visible(el)) continue;
+      const size = parseFloat(getComputedStyle(el).fontSize);
+      if (size < 14 * scale) out.push(`${el.className || el.tagName} "${el.textContent.trim().slice(0, 30)}" at ${size}px`);
+    }
+    if (phone) {
+      for (const el of document.querySelectorAll('.dish__name, .dish__price, .btn, .field__label, .input, .choice__box, .order-bar__button, .step__title')) {
+        if (!visible(el)) continue;
+        const size = parseFloat(getComputedStyle(el).fontSize);
+        if (size < 17 * scale) out.push(`${el.className} "${el.textContent.trim().slice(0, 30)}" at ${size}px (17px minimum)`);
+      }
+    }
+    return out;
+  }, { scale, phone: run.phone });
+  assert.deepEqual(tooSmall, [], `${where}: text too small`);
+}
+
+async function expectPageBasics(page, run, where) {
+  if (run.phone) await expectNoSidewaysScroll(page, where);
+  await expectReadableText(page, run, where);
+  assert.equal(await page.locator('canvas').count(), 0, `${where}: no drawn art (canvas) on the page`);
 }
 
 /* ------------------------------------------------------------------------------- customer */
 
 async function orderAndPay(page, run, base) {
   await page.goto(`${base}/`);
-  const rows = page.locator('.popup-list .popup');
-  await rows.first().waitFor();
-  assert.equal(await rows.count(), 3, 'three upcoming pop-ups are listed');
-  await expectPainted(page.locator('canvas.hero__art'), { minColors: 3 });
-  assert.match(await page.locator('.press').innerText(), /Food & Wine/);
-  if (run.phone) await expectNoSidewaysScroll(page, 'home');
+  const viewport = await page.locator('meta[name="viewport"]').getAttribute('content');
+  assert.doesNotMatch(viewport, /maximum-scale|user-scalable\s*=\s*(no|0)/, 'pinch-zoom stays on');
 
-  await rows.first().locator('.popup__cta').click();
-  await page.waitForURL(/\/e\/2026-11-21-santa-fe$/);
+  const cards = page.locator('.popup-list .popup');
+  await cards.first().waitFor();
+  assert.equal(await cards.count(), 3, 'three upcoming pop-ups are listed');
+  const logo = page.locator('.hero img.hero__logo');
+  assert.equal(await logo.getAttribute('alt'), 'Tsideh');
+  assert.ok(await logo.evaluate((img) => img.complete && img.naturalWidth > 0), 'the logo loads in the hero');
+  const hero = page.locator('.hero');
+  assert.match(await hero.innerText(), /Next pop-up/);
+  const orderLink = hero.getByRole('link', { name: 'Order food for pickup' });
+  const { events } = await page.evaluate(() => fetch('/api/events').then((r) => r.json()));
+  const open = events.filter((event) => event.status === 'open');
+  assert.equal(await orderLink.getAttribute('href'), open.length === 1 ? `/e/${open[0].id}` : '/#popups',
+    'Order food for pickup goes straight to the menu only when exactly one pop-up is open');
+  await hero.getByRole('link', { name: 'Ask about catering' }).waitFor();
+  assert.match(await page.locator('.press').innerText(), /Food & Wine/);
+  assert.match(await cards.first().innerText(), /Taking orders now/);
+  await expectPageBasics(page, run, 'home');
+
+  await cards.first().getByRole('link', { name: /^Order food/ }).click();
+  await page.waitForURL(new RegExp(`/e/${FIRST_EVENT}$`));
   const dishes = page.locator('.event-menu .dish');
   await dishes.first().waitFor();
-  if (run.phone) await expectNoSidewaysScroll(page, 'pop-up page');
+  await page.getByRole('link', { name: 'Back to all pop-ups' }).waitFor();
+  await expectPageBasics(page, run, 'pop-up page');
 
   const first = dishes.nth(0);
   const second = dishes.nth(1);
   const picked = [await first.locator('.dish__name').innerText(), await second.locator('.dish__name').innerText()];
-  await first.locator('[data-role="add"]').click();
-  await second.locator('[data-role="add"]').click();
-  await first.locator('[data-role="inc"]').click();
+  await first.getByRole('button', { name: `Add ${picked[0]}` }).click();
+  const confirmation = run.phone ? page.locator('.order-bar .action-status') : page.locator('.panel-slot .action-status');
+  await confirmation.filter({ hasText: `Added: ${picked[0]}` }).waitFor();
+  await page.locator('[aria-live="polite"]', { hasText: `Added: ${picked[0]}` }).waitFor({ state: 'attached' });
+  await second.getByRole('button', { name: `Add ${picked[1]}` }).click();
+  await first.getByRole('button', { name: `One more ${picked[0]}` }).click();
   await first.locator('.stepper__qty', { hasText: '2' }).waitFor();
+  await confirmation.filter({ hasText: `Added: ${picked[0]}` }).waitFor();
 
   const form = page.locator('form.order-form');
+  const sheet = page.locator('dialog.order-sheet');
   if (run.phone) {
-    await page.locator('button.order-bar').click();
+    const bar = page.locator('.order-bar__button');
+    assert.match(await bar.innerText(), /^View order — 3 items, \$\d+\.\d{2}$/);
+    await expectPageBasics(page, run, 'pop-up page with an order');
+    await bar.click();
     await page.locator('dialog.order-sheet[open]').waitFor();
-  } else {
-    await page.locator('#cart-button').click();
+    if (!run.bigText) {
+      // The phone's Back button closes the sheet and stays on the pop-up page.
+      await page.goBack();
+      await page.locator('dialog.order-sheet:not([open])').waitFor({ state: 'attached' });
+      assert.match(page.url(), new RegExp(`/e/${FIRST_EVENT}$`), 'Back closed the sheet without leaving the page');
+      await bar.waitFor();
+      await bar.click();
+      await page.locator('dialog.order-sheet[open]').waitFor();
+    }
+    // Close (a labelled button) closes it too.
+    await sheet.getByRole('button', { name: 'Close' }).click();
+    await page.locator('dialog.order-sheet:not([open])').waitFor({ state: 'attached' });
+    assert.match(page.url(), new RegExp(`/e/${FIRST_EVENT}$`));
+    await bar.click();
+    await page.locator('dialog.order-sheet[open]').waitFor();
   }
   await form.waitFor({ state: 'visible' });
-  assert.equal(await form.locator('.lines .line').count(), 2, 'two lines in the order');
+  assert.equal(await form.locator('.lines .line').count(), 2, 'two dishes in the order');
+  for (const step of ['Your food', 'Choose a pickup time', 'Your details']) {
+    await form.locator('.step__title', { hasText: step }).waitFor();
+  }
+  assert.equal(await form.locator('input[name="tip"][value="0"]').isChecked(), true, 'No tip is the default');
+  assert.match(await form.locator('.pay__next').innerText(), PAY_NEXT);
+  assert.equal(await form.locator('.pay__missing').innerText(), 'Choose a pickup time to continue.');
+  assert.equal(await form.locator('input[name="slot"]:disabled').count(), 0, 'only times that can be chosen are shown');
+  if (run.phone) await expectPageBasics(page, run, 'order sheet');
 
-  await form.locator('label.choice:has(input[name="slot"]:not(:disabled))').first().click();
+  const slot = form.locator('label.choice:has(input[name="slot"])').first();
+  const slotLabel = (await slot.innerText()).trim();
+  await slot.click();
+  assert.match(await form.locator('.pay__missing').innerText(), /^Fill in your name, your mobile number and your email to continue\.$/);
   await form.locator('input[name="name"]').fill(run.customer.name);
   await form.locator('input[name="phone"]').fill(run.customer.phone);
   await form.locator('input[name="email"]').fill(run.customer.email);
+  assert.equal(await form.locator('.pay__missing').isVisible(), false, 'nothing is missing once the form is filled in');
   await form.locator('label.choice:has(input[name="tip"][value="20"])').click();
+  if (run.phone) await expectPageBasics(page, run, 'order sheet, filled in');
 
   const pay = form.locator('button[type="submit"]');
   const total = moneyIn(await pay.innerText());
@@ -156,14 +252,16 @@ async function orderAndPay(page, run, base) {
   await card.locator('h1').waitFor();
   assert.match(await card.innerText(), /no card will be charged/i);
   assert.equal(moneyIn(await card.locator('.demo-card__amount').innerText()), total, 'server total matches the pay button');
-  if (run.phone) await expectNoSidewaysScroll(page, 'demo payment');
+  await expectPageBasics(page, run, 'demo payment');
   await card.getByRole('button', { name: 'Complete demo payment' }).click();
 
   await page.waitForURL(/\/order\/TS-[A-Z0-9]{4}\?k=[A-Za-z0-9_-]+$/);
   const code = (await page.locator('.code-plate__code').innerText()).trim();
   assert.match(code, CODE);
-  const firstName = run.customer.name.split(' ')[0];
-  assert.equal(await page.locator('.status-hero h1').innerText(), `Thank you, ${firstName}.`);
+  assert.equal(await page.locator('.status-hero h1').innerText(), 'You’re all set.');
+  assert.equal(await page.locator('.status-when').innerText(), `Pick up at ${slotLabel} on Saturday, November 21 in Santa Fe.`);
+  await page.getByRole('button', { name: 'Add to calendar' }).waitFor();
+  await page.getByRole('link', { name: 'Back to home' }).waitFor();
   const status = await page.evaluate(async () => {
     const url = new URL(location.href);
     const response = await fetch(`/api/orders/${url.pathname.split('/').pop()}?k=${url.searchParams.get('k')}`);
@@ -171,14 +269,15 @@ async function orderAndPay(page, run, base) {
   });
   assert.equal(status, 'paid');
   assert.equal(moneyIn(await page.locator('.receipt .totals__grand').innerText()), total);
-  await expectPainted(page.locator('canvas.keepsake'), { minColors: 2 });
-  if (run.phone) await expectNoSidewaysScroll(page, 'confirmation');
+  await expectPageBasics(page, run, 'confirmation');
   return { code, picked };
 }
 
-async function sendCateringInquiry(page, run, base) {
-  await page.goto(`${base}/catering`);
-  const form = page.locator('form[aria-label="Catering inquiry"]');
+async function sendCateringRequest(page, run, base) {
+  await page.goto(`${base}/`);
+  await page.locator('.hero').getByRole('link', { name: 'Ask about catering' }).click();
+  await page.waitForURL(/\/catering$/);
+  const form = page.locator('form[aria-label="Catering request"]');
   await form.waitFor();
   await form.locator('input[name="name"]').fill(run.catering.name);
   await form.locator('input[name="email"]').fill(run.catering.email);
@@ -187,11 +286,12 @@ async function sendCateringInquiry(page, run, base) {
   await form.locator('input[name="guestCount"]').fill(run.catering.guests);
   await form.locator('label.choice:has(input[name="serviceStyle"])').nth(2).click();
   await form.locator('textarea[name="message"]').fill('A family reunion with an outdoor lunch.');
-  await form.getByRole('button', { name: 'Send inquiry' }).click();
+  await expectPageBasics(page, run, 'catering');
+  await form.getByRole('button', { name: 'Send catering request' }).click();
   const done = page.locator('.catering__done');
   await done.waitFor();
   assert.match(await done.innerText(), new RegExp(`Thank you, ${run.catering.name.split(' ')[0]}\\.`));
-  if (run.phone) await expectNoSidewaysScroll(page, 'catering');
+  await expectPageBasics(page, run, 'catering sent');
 }
 
 /* -------------------------------------------------------------------------------- kitchen */
@@ -201,7 +301,7 @@ async function workTheOrder(page, run, base, { code, committed }) {
   await page.locator('#password').fill(ADMIN_PASSWORD);
   await page.locator('#login-submit').click();
   await page.locator('#app:not([hidden])').waitFor();
-  assert.equal(await page.locator('#event-select').inputValue(), '2026-11-21-santa-fe');
+  assert.equal(await page.locator('#event-select').inputValue(), FIRST_EVENT);
 
   const ticket = page.locator('.ticket', { has: page.locator('.ticket-code', { hasText: code }) });
   await ticket.waitFor();
@@ -221,19 +321,46 @@ async function workTheOrder(page, run, base, { code, committed }) {
   for (const [name, qty] of committed) {
     const row = page.locator('#panel-prep .prep-row', { has: page.locator('.prep-name', { hasText: name }) });
     const shown = await row.locator('.num-major').evaluate((cell) => Number(cell.firstChild.textContent));
-    assert.equal(shown, qty, `prep shows ${qty} ${name} committed`);
+    assert.equal(shown, qty, `prep shows ${qty} ${name} paid for`);
   }
   if (run.phone) await expectNoSidewaysScroll(page, 'kitchen prep');
 
   await page.locator('#tab-catering').click();
   await page.locator('.inquiry-name', { hasText: run.catering.name }).waitFor();
   if (run.phone) await expectNoSidewaysScroll(page, 'kitchen catering');
+  assert.equal(await page.locator('canvas').count(), 0, 'no drawn art in the kitchen');
+}
+
+/* ----------------------------------------------------------------- one open pop-up */
+
+/** With exactly one pop-up taking orders, "Order food for pickup" goes straight to its menu. */
+async function oneOpenPopup(browser) {
+  const dataDir = mkdtempSync(path.join(tmpdir(), 'tsideh-e2e-one-'));
+  const server = await startServer({
+    env: { PORT: '0', HOST: '127.0.0.1', DATA_DIR: dataDir, NODE_ENV: 'development', NOW: '2026-11-04T18:00:00Z' },
+    log: { info: () => {}, warn: () => {}, error: () => {} },
+  });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  try {
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${server.port}/`);
+    await page.locator('.popup-list .popup').first().waitFor();
+    const link = page.locator('.hero').getByRole('link', { name: 'Order food for pickup' });
+    assert.equal(await link.getAttribute('href'), `/e/${FIRST_EVENT}`);
+    await link.click();
+    await page.waitForURL(new RegExp(`/e/${FIRST_EVENT}$`));
+    await page.locator('.event-menu .dish').first().waitFor();
+  } finally {
+    await context.close();
+    await server.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
 }
 
 /* ----------------------------------------------------------------------------------- main */
 
 async function main() {
-  const { chromium } = loadPlaywright();
+  const { chromium, devices } = loadPlaywright();
   const dataDir = mkdtempSync(path.join(tmpdir(), 'tsideh-e2e-'));
   const serverErrors = [];
   const quiet = { info: () => {}, warn: () => {}, error: (line) => serverErrors.push(line) };
@@ -247,11 +374,12 @@ async function main() {
   let failed = false;
 
   try {
-    for (const run of VIEWPORTS) {
+    for (const run of viewports(devices)) {
       const problems = [];
       const responses = [];
       const context = await browser.newContext(run.options);
       await watch(context, problems, responses);
+      if (run.bigText) await doubleTextSize(context);
       const page = await context.newPage();
       page.setDefaultTimeout(15_000);
       const check = async (label, fn) => {
@@ -274,11 +402,13 @@ async function main() {
           committed.set(firstDish, (committed.get(firstDish) ?? 0) + 2);
           committed.set(secondDish, (committed.get(secondDish) ?? 0) + 1);
         });
-        await check('send a catering inquiry', () => sendCateringInquiry(page, run, base));
-        await check('kitchen: ready, picked up, prep and catering', () => workTheOrder(page, run, base, { code: order.code, committed }));
+        if (run.kitchen) {
+          await check('send a catering request', () => sendCateringRequest(page, run, base));
+          await check('kitchen: ready, picked up, prep and catering', () => workTheOrder(page, run, base, { code: order.code, committed }));
+        }
         await check('security headers on every response', async () => {
           const ours = responses.filter(({ url }) => url.startsWith(base));
-          assert.ok(ours.filter(({ type }) => type === 'document').length >= 3, 'pages were loaded');
+          assert.ok(ours.filter(({ type }) => type === 'document').length >= 2, 'pages were loaded');
           for (const { url, headers } of ours) {
             const csp = headers['content-security-policy'] ?? '';
             assert.match(csp, /default-src 'self'/, `CSP on ${url}`);
@@ -293,6 +423,13 @@ async function main() {
       } finally {
         await context.close();
       }
+    }
+    try {
+      await oneOpenPopup(browser);
+      console.log('ok    desktop: one open pop-up, "Order food for pickup" goes straight to its menu');
+    } catch (error) {
+      failed = true;
+      console.log(`FAIL  desktop: one open pop-up\n      ${String(error.message).split('\n').join('\n      ')}`);
     }
     if (serverErrors.length) {
       failed = true;

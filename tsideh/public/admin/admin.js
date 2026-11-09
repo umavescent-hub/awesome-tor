@@ -739,7 +739,7 @@ function renderPrep() {
   const pending = prep.items.reduce((sum, item) => sum + item.pending, 0);
   mount(prepTotal, h('tr', null,
     h('th', { scope: 'row', class: 'col-item' }, 'Total'),
-    h('td', { class: 'num num-major' }, committed, pending > 0 && h('span', { class: 'pending-sub' }, `+${pending} pending`)),
+    h('td', { class: 'num num-major' }, committed, pending > 0 && h('span', { class: 'pending-sub' }, `+${pending} paying now`)),
     h('td', { class: 'num col-pending' }, pending),
     h('td', { class: 'num col-limit' }),
     h('td', { class: 'num' })));
@@ -752,9 +752,9 @@ function prepRow(item) {
   return h('tr', { class: ['prep-row', out && 'is-off'] },
     h('th', { scope: 'row', class: 'col-item' },
       h('span', { class: 'prep-name' }, item.name),
-      out && h('span', { class: 'prep-flag' }, 'Limit reached')),
+      out && h('span', { class: 'prep-flag' }, 'All sold')),
     h('td', { class: 'num num-major' }, item.committed,
-      item.pending > 0 && h('span', { class: 'pending-sub' }, `+${item.pending} pending`)),
+      item.pending > 0 && h('span', { class: 'pending-sub' }, `+${item.pending} paying now`)),
     h('td', { class: ['num', 'col-pending', item.pending === 0 && 'is-zero'] }, item.pending),
     h('td', { class: 'num col-limit' }, limited ? item.limit : noLimit()),
     h('td', { class: ['num', low && 'is-low', out && 'is-out'] },

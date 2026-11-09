@@ -39,7 +39,7 @@
       </div>
 
       <div class="event-picker">
-        <label class="visually-hidden" for="event-select">Event</label>
+        <label class="visually-hidden" for="event-select">Pop-up</label>
         <span class="select-wrap select-dark">
           <select id="event-select"></select>
         </span>
@@ -77,9 +77,9 @@
             <button class="segment" type="button" data-filter="all" aria-pressed="false"><span>All</span><span class="segment-count" data-count="all"></span></button>
           </div>
           <div class="search">
-            <label class="visually-hidden" for="order-search">Search orders by code, name or phone</label>
+            <label class="visually-hidden" for="order-search">Find an order by code, name or phone</label>
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></svg>
-            <input id="order-search" type="search" placeholder="Code, name or phone" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search">
+            <input id="order-search" type="search" placeholder="Find: code, name or phone" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="search">
           </div>
         </div>
         <div id="board"></div>
@@ -89,7 +89,7 @@
       <section id="panel-prep" class="panel" role="tabpanel" aria-labelledby="tab-prep" hidden>
         <header class="panel-head">
           <div>
-            <h2 class="panel-title">Prep</h2>
+            <h2 class="panel-title">What to prep</h2>
             <p id="prep-event" class="panel-sub"></p>
           </div>
           <div class="panel-actions">
@@ -99,14 +99,14 @@
 
         <div class="table-scroll">
           <table class="prep-table">
-            <caption>Committed counts paid orders, including ready and picked up. Pending orders are still at checkout and may not complete.</caption>
+            <caption>"Paid" counts every paid order, including ready and picked-up ones. "Paying now" means a customer is still on the payment page, so it may not go through.</caption>
             <thead>
               <tr>
                 <th scope="col" class="col-item">Item</th>
-                <th scope="col" class="num">Committed</th>
-                <th scope="col" class="num col-pending">Pending</th>
-                <th scope="col" class="num col-limit">Limit</th>
-                <th scope="col" class="num">Remaining</th>
+                <th scope="col" class="num">Paid</th>
+                <th scope="col" class="num col-pending">Paying now</th>
+                <th scope="col" class="num col-limit">Making</th>
+                <th scope="col" class="num">Left to sell</th>
               </tr>
             </thead>
             <tfoot id="prep-total"></tfoot>
