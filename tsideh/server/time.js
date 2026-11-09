@@ -88,6 +88,19 @@ export function isTimeString(value) {
   return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
+/** A local wall-clock moment written "YYYY-MM-DDTHH:MM", as in an event's ordersCloseAt. */
+export function isDateTimeString(value) {
+  if (typeof value !== 'string') return false;
+  const [date, time, ...rest] = value.split('T');
+  return rest.length === 0 && isDateString(date) && isTimeString(time);
+}
+
+/** The instant a "YYYY-MM-DDTHH:MM" local wall-clock moment happens in `timeZone`. */
+export function dateTimeToUtc(value, timeZone) {
+  const [date, time] = value.split('T');
+  return zonedToUtc(date, time, timeZone);
+}
+
 /** Calendar arithmetic on "YYYY-MM-DD" strings (no time zone involved). */
 export function addDays(date, days) {
   const [year, month, day] = date.split('-').map(Number);

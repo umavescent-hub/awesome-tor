@@ -4,12 +4,20 @@
 
 import { getEvents, getSite } from '../api.js';
 import { h, mount } from '../dom.js';
-import { dateParts, eventStatusLabel, formatLongDate, formatMonth, formatTimeRange, formatWeekday } from '../format.js';
+import { chefLine, dateParts, eventStatusLabel, formatLongDate, formatMonth, formatTimeRange, formatWeekday, orderByLabel } from '../format.js';
 import { errorState, skeleton } from '../ui.js';
 import { cateringSection } from './catering.js';
 
+const FALLBACK_HEADLINE = 'A pop-up kitchen of the Northern Rio Grande.';
+
 const eventPath = (event) => `/e/${encodeURIComponent(event.id)}`;
 const orderable = (event) => event.status === 'open';
+
+/** "Order by Friday, November 20 at 8:00 PM" for a pop-up with a last order time, else null. */
+function deadline(event) {
+  const text = orderByLabel(event);
+  return text ? h('p', { class: 'deadline' }, text) : null;
+}
 
 /** Where "Order food for pickup" goes: straight to the menu when exactly one pop-up is open. */
 function orderTarget(events) {
@@ -35,28 +43,27 @@ function heroSection() {
           h('a', { class: 'btn btn--outline btn--lg', href: '/catering', 'data-link': '' }, 'Ask about catering')),
         next)));
 
+  /** site and events may each be null when they did not load. */
   function fill(site, events) {
-    headline.textContent = site.heroHeadline || site.tagline;
-    const featured = events.find(orderable) ?? events[0];
-    orderButton.setAttribute('href', orderTarget(events));
+    headline.textContent = site?.heroHeadline || site?.tagline || FALLBACK_HEADLINE;
+    const chef = chefLine(site?.chef);
+    if (chef) headline.after(h('p', { class: 'hero__chef' }, chef));
+    const featured = events?.find(orderable) ?? events?.[0];
     if (!featured) {
       next.remove();
       return;
     }
+    orderButton.setAttribute('href', orderTarget(events));
     mount(next,
       h('p', { class: 'hero__next-label' }, 'Next pop-up'),
       h('p', { class: 'hero__next-date' }, formatLongDate(featured.date)),
       h('p', { class: 'num' }, formatTimeRange(featured.start, featured.end)),
       h('p', null, featured.locationName),
+      deadline(featured),
       orderable(featured) ? null : h('p', { class: ['status', `status--${featured.status}`] }, eventStatusLabel(featured)));
   }
 
-  function fail() {
-    headline.textContent = 'A pop-up kitchen of the Northern Rio Grande.';
-    next.remove();
-  }
-
-  return { node, fill, fail };
+  return { node, fill };
 }
 
 /* ---------------------------------------------------------------- press */
@@ -105,6 +112,7 @@ function popupCard(event) {
       h('p', { class: 'popup__place' }, event.locationName),
       event.address ? h('p', { class: 'popup__address' }, event.address) : null,
       h('p', { class: ['status', `status--${event.status}`] }, eventStatusLabel(event)),
+      deadline(event),
       h('a', { class: ['btn', 'btn--block', open ? 'btn--primary' : 'btn--outline'], href: eventPath(event), 'data-link': '' },
         open ? 'Order food' : 'See the menu',
         h('span', { class: 'visually-hidden' }, ` from the ${event.title}, ${longDate}`))));
@@ -172,8 +180,7 @@ export function render(ctx) {
   async function load() {
     const [site, events] = await Promise.all([getSite().catch(() => null), loadEvents()]);
     if (controller.signal.aborted) return;
-    if (site && events) hero.fill(site, events);
-    else hero.fail();
+    hero.fill(site, events);
     if (site) {
       const press = pressSection(site.press);
       if (press) pressSlot.replaceWith(press);

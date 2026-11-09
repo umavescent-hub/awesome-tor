@@ -5,7 +5,7 @@
 import { cancelOrder, checkout, getEvent, getSite } from '../api.js';
 import * as cart from '../cart.js';
 import { h, mount, nextId, prefersReducedMotion } from '../dom.js';
-import { formatDate, formatLongDate, formatMoney, formatTimeRange, percentOf, plural, zonedDate } from '../format.js';
+import { formatDate, formatLongDate, formatMoney, formatTimeRange, orderByLabel, percentOf, plural, zonedDate } from '../format.js';
 import { choiceGroup, clean, emailError, errorSummary, field, phoneError } from '../forms.js';
 import { categoryNode, dishNode } from '../menu.js';
 import { createSheet } from '../sheet.js';
@@ -23,6 +23,13 @@ const NOTICES = {
   soldout: () => ({ title: 'This pop-up is sold out', text: 'Every pickup time or dish has been ordered. Thank you for checking.' }),
   closed: () => ({ title: 'Online ordering has closed', text: 'Ordering for this pop-up has ended.' }),
 };
+
+/** One sentence for a dish whose saved amount no longer fits the live menu. */
+function changeNote({ name, before, after }) {
+  if (after === 0) return `${name} is sold out, so we took it out of your order.`;
+  if (after > before) return `${name} has a minimum of ${after}, so we changed your order from ${before} to ${after}.`;
+  return `${name}: only ${after} can be ordered now, so we changed your order from ${before} to ${after}.`;
+}
 
 /** A numbered checklist heading with its one helper line. */
 function stepHead(n, title, help, { tag = 'div', id } = {}) {
@@ -66,7 +73,9 @@ function buildPage(site, detail, ctx, pageNotices) {
   }
 
   /* --- items and quantities --- */
-  const capFor = (item) => (item.soldOut ? 0 : Math.min(maxQtyPerItem, item.remaining ?? Infinity));
+  const capFor = (item) => cart.capOf(item, maxQtyPerItem);
+  /** At a dish's minimum (above 1), one fewer would be too few, so the dish can only come out. */
+  const atMinimum = (item, qty) => cart.minQtyOf(item) > 1 && qty <= cart.minQtyOf(item);
   const lineItems = () => Object.entries(cart.getItems(eventId))
     .map(([id, qty]) => ({ item: items.get(id), qty }))
     .filter((line) => line.item);
@@ -80,7 +89,10 @@ function buildPage(site, detail, ctx, pageNotices) {
   /** Change an amount. Instead of dead buttons, a limit is explained in words. */
   function change(item, wanted) {
     const before = cart.getQty(eventId, item.id);
-    const next = Math.max(0, wanted);
+    const min = cart.minQtyOf(item);
+    let next = Math.max(0, wanted);
+    // A dish with a minimum goes from none straight to the minimum, and from the minimum to none.
+    if (next > 0 && next < min) next = next > before ? min : 0;
     if (next > before) {
       const cap = capFor(item);
       if (next > cap) {
@@ -100,15 +112,21 @@ function buildPage(site, detail, ctx, pageNotices) {
     say(text, { spoken: `${text}. Your order: ${orderSummary()}.` });
   }
 
+  /** − amount +. At a dish's minimum the − button becomes a worded "Remove" instead. */
   function stepper(item, qty) {
     return h('div', { class: 'stepper', role: 'group', 'aria-label': `${item.name}: ${qty} in your order` },
-      h('button', { class: 'stepper__btn', type: 'button', dataset: { role: 'dec' }, 'aria-label': `One fewer ${item.name}`, onclick: () => change(item, qty - 1) }, icon('minus')),
+      atMinimum(item, qty)
+        ? h('button', { class: 'stepper__btn stepper__btn--word', type: 'button', dataset: { role: 'remove' }, onclick: () => change(item, 0) },
+          'Remove', h('span', { class: 'visually-hidden' }, ` ${item.name}`))
+        : h('button', { class: 'stepper__btn', type: 'button', dataset: { role: 'dec' }, 'aria-label': `One fewer ${item.name}`, onclick: () => change(item, qty - 1) }, icon('minus')),
       h('span', { class: 'stepper__qty num', 'aria-hidden': 'true' }, String(qty)),
       h('button', { class: 'stepper__btn', type: 'button', dataset: { role: 'inc' }, 'aria-label': `One more ${item.name}`, onclick: () => change(item, qty + 1) }, icon('plus')));
   }
 
-  /** Takes the dish out of the order, in words (the − button does the same one at a time). */
-  function removeButton(item) {
+  /** Takes the dish out of the order, in words (the − button does the same one at a time). Not
+   *  needed at a dish's minimum, where the stepper already says "Remove". */
+  function removeButton(item, qty) {
+    if (atMinimum(item, qty)) return null;
     return h('button', { class: 'btn btn--text', type: 'button', dataset: { role: 'remove' }, onclick: () => change(item, 0) },
       'Remove', h('span', { class: 'visually-hidden' }, ` ${item.name}`));
   }
@@ -119,15 +137,16 @@ function buildPage(site, detail, ctx, pageNotices) {
       return h('div', { class: 'amount' },
         stepper(item, qty),
         h('p', { class: 'amount__note' }, icon('check'), 'In your order'),
-        removeButton(item));
+        removeButton(item, qty));
     }
     if (capFor(item) === 0) return h('p', { class: 'dish__soldout' }, 'Sold out');
-    return h('button', { class: 'btn btn--add', type: 'button', dataset: { role: 'add' }, onclick: () => change(item, 1) },
-      icon('plus'), 'Add', h('span', { class: 'visually-hidden' }, ` ${item.name}`));
+    const min = cart.minQtyOf(item);
+    return h('button', { class: 'btn btn--add', type: 'button', dataset: { role: 'add' }, onclick: () => change(item, min) },
+      icon('plus'), min > 1 ? `Add ${min}` : 'Add', h('span', { class: 'visually-hidden' }, ` ${item.name}`));
   }
 
   /** Focus the button in `slot` that best continues from a button with data-role `role`. */
-  const FOCUS_NEXT = { add: ['inc', 'add'], inc: ['inc', 'dec'], dec: ['dec', 'add', 'inc'], remove: ['add'] };
+  const FOCUS_NEXT = { add: ['inc', 'add'], inc: ['inc', 'dec'], dec: ['dec', 'remove', 'add', 'inc'], remove: ['add'] };
   function focusLike(slot, role) {
     for (const candidate of FOCUS_NEXT[role] ?? []) {
       const target = slot.querySelector(`[data-role="${candidate}"]`);
@@ -148,6 +167,7 @@ function buildPage(site, detail, ctx, pageNotices) {
 
   /* --- top of page --- */
   const statusNotice = !open && NOTICES[event.status] ? NOTICES[event.status](event) : null;
+  const orderBy = orderByLabel(event);
   const directions = event.mapUrl && /^https:\/\//.test(event.mapUrl)
     ? h('a', { class: 'link', href: event.mapUrl, target: '_blank', rel: 'noopener noreferrer' }, icon('pin'), 'Directions (opens a map)')
     : null;
@@ -160,6 +180,7 @@ function buildPage(site, detail, ctx, pageNotices) {
       h('div', null, h('dt', null, 'Place'), h('dd', null, event.locationName,
         event.address ? h('span', { class: 'muted' }, event.address) : null,
         directions))),
+    orderBy ? h('p', { class: 'deadline' }, orderBy) : null,
     event.note ? h('p', { class: 'event-note' }, event.note) : null,
     pageNotices.map((entry) => notice(entry)),
     statusNotice ? notice({ ...statusNotice, tone: 'alert' }) : null,
@@ -233,7 +254,8 @@ function buildPage(site, detail, ctx, pageNotices) {
   const email = field({ name: 'email', label: 'Email', type: 'email', hint: ['For your receipt. For example: name', h('wbr'), '@example.com'],
     attrs: { autocomplete: 'email', inputmode: 'email', autocapitalize: 'off', spellcheck: 'false', maxlength: 254, enterkeyhint: 'done', value: draft.email ?? '' },
     validate: emailError });
-  const notes = field({ name: 'notes', label: 'Note for the kitchen', optional: true, multiline: true, max: 300, hint: 'Allergies or anything else we should know.',
+  const notes = field({ name: 'notes', label: 'Allergies or a note for the kitchen', optional: true, multiline: true, max: 300,
+    hint: 'Tell us about allergies or dietary needs. There’s never an extra charge.',
     attrs: { rows: 2, value: draft.notes ?? '' },
     validate: (v) => (v.trim().length > 300 ? 'Keep the note to 300 characters.' : null) });
   remember('name')(name.input);
@@ -317,12 +339,15 @@ function buildPage(site, detail, ctx, pageNotices) {
     const sums = computeTotals();
     const active = document.activeElement;
     const focusLine = linesBox.contains(active) ? active.closest('[data-line]')?.dataset.line : null;
-    const rows = lines.map(({ item, qty }) => h('li', { class: 'line', dataset: { line: item.id } },
-      h('p', { class: 'line__top' },
-        h('span', { class: 'line__name' }, item.name),
-        h('span', { class: 'line__total num' }, formatMoney(item.priceCents * qty))),
-      h('p', { class: 'line__unit num' }, `${formatMoney(item.priceCents)} each`),
-      h('div', { class: 'line__controls' }, stepper(item, qty), removeButton(item))));
+    const rows = lines.map(({ item, qty }) => {
+      const min = cart.minQtyOf(item);
+      return h('li', { class: 'line', dataset: { line: item.id } },
+        h('p', { class: 'line__top' },
+          h('span', { class: 'line__name' }, item.name),
+          h('span', { class: 'line__total num' }, formatMoney(item.priceCents * qty))),
+        h('p', { class: 'line__unit num' }, `${formatMoney(item.priceCents)} each`, min > 1 ? `, minimum ${min}` : null),
+        h('div', { class: 'line__controls' }, stepper(item, qty), removeButton(item, qty)));
+    });
     mount(linesBox, rows.length ? rows : h('li', { class: 'lines-empty' }, 'No dishes yet. Use the Add buttons on the menu.'));
     if (focusLine) {
       const slot = linesBox.querySelector(`[data-line="${CSS.escape(focusLine)}"]`);
@@ -474,8 +499,10 @@ function buildPage(site, detail, ctx, pageNotices) {
         return;
       }
       case 'sold_out': {
-        const { itemId, remaining } = error.details ?? {};
-        if (itemId) cart.setQty(eventId, itemId, Math.max(0, remaining ?? 0));
+        const { itemId, remaining = 0 } = error.details ?? {};
+        const item = items.get(itemId);
+        // Keep what is left, unless that is fewer than the dish's minimum.
+        if (item) cart.setQty(eventId, itemId, remaining >= cart.minQtyOf(item) ? remaining : 0);
         if (!(await reload().catch(() => true))) return closedNow();
         const message = `${error.message} We changed your order to match. Check it, then press Pay again.`;
         mount(itemsError, icon('alert'), h('span', null, message));
@@ -493,6 +520,7 @@ function buildPage(site, detail, ctx, pageNotices) {
           slotGroup.setError(error.message);
           summary.show('Please check this', [{ message: error.message, target: slotGroup.target() }]);
         } else {
+          if (error.field === 'items') mount(itemsError, icon('alert'), h('span', null, error.message));
           summary.show('Please check your order', [{ message: error.message, target: document.getElementById(itemsTitleId) }]);
         }
         return;
@@ -596,12 +624,7 @@ export function render(ctx) {
       const [site, detail] = await Promise.all([getSite(), getEvent(eventId, { signal: controller.signal })]);
       if (detail.event.status === 'open') {
         const changed = cart.reconcile(eventId, detail.menu.categories.flatMap((category) => category.items), site.order.maxQtyPerItem);
-        if (changed.length) {
-          notices.push({
-            title: 'We updated your order',
-            text: `${changed.join(', ')} ${changed.length === 1 ? 'has' : 'have'} sold out or only a few left, so we changed the amount in your order.`,
-          });
-        }
+        if (changed.length) notices.push({ title: 'We updated your order', text: changed.map(changeNote).join(' ') });
       }
       page = buildPage(site, detail, ctx, notices);
       mount(root, page.node);

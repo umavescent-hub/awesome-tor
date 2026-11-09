@@ -1,9 +1,10 @@
 // End-to-end check in a real browser, on a phone (390×844, touch), a desktop (1440×900) and an
 // iPhone SE (320×568) with the text size doubled: a customer orders from the first pop-up and pays
-// in demo mode, sends a catering request, and the kitchen works the order. Every page must load
-// without console errors, page errors or Content Security Policy / Trusted Types violations, under
-// the server's own security headers, without sideways scrolling, with readable text sizes and with
-// pinch-zoom left on.
+// in demo mode, sends a catering request, and the kitchen works the order. Then, on servers with a
+// fixed clock, the Thanksgiving pickup: the only open pop-up (with its last order time), a dish sold
+// two at a time, and the pop-up after its last order time. Every page must load without console
+// errors, page errors or Content Security Policy / Trusted Types violations, under the server's own
+// security headers, without sideways scrolling, with readable text sizes and with pinch-zoom left on.
 //
 // Run: npm run e2e   (starts its own servers on free ports with throwaway data folders)
 // Needs Playwright with Chromium: npm install --no-save playwright && npx playwright install chromium
@@ -20,6 +21,15 @@ const CODE = /^TS-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
 const MONEY = /\$\d[\d,]*\.\d{2}/;
 const FIRST_EVENT = '2026-11-21-santa-fe';
 const PAY_NEXT = /Next you.ll pay securely with card, Apple Pay or Google Pay on Stripe.s checkout page\./;
+const CHEF = 'Chef Rainbird Taylor, Ohkay Owingeh';
+
+// The Thanksgiving pickup, seen from two fixed moments.
+const HOLIDAY_EVENT = '2026-11-25-thanksgiving';
+const MIN_ITEM = 'thanksgiving-dinner';                  // sold two at a time
+const ORDER_BY = 'Order by Friday, November 20 at 8:00 PM';
+const BEFORE_LAST_ORDER = '2026-10-28T18:00:00Z';       // the only pop-up taking orders yet
+const AFTER_LAST_ORDER = '2026-11-21T04:00:00Z';        // 9 PM on November 20, an hour after its last order time
+const CART_KEY = 'tsideh.cart.v1';                      // where the site keeps the order in progress
 
 function loadPlaywright() {
   try {
@@ -119,12 +129,12 @@ async function expectNoSidewaysScroll(page, where) {
   assert.equal(wide, null, `${where}: the order sheet scrolls sideways`);
 }
 
-/** Big headings fit their box and never break inside a word ("Upco / ming"). */
+/** Headings fit their box and never break inside a word ("Upco / ming", "Thanksgi / ving"). */
 async function expectWholeWordHeadings(page, where) {
   const broken = await page.evaluate(() => {
     const out = [];
     const range = document.createRange();
-    for (const el of document.querySelectorAll('h1, h2')) {
+    for (const el of document.querySelectorAll('h1, h2, h3')) {
       if (el.clientWidth <= 1 || el.closest('.visually-hidden, [hidden], dialog:not([open])')) continue;
       if (el.scrollWidth > el.clientWidth + 1) out.push(`"${el.textContent.trim()}" is wider than its box`);
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -212,12 +222,15 @@ async function orderAndPay(page, run, base) {
 
   const cards = page.locator('.popup-list .popup');
   await cards.first().waitFor();
-  assert.equal(await cards.count(), 3, 'three upcoming pop-ups are listed');
+  assert.equal(await cards.count(), 4, 'four upcoming pop-ups are listed');
+  assert.match(await cards.first().locator('.popup__title').innerText(), /^Santa Fe Pop-up$/);
   const logo = page.locator('.hero img.hero__logo');
   assert.equal(await logo.getAttribute('alt'), 'Tsideh');
   assert.ok(await logo.evaluate((img) => img.complete && img.naturalWidth > 0), 'the logo loads in the hero');
   const hero = page.locator('.hero');
   assert.match(await hero.innerText(), /Next pop-up/);
+  assert.equal(await hero.locator('.hero__chef').innerText(), CHEF, 'the chef under the headline');
+  assert.equal(await page.locator('.site-footer .footer-chef').innerText(), CHEF, 'and once in the footer');
   const orderLink = hero.getByRole('link', { name: 'Order food for pickup' });
   const { events } = await page.evaluate(() => fetch('/api/events').then((r) => r.json()));
   const open = events.filter((event) => event.status === 'open');
@@ -298,6 +311,10 @@ async function orderAndPay(page, run, base) {
   await form.locator('input[name="phone"]').fill(run.customer.phone);
   await form.locator('input[name="email"]').fill(run.customer.email);
   assert.equal(await form.locator('.pay__missing').isVisible(), false, 'nothing is missing once the form is filled in');
+  const notes = form.locator('.field:has(textarea[name="notes"])');
+  assert.match(await notes.locator('.field__label').innerText(), /^Allergies or a note for the kitchen \(optional\)$/);
+  assert.match(await notes.locator('.field__hint').innerText(), /allergies or dietary needs\. There.s never an extra charge\.$/);
+  await notes.locator('textarea').fill('One of us is allergic to tree nuts.');
   await form.locator('label.choice:has(input[name="tip"][value="20"])').click();
   if (run.phone) await expectPageBasics(page, run, 'order sheet, filled in');
 
@@ -342,7 +359,16 @@ async function sendCateringRequest(page, run, base) {
   await form.locator('input[name="location"]').fill(run.catering.location);
   await form.locator('input[name="eventDate"]').fill(monthAhead());
   await form.locator('input[name="guestCount"]').fill(run.catering.guests);
+  // The kinds of catering come from the site settings, under a plain question.
+  const kinds = form.locator('fieldset:has(input[name="serviceStyle"])');
+  assert.equal(await kinds.locator('legend').innerText(), 'What kind of catering?');
+  const { catering } = await page.evaluate(() => fetch('/api/site').then((r) => r.json()));
+  assert.deepEqual((await kinds.locator('.choice__label').allInnerTexts()).map((text) => text.trim()), catering.serviceStyles);
   await form.locator('label.choice:has(input[name="serviceStyle"])').nth(2).click();
+  const dietary = form.locator('.field:has(textarea[name="dietary"])');
+  assert.equal(await dietary.locator('.field__label').innerText(), 'Allergies or dietary needs (optional)');
+  assert.equal(await dietary.locator('.field__hint').innerText(), 'There’s never an extra charge.');
+  await dietary.locator('textarea').fill('Two guests are vegan.');
   await form.locator('textarea[name="message"]').fill('A family reunion with an outdoor lunch.');
   await expectPageBasics(page, run, 'catering');
   await form.getByRole('button', { name: 'Send catering request' }).click();
@@ -389,30 +415,150 @@ async function workTheOrder(page, run, base, { code, committed }) {
   assert.equal(await page.locator('canvas').count(), 0, 'no drawn art in the kitchen');
 }
 
-/* ----------------------------------------------------------------- one open pop-up */
+/* ------------------------------------------------------- the Thanksgiving pickup, fixed clocks */
 
-/** With exactly one pop-up taking orders, "Order food for pickup" goes straight to its menu. */
-async function oneOpenPopup(browser) {
-  const dataDir = mkdtempSync(path.join(tmpdir(), 'tsideh-e2e-one-'));
+/** Runs fn(base) against a server whose clock reads `now`, with its own throwaway data folder. */
+async function withServer(now, fn) {
+  const dataDir = mkdtempSync(path.join(tmpdir(), 'tsideh-e2e-at-'));
+  const errors = [];
   const server = await startServer({
-    env: { PORT: '0', HOST: '127.0.0.1', DATA_DIR: dataDir, NODE_ENV: 'development', NOW: '2026-11-04T18:00:00Z' },
-    log: { info: () => {}, warn: () => {}, error: () => {} },
+    env: { PORT: '0', HOST: '127.0.0.1', DATA_DIR: dataDir, NODE_ENV: 'development', NOW: now },
+    log: { info: () => {}, warn: () => {}, error: (line) => errors.push(line) },
   });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   try {
-    const page = await context.newPage();
-    await page.goto(`http://127.0.0.1:${server.port}/`);
-    await page.locator('.popup-list .popup').first().waitFor();
-    const link = page.locator('.hero').getByRole('link', { name: 'Order food for pickup' });
-    assert.equal(await link.getAttribute('href'), `/e/${FIRST_EVENT}`);
-    await link.click();
-    await page.waitForURL(new RegExp(`/e/${FIRST_EVENT}$`));
-    await page.locator('.event-menu .dish').first().waitFor();
+    await fn(`http://127.0.0.1:${server.port}`);
+    assert.deepEqual(errors, [], 'the server logged no errors');
   } finally {
-    await context.close();
     await server.close();
     rmSync(dataDir, { recursive: true, force: true });
   }
+}
+
+/** Runs fn(page) in a fresh browser context for `run`, watched like the main runs. */
+async function withPage(browser, run, fn) {
+  const problems = [];
+  const context = await browser.newContext(run.options);
+  await watch(context, problems, []);
+  if (run.bigText) await doubleTextSize(context);
+  try {
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
+    await fn(page);
+    assert.deepEqual(problems, [], 'no console errors, page errors or CSP violations');
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * With exactly one pop-up taking orders, "Order food for pickup" goes straight to its menu. Its
+ * last order time is on its card, in the hero and on its page, and the holiday menu reads
+ * naturally: its own categories, no photos.
+ */
+async function onlyOpenPopup(page, run, base) {
+  await page.goto(`${base}/`);
+  const card = page.locator('.popup-list .popup', { hasText: 'Thanksgiving Pickup' });
+  await card.waitFor();
+  assert.match(await card.innerText(), /Taking orders now/);
+  assert.equal(await card.locator('.deadline').innerText(), ORDER_BY);
+  const hero = page.locator('.hero');
+  assert.equal(await hero.locator('.deadline').innerText(), ORDER_BY);
+  const link = hero.getByRole('link', { name: 'Order food for pickup' });
+  assert.equal(await link.getAttribute('href'), `/e/${HOLIDAY_EVENT}`);
+  await expectPageBasics(page, run, 'home with one open pop-up');
+
+  await link.click();
+  await page.waitForURL(new RegExp(`/e/${HOLIDAY_EVENT}$`));
+  await page.locator('.event-menu .dish').first().waitFor();
+  assert.equal(await page.locator('.event-top .deadline').innerText(), ORDER_BY);
+  assert.deepEqual(await page.locator('.menu-cat__title').allInnerTexts(), ['Thanksgiving', 'Pies']);
+  assert.equal(await page.locator('.event-menu img').count(), 0, 'no photos on the holiday menu');
+  await expectPageBasics(page, run, 'holiday pop-up page');
+}
+
+/**
+ * A dish sold two at a time: its row says "Minimum 2", "Add 2" puts two in the order, and the
+ * amount never drops to one: at two, the − button is a worded "Remove" that takes both out. An
+ * amount saved below the minimum (an older visit, another tab) comes back as the minimum, and the
+ * page says so.
+ */
+async function minimumAmount(page, run, base) {
+  await page.goto(`${base}/e/${HOLIDAY_EVENT}`);
+  const dish = page.locator(`.event-menu .dish[data-item="${MIN_ITEM}"]`);
+  await dish.waitFor();
+  const name = (await dish.locator('.dish__name').innerText()).trim();
+  const qty = dish.locator('.stepper__qty');
+  const oneFewer = dish.getByRole('button', { name: `One fewer ${name}` });
+  const stored = () => page.evaluate(([key, eventId, itemId]) => JSON.parse(localStorage.getItem(key) ?? '{}')[eventId]?.items?.[itemId] ?? 0,
+    [CART_KEY, HOLIDAY_EVENT, MIN_ITEM]);
+
+  assert.match(await dish.locator('.dish__price').innerText(), /^\$\d+\.\d{2} Minimum 2$/);
+  await dish.getByRole('button', { name: `Add 2 ${name}` }).click();
+  await expectAdded(page, run, dish, name);
+  assert.equal(await qty.innerText(), '2');
+  assert.equal(await stored(), 2, 'Add put two in the order');
+  assert.equal(await oneFewer.count(), 0, 'at the minimum there is no − button');
+  await expectPageBasics(page, run, 'a dish at its minimum');
+
+  await dish.getByRole('button', { name: `One more ${name}` }).click();
+  await qty.filter({ hasText: /^3$/ }).waitFor();
+  await oneFewer.click();
+  await qty.filter({ hasText: /^2$/ }).waitFor();
+  assert.equal(await oneFewer.count(), 0, 'one fewer than the minimum is never offered');
+  assert.equal(await stored(), 2);
+
+  // The order checklist says the same: in the sheet on phones, beside the menu on desktop.
+  const order = run.phone ? page.locator('dialog.order-sheet') : page.locator('.panel-slot');
+  if (run.phone) {
+    await page.locator('.order-bar__button').click();
+    await page.locator('dialog.order-sheet[open]').waitFor();
+  }
+  const line = order.locator(`.line[data-line="${MIN_ITEM}"]`);
+  assert.match(await line.locator('.line__unit').innerText(), /each, minimum 2$/);
+  assert.equal(await line.getByRole('button', { name: `One fewer ${name}` }).count(), 0);
+  await line.getByRole('button', { name: `Remove ${name}` }).waitFor();
+  if (run.phone) {
+    await expectPageBasics(page, run, 'order sheet with a dish at its minimum');
+    await order.getByRole('button', { name: 'Close' }).click();
+    await page.locator('dialog.order-sheet:not([open])').waitFor({ state: 'attached' });
+  }
+
+  await dish.getByRole('button', { name: `Remove ${name}` }).click();
+  await dish.getByRole('button', { name: `Add 2 ${name}` }).waitFor();
+  assert.equal(await stored(), 0, 'Remove took both out');
+
+  await page.evaluate(([key, eventId, itemId]) => {
+    localStorage.setItem(key, JSON.stringify({ [eventId]: { items: { [itemId]: 1 }, updatedAt: Date.now() } }));
+  }, [CART_KEY, HOLIDAY_EVENT, MIN_ITEM]);
+  await page.reload();
+  await page.locator('.notice', { hasText: `${name} has a minimum of 2` }).waitFor();
+  await qty.filter({ hasText: /^2$/ }).waitFor();
+  assert.equal(await stored(), 2, 'a saved amount below the minimum is raised to it');
+}
+
+/** After its last order time the pop-up says so in plain words and offers no order controls. */
+async function afterLastOrderTime(page, run, base) {
+  await page.goto(`${base}/`);
+  const card = page.locator('.popup-list .popup', { hasText: 'Thanksgiving Pickup' });
+  await card.waitFor();
+  assert.match(await card.innerText(), /Online ordering has closed/);
+  assert.equal(await card.locator('.deadline').count(), 0, 'no "Order by" once it has passed');
+  await card.getByRole('link', { name: /^See the menu/ }).click();
+  await page.waitForURL(new RegExp(`/e/${HOLIDAY_EVENT}$`));
+  await page.locator('.notice', { hasText: 'Online ordering has closed' }).waitFor();
+  await page.locator('.event-menu .dish').first().waitFor();
+  assert.equal(await page.locator('.event-menu button, form.order-form, .order-bar').count(), 0, 'no order controls');
+  await expectPageBasics(page, run, 'pop-up page after its last order time');
+}
+
+function holidayChecks(devices) {
+  const runs = Object.fromEntries(viewports(devices).map((run) => [run.name, run]));
+  return [
+    { run: runs.desktop, now: BEFORE_LAST_ORDER, label: 'one open pop-up: "Order food for pickup" goes straight to its menu', fn: onlyOpenPopup },
+    { run: runs.desktop, now: BEFORE_LAST_ORDER, label: 'a dish with a minimum of 2 adds 2 and never drops to 1', fn: minimumAmount },
+    { run: runs['iPhone SE at 200% text'], now: BEFORE_LAST_ORDER, label: 'a dish with a minimum of 2 adds 2 and never drops to 1', fn: minimumAmount },
+    { run: runs.phone, now: AFTER_LAST_ORDER, label: 'after the last order time: "Online ordering has closed", no order controls', fn: afterLastOrderTime },
+  ];
 }
 
 /* ----------------------------------------------------------------------------------- main */
@@ -482,12 +628,14 @@ async function main() {
         await context.close();
       }
     }
-    try {
-      await oneOpenPopup(browser);
-      console.log('ok    desktop: one open pop-up, "Order food for pickup" goes straight to its menu');
-    } catch (error) {
-      failed = true;
-      console.log(`FAIL  desktop: one open pop-up\n      ${String(error.message).split('\n').join('\n      ')}`);
+    for (const { run, now, label, fn } of holidayChecks(devices)) {
+      try {
+        await withServer(now, (holidayBase) => withPage(browser, run, (page) => fn(page, run, holidayBase)));
+        console.log(`ok    ${run.name}: ${label}`);
+      } catch (error) {
+        failed = true;
+        console.log(`FAIL  ${run.name}: ${label}\n      ${String(error.message).split('\n').join('\n      ')}`);
+      }
     }
     if (serverErrors.length) {
       failed = true;

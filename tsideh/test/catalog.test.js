@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { buildCatalog, evaluateEvent, eventSummary, isListed, isRecent, menuView } from '../server/catalog.js';
-import { fixtureContent, MINUTE, T0 } from './helpers.js';
+import { fixtureContent, HARVEST_CLOSES, MINUTE, T0 } from './helpers.js';
 
 const catalog = buildCatalog(fixtureContent());
 const winter = catalog.events.get('winter');
+const harvest = catalog.events.get('harvest');
 const none = { slotCounts: new Map(), itemQty: new Map() };
 
 const evaluate = (event, { now = T0, usage = none } = {}) => evaluateEvent(catalog, event, { now, usage });
@@ -64,6 +65,28 @@ describe('event status', () => {
     assert.deepEqual(available, ['10:30', '10:45']);
   });
 
+  test('ordersCloseAt: open until the instant before, closed from that instant on', () => {
+    assert.equal(harvest.ordersCloseAtMs, HARVEST_CLOSES);
+    const before = evaluate(harvest, { now: HARVEST_CLOSES - 1 });
+    assert.equal(before.status, 'open');
+    assert.ok(before.slots.every((slot) => slot.available));
+    for (const now of [HARVEST_CLOSES, HARVEST_CLOSES + 1, harvest.slots[0].atMs - 60 * MINUTE]) {
+      const after = evaluate(harvest, { now });
+      assert.equal(after.status, 'closed');
+      assert.ok(after.slots.every((slot) => !slot.available && slot.remaining === 2), 'unavailable, though not full');
+    }
+  });
+
+  test('ordersCloseAt closes even a paused event, and an event without one is unaffected', () => {
+    const content = fixtureContent();
+    content.events.events.find((event) => event.id === 'harvest').status = 'paused';
+    const paused = buildCatalog(content).events.get('harvest');
+    assert.equal(evaluateEvent(catalog, paused, { now: HARVEST_CLOSES - 1, usage: none }).status, 'paused');
+    assert.equal(evaluateEvent(catalog, paused, { now: HARVEST_CLOSES, usage: none }).status, 'closed');
+    assert.equal(winter.ordersCloseAtMs, null);
+    assert.equal(evaluate(winter, { now: HARVEST_CLOSES }).status, 'open');
+  });
+
   test('a full slot is unavailable while its neighbours stay open', () => {
     const usage = { slotCounts: new Map([['11:15', 2], ['11:30', 1]]), itemQty: new Map() };
     const slots = evaluate(winter, { usage }).slots.slice(0, 4);
@@ -84,6 +107,22 @@ describe('item stock', () => {
     assert.deepEqual(items.get('stew'), { limit: null, remaining: null, soldOut: false });
   });
 
+  test('an item sells out once fewer than its minQty remain', () => {
+    const dinner = (taken) => evaluate(harvest, { usage: { slotCounts: new Map(), itemQty: new Map([['dinner', taken]]) } }).items.get('dinner');
+    assert.deepEqual(dinner(3), { limit: 5, remaining: 2, soldOut: false });
+    assert.deepEqual(dinner(4), { limit: 5, remaining: 1, soldOut: true });
+    assert.deepEqual(dinner(5), { limit: 5, remaining: 0, soldOut: true });
+  });
+
+  test('soldout when every item is down to less than its minimum', () => {
+    const content = fixtureContent();
+    content.events.events.find((event) => event.id === 'harvest').itemLimits = { dinner: 5, pie: 3 };
+    const limited = buildCatalog(content);
+    const usage = (pies) => ({ slotCounts: new Map(), itemQty: new Map([['dinner', 4], ['pie', pies]]) });
+    assert.equal(evaluateEvent(limited, limited.events.get('harvest'), { now: T0, usage: usage(3) }).status, 'soldout');
+    assert.equal(evaluateEvent(limited, limited.events.get('harvest'), { now: T0, usage: usage(2) }).status, 'open');
+  });
+
   test('menuView groups by category in config order and omits empty categories', () => {
     const view = menuView(catalog, winter, evaluate(winter).items);
     assert.deepEqual(view.categories.map((category) => category.id), ['plates', 'sweets']);
@@ -92,12 +131,15 @@ describe('item stock', () => {
       name: 'Green Chile Stew',
       description: 'Roasted green chile.',
       priceCents: 1300,
+      minQty: 1,
       tags: ['vegan', 'gluten-free'],
       image: '/assets/menu/stew.webp',
       remaining: null,
       soldOut: false,
     });
     assert.equal(view.categories[1].items[0].image, null);
+    const feast = menuView(catalog, harvest, evaluate(harvest).items).categories;
+    assert.deepEqual(feast.map((category) => category.items.map((item) => [item.id, item.minQty])), [[['dinner', 2], ['pie', 1]]]);
   });
 });
 
@@ -129,6 +171,8 @@ describe('listing rules', () => {
       note: 'Pickup only.',
       status: 'open',
       opensAt: '2026-10-31T06:00:00.000Z',
+      ordersCloseAt: null,
     });
+    assert.equal(eventSummary(harvest, 'open').ordersCloseAt, '2026-11-21T03:00:00.000Z');
   });
 });

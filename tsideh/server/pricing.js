@@ -16,8 +16,8 @@ export function percentOf(cents, percent) {
 }
 
 /**
- * Validates [{ id, qty }] against the event menu and order rules. Duplicate ids are merged.
- * Returns priced lines in the order first seen.
+ * Validates [{ id, qty }] against the event menu and order rules. Duplicate ids are merged before
+ * an item's minQty and the order maximums are checked. Returns priced lines in the order first seen.
  */
 export function priceCart(event, rawItems, { maxQtyPerItem, maxItemsPerOrder }) {
   if (!Array.isArray(rawItems) || rawItems.length === 0) throw invalid('items', 'Add at least one item.');
@@ -37,6 +37,7 @@ export function priceCart(event, rawItems, { maxQtyPerItem, maxItemsPerOrder }) 
   const lines = [];
   for (const [id, qty] of quantities) {
     const item = onMenu.get(id);
+    if (qty < item.minQty) throw invalid('items', `Order at least ${item.minQty} of ${item.name}.`);
     if (qty > maxQtyPerItem) throw invalid('items', `You can order up to ${maxQtyPerItem} of ${item.name}.`);
     count += qty;
     lines.push({ id, name: item.name, unitCents: item.priceCents, qty, lineCents: item.priceCents * qty });

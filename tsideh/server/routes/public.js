@@ -25,6 +25,7 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
     tagline: site.tagline ?? '',
     heroHeadline: site.heroHeadline ?? '',
     description: site.description ?? '',
+    chef: site.chef ? { name: site.chef.name, from: site.chef.from ?? '' } : null,
     timezone: site.timezone,
     currency: site.currency,
     taxRatePercent: site.taxRatePercent,

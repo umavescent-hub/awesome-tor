@@ -1,5 +1,8 @@
 {
   "categories": [
+    { "id": "thanksgiving", "name": "Thanksgiving" },
+    { "id": "pies", "name": "Pies" },
+    { "id": "winter", "name": "Winter Feast Table" },
     { "id": "plates", "name": "Plates" },
     { "id": "bowls", "name": "Bowls" },
     { "id": "bread", "name": "Bread & Sides" },
@@ -7,6 +10,72 @@
     { "id": "drinks", "name": "Drinks" }
   ],
   "items": [
+    {
+      "id": "harvest-table-for-6",
+      "category": "thanksgiving",
+      "name": "Harvest Table for 6",
+      "description": "Whole turkey, piñon-sage cornbread dressing, red chile gravy, Three Sisters succotash, blue corn rolls and cranberry-chokecherry sauce. Serves 6.",
+      "priceCents": 49500,
+      "tags": ["contains-nuts"]
+    },
+    {
+      "id": "thanksgiving-dinner",
+      "category": "thanksgiving",
+      "name": "Thanksgiving dinner, per person",
+      "description": "The same Thanksgiving dinner, plated for each person. Minimum 2.",
+      "priceCents": 8500,
+      "minQty": 2,
+      "tags": ["contains-nuts"]
+    },
+    {
+      "id": "pie-pumpkin-blue-corn",
+      "category": "pies",
+      "name": "Pumpkin pie with blue corn crust",
+      "description": "12-inch pie. Serves 8.",
+      "priceCents": 4800,
+      "tags": ["vegetarian"]
+    },
+    {
+      "id": "pie-pinon-honey",
+      "category": "pies",
+      "name": "Piñon-honey pie",
+      "description": "12-inch pie. Serves 8.",
+      "priceCents": 4800,
+      "tags": ["vegetarian", "contains-nuts"]
+    },
+    {
+      "id": "pie-nm-cherry",
+      "category": "pies",
+      "name": "Northern New Mexico cherry pie",
+      "description": "12-inch pie. Serves 8.",
+      "priceCents": 4800,
+      "tags": ["vegetarian"]
+    },
+    {
+      "id": "winter-feast-table-for-6",
+      "category": "winter",
+      "name": "Winter Feast Table for 6",
+      "description": "Red chile posole, blue corn tamales, oven bread and biscochitos. Serves 6.",
+      "priceCents": 42000,
+      "tags": ["spicy"]
+    },
+    {
+      "id": "winter-feast-table-per-person",
+      "category": "winter",
+      "name": "Winter Feast Table, per person",
+      "description": "The same winter feast, plated for each person. Minimum 2.",
+      "priceCents": 7200,
+      "minQty": 2,
+      "tags": ["spicy"]
+    },
+    {
+      "id": "blue-corn-tamales-dozen",
+      "category": "winter",
+      "name": "Blue corn tamales, dozen",
+      "description": "Twelve tamales made with blue corn masa.",
+      "priceCents": 3800,
+      "tags": []
+    },
     {
       "id": "bison-red-chile-tacos",
       "category": "plates",

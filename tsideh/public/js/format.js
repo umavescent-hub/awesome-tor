@@ -58,6 +58,9 @@ export const zonedDate = (iso) => zonedDay.format(new Date(iso));
 /** An ISO instant as the kitchen's wall time "HH:MM". */
 export const zonedClock = (iso) => zonedTime.format(new Date(iso));
 
+/** An ISO instant in the kitchen's zone: "Friday, November 20 at 8:00 PM". */
+export const formatInstant = (iso) => `${formatLongDate(zonedDate(iso))} at ${formatTime(zonedClock(iso))}`;
+
 /** Today's date in the kitchen's zone. */
 export const today = () => zonedDay.format(new Date());
 
@@ -83,11 +86,26 @@ const STATUS = {
   open: 'Taking orders now',
   soldout: 'Sold out',
   paused: 'Ordering is paused',
-  closed: 'Ordering has closed',
+  closed: 'Online ordering has closed',
 };
 
 /** A pop-up's ordering status in words: "Taking orders now", "Ordering opens Saturday, October 31", ... */
 export function eventStatusLabel(event) {
   if (event.status === 'upcoming') return `Ordering opens ${formatLongDate(zonedDate(event.opensAt))}`;
   return STATUS[event.status] ?? STATUS.closed;
+}
+
+/** "Order by Friday, November 20 at 8:00 PM" while a pop-up with a last order time can still be
+ *  ordered from (or soon can), else null. */
+export function orderByLabel(event) {
+  if (!event.ordersCloseAt || (event.status !== 'open' && event.status !== 'upcoming')) return null;
+  return `Order by ${formatInstant(event.ordersCloseAt)}`;
+}
+
+/** "Chef Rainbird Taylor, Ohkay Owingeh", or null when the site names no chef. */
+export function chefLine(chef) {
+  const name = chef?.name?.trim();
+  if (!name) return null;
+  const from = chef.from?.trim();
+  return from ? `${name}, ${from}` : name;
 }

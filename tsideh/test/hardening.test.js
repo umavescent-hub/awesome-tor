@@ -198,7 +198,7 @@ describe('Stripe mode (RT-1 race, RT-3, RT-5, RT-6)', () => {
       eventDate: '2026-12-20',
       guestCount: 20,
       location: '<https://evil.example/stripe-login|Verify your Stripe account here>',
-      serviceStyle: 'Buffet',
+      serviceStyle: 'Not sure yet',
     });
     assert.equal(response.status, 201);
     for (let i = 0; i < 100 && services.alerts.length === 0; i++) await sleep(10);

@@ -5,7 +5,7 @@
 import { getOrder, getSite } from '../api.js';
 import * as cart from '../cart.js';
 import { h, mount } from '../dom.js';
-import { formatLongDate, formatMoney, formatTime, zonedClock, zonedDate } from '../format.js';
+import { formatInstant, formatLongDate, formatMoney } from '../format.js';
 import { downloadCalendar } from '../ics.js';
 import { errorState, icon, skeleton, spinner } from '../ui.js';
 
@@ -48,7 +48,7 @@ function receipt(order, taxLabel) {
       h('div', null, h('dt', null, 'Tip'), h('dd', { class: 'num' }, formatMoney(order.tipCents))),
       h('div', { class: 'totals__grand' }, h('dt', null, 'Total paid'), h('dd', { class: 'num' }, formatMoney(order.totalCents)))),
     order.paidAt
-      ? h('p', { class: 'receipt__paid' }, `Paid on ${formatLongDate(zonedDate(order.paidAt))} at ${formatTime(zonedClock(order.paidAt))}.`)
+      ? h('p', { class: 'receipt__paid' }, `Paid on ${formatInstant(order.paidAt)}.`)
       : null);
 }
 

@@ -26,11 +26,11 @@ describe('kitchen alerts', () => {
       name: '<!channel> Stripe payout failed',
       eventDate: '2026-12-20',
       guestCount: 20,
-      serviceStyle: 'Buffet',
+      serviceStyle: 'Not sure yet',
       location: '<https://evil.example/stripe-login|Verify your Stripe account here>',
     });
     assert.deepEqual(sent, [{
-      text: 'New catering inquiry · &lt;!channel&gt; Stripe payout failed · 2026-12-20 · 20 guests · Buffet · &lt;https://evil.example/stripe-login|Verify your Stripe account here&gt;',
+      text: 'New catering inquiry · &lt;!channel&gt; Stripe payout failed · 2026-12-20 · 20 guests · Not sure yet · &lt;https://evil.example/stripe-login|Verify your Stripe account here&gt;',
     }]);
   });
 

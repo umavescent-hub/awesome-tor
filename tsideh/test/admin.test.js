@@ -175,6 +175,7 @@ describe('kitchen board', () => {
       ['today', 'open', 'open'],
       ['winter', 'open', 'open'],
       ['secret', 'hidden', 'closed'],
+      ['harvest', 'open', 'open'],
       ['resting', 'paused', 'paused'],
       ['closed', 'closed', 'closed'],
       ['later', 'open', 'upcoming'],
@@ -267,7 +268,7 @@ describe('catering inbox', () => {
     const admin = await signIn();
     const c = server.client();
     const send = (name, email) => c.post('/api/catering', {
-      name, email, eventDate: '2026-12-12', guestCount: 40, location: 'Santa Fe', serviceStyle: 'Drop-off',
+      name, email, eventDate: '2026-12-12', guestCount: 40, location: 'Santa Fe', serviceStyle: 'Drop-off, boxed lunch or pickup',
     });
     await send('First Guest', 'first@example.com');
     server.clock.advance(1000);

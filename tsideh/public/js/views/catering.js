@@ -6,12 +6,14 @@ import { addDays, formatLongDate, today } from '../format.js';
 import { choiceGroup, clean, emailError, errorSummary, field, phoneError } from '../forms.js';
 import { errorState, icon, setBusy, skeleton, spinner } from '../ui.js';
 
+/** The form's "Not sure yet" choice: offered in the form, not a kind of catering to list. */
+const UNDECIDED = /^not sure/i;
+
 function points(catering) {
-  const styles = catering.serviceStyles.map((style, i) => (i === 0 ? style : style.toLowerCase()));
-  const styleList = styles.length > 1 ? `${styles.slice(0, -1).join(', ')} or ${styles.at(-1)}` : styles[0];
+  const kinds = catering.serviceStyles.filter((style) => !UNDECIDED.test(style));
   return h('ul', { class: 'catering__points' },
     h('li', null, h('strong', null, `${catering.minGuests} to ${catering.maxGuests} guests`), h('span', null, 'Weddings, offices, family tables and celebrations.')),
-    styles.length ? h('li', null, h('strong', null, 'Served your way'), h('span', null, `${styleList}.`)) : null,
+    kinds.length ? h('li', null, h('strong', null, 'Served your way'), h('ul', { class: 'catering__kinds' }, kinds.map((kind) => h('li', null, kind)))) : null,
     h('li', null, h('strong', null, `${catering.leadTimeDays} days' notice`), h('span', null, 'Most events book a few weeks out. Ask about shorter notice.')));
 }
 
@@ -42,9 +44,9 @@ function buildForm(site, onDone) {
     } });
   const location = field({ name: 'location', label: 'Where is it?', hint: 'Town or venue', attrs: { autocomplete: 'address-level2', maxlength: 120 },
     validate: (v) => (clean(v) ? null : 'Enter where the event is.') });
-  const style = choiceGroup({ name: 'serviceStyle', legend: 'How should we serve the food?', options: catering.serviceStyles.map((value) => ({ value, label: value })) });
+  const style = choiceGroup({ name: 'serviceStyle', legend: 'What kind of catering?', options: catering.serviceStyles.map((value) => ({ value, label: value })) });
   const budget = field({ name: 'budget', label: 'Budget', optional: true, hint: 'A rough range is fine.', attrs: { maxlength: 60 } });
-  const dietary = field({ name: 'dietary', label: 'Allergies or diets', optional: true, multiline: true, max: 300 });
+  const dietary = field({ name: 'dietary', label: 'Allergies or dietary needs', optional: true, multiline: true, max: 300, hint: 'There’s never an extra charge.' });
   const message = field({ name: 'message', label: 'Anything else we should know', optional: true, multiline: true, max: 1500 });
   const honeypot = h('div', { class: 'hp', 'aria-hidden': 'true' },
     h('label', { for: 'catering-website' }, 'Website'),
@@ -82,7 +84,7 @@ function buildForm(site, onDone) {
       if (problem) problems.push({ message: problem, target: f.input });
     }
     if (!style.value()) {
-      const problem = 'Choose a service style.';
+      const problem = 'Choose what kind of catering you would like.';
       style.setError(problem);
       problems.push({ message: problem, target: style.target() });
     }

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { ADMIN_PASSWORD, checkoutBody, MINUTE, startTestServer } from './helpers.js';
+import {
+  ADMIN_PASSWORD, checkoutBody, fixtureContent, HARVEST_CLOSES, MINUTE, SERVICE_STYLES, startTestServer,
+} from './helpers.js';
 
 const CODE = /^TS-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
 
@@ -32,6 +34,7 @@ describe('site and events', () => {
       tagline: 'Pop-up kitchen · Northern New Mexico',
       heroHeadline: '',
       description: 'Pre-order pickup and catering.',
+      chef: { name: 'Chef Rainbird Taylor', from: 'Ohkay Owingeh' },
       timezone: 'America/Denver',
       currency: 'usd',
       taxRatePercent: 8.1875,
@@ -39,10 +42,28 @@ describe('site and events', () => {
       tipPresetsPercent: [0, 10, 15, 20],
       contact: { email: 'hello@tsideh.test', phone: '', instagram: '' },
       press: [],
-      catering: { blurb: 'We bring the kitchen to you.', minGuests: 10, maxGuests: 500, leadTimeDays: 7, serviceStyles: ['Drop-off', 'Buffet'] },
+      catering: { blurb: 'We bring the kitchen to you.', minGuests: 10, maxGuests: 500, leadTimeDays: 7, serviceStyles: SERVICE_STYLES },
       order: { maxQtyPerItem: 12, maxItemsPerOrder: 30 },
       payments: { mode: 'demo' },
     });
+  });
+
+  test('GET /api/site: chef is null when site.json names none, and "from" is optional', async () => {
+    const content = fixtureContent();
+    delete content.site.chef;
+    const unnamed = await startTestServer({ content });
+    try {
+      assert.equal((await unnamed.client().get('/api/site')).body.chef, null);
+    } finally {
+      await unnamed.close();
+    }
+    content.site.chef = { name: 'Chef Rainbird Taylor' };
+    const nameOnly = await startTestServer({ content });
+    try {
+      assert.deepEqual((await nameOnly.client().get('/api/site')).body.chef, { name: 'Chef Rainbird Taylor', from: '' });
+    } finally {
+      await nameOnly.close();
+    }
   });
 
   test('GET /api/events lists visible events in date order with computed status', async () => {
@@ -50,6 +71,7 @@ describe('site and events', () => {
     assert.deepEqual(body.events.map((event) => [event.id, event.status]), [
       ['today', 'open'],
       ['winter', 'open'],
+      ['harvest', 'open'],
       ['resting', 'paused'],
       ['closed', 'closed'],
       ['later', 'upcoming'],
@@ -57,6 +79,8 @@ describe('site and events', () => {
     const later = body.events.at(-1);
     assert.equal(later.opensAt, '2027-01-23T07:00:00.000Z');
     assert.equal(later.startsAt, '2027-01-30T18:00:00.000Z');
+    assert.equal(later.ordersCloseAt, null);
+    assert.equal(body.events.find((event) => event.id === 'harvest').ordersCloseAt, '2026-11-21T03:00:00.000Z');
   });
 
   test('GET /api/events/:id returns event, grouped menu with stock, and slots', async () => {
@@ -284,6 +308,88 @@ describe('checkout and payment (demo)', () => {
   });
 });
 
+describe('holiday pickup: minimum quantities and the order cutoff', () => {
+  // Its own server: the cutoff test moves the clock ten days ahead.
+  let holiday;
+  before(async () => {
+    holiday = await startTestServer();
+  });
+  after(() => holiday.close());
+
+  const order = (c, items, slot = '12:00') => c.post('/api/checkout', checkoutBody({ eventId: 'harvest', slot, items }));
+  const cancel = (c, placed) => c.post(`/api/orders/${placed.body.code}/cancel`, { k: placed.body.viewToken });
+  async function dinner() {
+    const { body } = await holiday.client().get('/api/events/harvest');
+    const { remaining, soldOut } = body.menu.categories[0].items.find((item) => item.id === 'dinner');
+    return { remaining, soldOut };
+  }
+
+  test('the menu gives each dish its minimum', async () => {
+    const { body } = await holiday.client().get('/api/events/harvest');
+    assert.deepEqual(body.menu.categories.map((category) => category.items.map((item) => [item.id, item.minQty])), [[['dinner', 2], ['pie', 1]]]);
+  });
+
+  test('fewer than a dish\'s minimum is 400 invalid on items; the minimum itself is accepted', async () => {
+    const c = holiday.client();
+    const one = await order(c, [{ id: 'dinner', qty: 1 }, { id: 'pie', qty: 1 }]);
+    assert.equal(one.status, 400);
+    assert.equal(one.body.error.code, 'invalid');
+    assert.equal(one.body.error.field, 'items');
+    assert.equal(one.body.error.message, 'Order at least 2 of Thanksgiving dinner, per person.');
+
+    const two = await order(c, [{ id: 'dinner', qty: 1 }, { id: 'pie', qty: 1 }, { id: 'dinner', qty: 1 }]);
+    assert.equal(two.status, 200, 'lines for the same dish count together');
+    assert.equal(two.body.totals.subtotalCents, 2 * 8500 + 4800);
+    await cancel(c, two);
+  });
+
+  test('a dish sells out once fewer than its minimum remain', async () => {
+    const [a, b] = [holiday.client(), holiday.client()];
+    const first = await order(a, [{ id: 'dinner', qty: 2 }]);
+    assert.deepEqual(await dinner(), { remaining: 3, soldOut: false });
+    const second = await order(b, [{ id: 'dinner', qty: 2 }], '12:30');
+    assert.deepEqual(await dinner(), { remaining: 1, soldOut: true }, 'the last portion cannot make up an order');
+
+    const late = await order(holiday.client(), [{ id: 'dinner', qty: 2 }], '13:00');
+    assert.equal(late.status, 409);
+    assert.equal(late.body.error.code, 'sold_out');
+    assert.equal(late.body.error.message, 'Thanksgiving dinner, per person just sold out.');
+    assert.deepEqual(late.body.error.details, { itemId: 'dinner', remaining: 0 });
+    assert.equal((await holiday.client().get('/api/events/harvest')).body.event.status, 'open', 'the pies are still for sale');
+
+    await cancel(a, first);
+    assert.deepEqual(await dinner(), { remaining: 3, soldOut: false });
+    await cancel(b, second);
+  });
+
+  test('orders close at exactly ordersCloseAt; a hold placed before it can still be paid', async () => {
+    const c = holiday.client();
+    const start = holiday.clock.now();
+    holiday.clock.advance(HARVEST_CLOSES - 1 - start);
+    try {
+      const held = await order(c, [{ id: 'pie', qty: 1 }]);
+      assert.equal(held.status, 200, 'one millisecond before the cutoff');
+
+      holiday.clock.advance(1);
+      const { body } = await c.get('/api/events/harvest');
+      assert.equal(body.event.status, 'closed');
+      assert.equal(body.event.ordersCloseAt, '2026-11-21T03:00:00.000Z');
+      assert.ok(body.slots.every((slot) => !slot.available));
+      const listed = (await c.get('/api/events')).body.events.find((event) => event.id === 'harvest');
+      assert.equal(listed.status, 'closed', 'still on the calendar, shown as closed');
+
+      const late = await order(holiday.client(), [{ id: 'pie', qty: 1 }], '12:30');
+      assert.equal(late.status, 409);
+      assert.equal(late.body.error.code, 'event_closed');
+
+      assert.deepEqual((await c.post(`/api/demo/pay/${held.body.code}`, { k: held.body.viewToken })).body, { ok: true });
+      assert.equal((await c.get(`/api/orders/${held.body.code}?k=${held.body.viewToken}`)).body.order.status, 'paid');
+    } finally {
+      holiday.clock.advance(start - holiday.clock.now());
+    }
+  });
+});
+
 describe('checkout validation', () => {
   const cases = [
     ['missing event', { eventId: undefined }, 'eventId'],
@@ -344,7 +450,7 @@ describe('catering', () => {
     eventDate: '2026-12-12',
     guestCount: 60,
     location: 'Ohkay Owingeh community center',
-    serviceStyle: 'Buffet',
+    serviceStyle: "Family-style, buffet or hors d'oeuvres",
     budget: '$2,500',
     dietary: 'Two vegan guests.',
     message: 'Feast day lunch for family.',
@@ -361,7 +467,23 @@ describe('catering', () => {
     const stored = body.inquiries.find((entry) => entry.email === 'rosa@example.com');
     assert.equal(stored.guestCount, 60);
     assert.equal(stored.status, 'new');
-    assert.equal(stored.serviceStyle, 'Buffet');
+    assert.equal(stored.serviceStyle, "Family-style, buffet or hors d'oeuvres");
+  });
+
+  test('every service style offered in site.json is accepted', async () => {
+    for (const [i, serviceStyle] of SERVICE_STYLES.entries()) {
+      const response = await server.client().post('/api/catering', inquiry({ serviceStyle, email: `style${i}@example.com` }));
+      assert.equal(response.status, 201, serviceStyle);
+    }
+  });
+
+  test('retired service styles are refused', async () => {
+    for (const serviceStyle of ['Drop-off', 'Buffet', 'Family-style', 'Plated', 'Pop-up at your event']) {
+      const { status, body } = await server.client().post('/api/catering', inquiry({ serviceStyle }));
+      assert.equal(status, 400, serviceStyle);
+      assert.equal(body.error.field, 'serviceStyle');
+      assert.equal(body.error.message, 'Choose a service style.');
+    }
   });
 
   test('honeypot: a filled "website" field gets 201 but nothing is stored', async () => {

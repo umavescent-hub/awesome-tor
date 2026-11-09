@@ -2,7 +2,7 @@
 // UTC once. The evaluation functions are pure: they take "now" and current usage, and say what is
 // orderable.
 
-import { addDays, minutesOf, timeLabel, timeOf, toIso, zonedToUtc } from './time.js';
+import { addDays, dateTimeToUtc, minutesOf, timeLabel, timeOf, toIso, zonedToUtc } from './time.js';
 
 const DAY = 86_400_000;
 
@@ -29,6 +29,7 @@ function compileEvent(config, items, timeZone) {
     startsAtMs: zonedToUtc(config.date, config.start, timeZone),
     endsAtMs: zonedToUtc(config.date, config.end, timeZone),
     opensAtMs: zonedToUtc(addDays(config.date, -config.preorderOpensDaysBefore), '00:00', timeZone),
+    ordersCloseAtMs: config.ordersCloseAt ? dateTimeToUtc(config.ordersCloseAt, timeZone) : null,
     slots,
     slotsByTime: new Map(slots.map((slot) => [slot.time, slot])),
     menuItems: [...items.values()].filter((item) => !onMenu || onMenu.has(item.id)),
@@ -46,6 +47,7 @@ export function buildCatalog({ site, menu, events }) {
     name: item.name,
     description: item.description ?? '',
     priceCents: item.priceCents,
+    minQty: item.minQty ?? 1,
     tags: item.tags ?? [],
     image: item.image ?? null,
   }]));
@@ -74,21 +76,24 @@ export function isRecent(event, now) {
 }
 
 /**
- * Computes status, slot availability and item stock for one event.
+ * Computes status, slot availability and item stock for one event. Orders stop at the event's
+ * ordersCloseAt (from that instant on, not after it) and for each slot `leadMs` before it starts.
+ * An item is sold out once fewer than its minQty remain, since no order could take what is left.
  * usage = { slotCounts: Map<slot, activeOrders>, itemQty: Map<itemId, activeQty> }
  */
 export function evaluateEvent(catalog, event, { now, usage }) {
-  const cutoff = now + catalog.leadMs;
+  const earliestPickup = now + catalog.leadMs;
+  const ordersClosed = event.ordersCloseAtMs !== null && now >= event.ordersCloseAtMs;
 
   const items = new Map();
   for (const item of event.menuItems) {
     const limit = event.limits.get(item.id) ?? null;
     const remaining = limit === null ? null : Math.max(0, limit - (usage.itemQty.get(item.id) ?? 0));
-    items.set(item.id, { limit, remaining, soldOut: remaining === 0 });
+    items.set(item.id, { limit, remaining, soldOut: remaining !== null && remaining < item.minQty });
   }
 
   const ordersIn = (slot) => usage.slotCounts.get(slot.time) ?? 0;
-  const bookable = event.slots.filter((slot) => slot.atMs >= cutoff);
+  const bookable = ordersClosed ? [] : event.slots.filter((slot) => slot.atMs >= earliestPickup);
   let status;
   if (event.configStatus === 'closed' || event.configStatus === 'hidden' || bookable.length === 0) status = 'closed';
   else if (event.configStatus === 'paused') status = 'paused';
@@ -102,7 +107,7 @@ export function evaluateEvent(catalog, event, { now, usage }) {
     return {
       time: slot.time,
       label: slot.label,
-      available: status === 'open' && slot.atMs >= cutoff && remaining > 0,
+      available: status === 'open' && slot.atMs >= earliestPickup && remaining > 0,
       remaining,
     };
   });
@@ -125,6 +130,7 @@ export function eventSummary(event, status) {
     note: event.note,
     status,
     opensAt: toIso(event.opensAtMs),
+    ordersCloseAt: toIso(event.ordersCloseAtMs),
   };
 }
 
@@ -142,6 +148,7 @@ export function menuView(catalog, event, itemStates) {
           name: item.name,
           description: item.description,
           priceCents: item.priceCents,
+          minQty: item.minQty,
           tags: [...item.tags],
           image: item.image,
           remaining: state.remaining,

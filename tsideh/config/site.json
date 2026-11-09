@@ -3,6 +3,10 @@
   "tagline": "Pop-up kitchen in Northern New Mexico",
   "heroHeadline": "A pop-up kitchen of the Northern Rio Grande.",
   "description": "Pre-order pickup from Tsideh pop-ups and book Tsideh to cater your gathering.",
+  "chef": {
+    "name": "Chef Rainbird Taylor",
+    "from": "Ohkay Owingeh"
+  },
   "timezone": "America/Denver",
   "currency": "usd",
   "taxRatePercent": 8.1875,
@@ -51,20 +55,15 @@
     }
   ],
   "catering": {
-    "blurb": "From an intimate family table to a 300-guest gathering, we bring the kitchen to you. Tell us about your event and we'll come back with a menu and quote within 48 hours.",
+    "blurb": "From an intimate family table to a 300-guest gathering, we bring the kitchen to you. Tell us about your event and we'll come back with a menu and quote within 48 hours. Most of our menu is naturally gluten-free and plant-forward. Tell us about allergies or dietary needs — there's never an extra charge.",
     "minGuests": 10,
     "maxGuests": 500,
     "leadTimeDays": 7,
     "serviceStyles": [
-      "Drop-off",
-      "Buffet",
-      "Family-style",
-      "Plated",
-      "Pop-up at your event"
+      "Chef's table or tasting menu",
+      "Family-style, buffet or hors d'oeuvres",
+      "Drop-off, boxed lunch or pickup",
+      "Not sure yet"
     ]
-  },
-  "privacy": {
-    "retentionDays": 180,
-    "cateringRetentionDays": 365
   }
 }

@@ -2,6 +2,7 @@
 
 import { getSite } from './api.js';
 import { h, mount } from './dom.js';
+import { chefLine } from './format.js';
 import { icon } from './ui.js';
 
 /** Contact links are owner config, still checked before they become hrefs. */
@@ -28,10 +29,11 @@ export function createShell() {
   const footer = document.getElementById('site-footer');
 
   const footerContacts = h('div', { class: 'footer-contact' });
+  const footerBrand = h('a', { class: 'footer-brand', href: '/', 'data-link': '' },
+    h('img', { src: '/assets/logo-192.webp', width: 72, height: 72, alt: '', loading: 'lazy' }),
+    h('span', null, 'Tsideh'));
   mount(footer, h('div', { class: 'site-footer__panel' },
-    h('a', { class: 'footer-brand', href: '/', 'data-link': '' },
-      h('img', { src: '/assets/logo-192.webp', width: 72, height: 72, alt: '', loading: 'lazy' }),
-      h('span', null, 'Tsideh')),
+    footerBrand,
     h('nav', { class: 'footer-nav', 'aria-label': 'Footer' },
       h('a', { href: '/#popups', 'data-link': '' }, 'Order food'),
       h('a', { href: '/catering', 'data-link': '' }, 'Catering')),
@@ -39,7 +41,11 @@ export function createShell() {
     h('p', { class: 'footer-trust' }, icon('lock'), 'Payments secured by Stripe. We never see or store your card number.'),
     h('p', { class: 'footer-legal' }, `© ${new Date().getFullYear()} Tsideh`)));
 
-  getSite().then((site) => mount(footerContacts, contactLinks(site.contact).map(linkNode)), () => {});
+  getSite().then((site) => {
+    const chef = chefLine(site.chef);
+    if (chef) footerBrand.after(h('p', { class: 'footer-chef' }, chef));
+    mount(footerContacts, contactLinks(site.contact).map(linkNode));
+  }, () => {});
 
   return {
     /** Called by the router on every page change. */

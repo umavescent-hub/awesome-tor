@@ -8,8 +8,17 @@ import { startServer } from '../server/app.js';
 
 /** Tuesday 2026-11-10, 10:00 in Santa Fe (MST). */
 export const T0 = Date.parse('2026-11-10T17:00:00Z');
+/** The fixture Thanksgiving pickup's ordersCloseAt, "2026-11-20T20:00" in Santa Fe. */
+export const HARVEST_CLOSES = Date.parse('2026-11-21T03:00:00Z');
 export const MINUTE = 60_000;
 export const ADMIN_PASSWORD = 'blue-corn-and-chile';
+
+export const SERVICE_STYLES = [
+  "Chef's table or tasting menu",
+  "Family-style, buffet or hors d'oeuvres",
+  'Drop-off, boxed lunch or pickup',
+  'Not sure yet',
+];
 
 export function fixtureContent() {
   return {
@@ -17,6 +26,7 @@ export function fixtureContent() {
       name: 'Tsideh',
       tagline: 'Pop-up kitchen · Northern New Mexico',
       description: 'Pre-order pickup and catering.',
+      chef: { name: 'Chef Rainbird Taylor', from: 'Ohkay Owingeh' },
       timezone: 'America/Denver',
       currency: 'usd',
       taxRatePercent: 8.1875,
@@ -24,19 +34,22 @@ export function fixtureContent() {
       tipPresetsPercent: [0, 10, 15, 20],
       order: { leadTimeMinutes: 30, holdMinutes: 30, maxQtyPerItem: 12, maxItemsPerOrder: 30 },
       contact: { email: 'hello@tsideh.test', phone: '', instagram: '' },
-      catering: { blurb: 'We bring the kitchen to you.', minGuests: 10, maxGuests: 500, leadTimeDays: 7, serviceStyles: ['Drop-off', 'Buffet'] },
+      catering: { blurb: 'We bring the kitchen to you.', minGuests: 10, maxGuests: 500, leadTimeDays: 7, serviceStyles: [...SERVICE_STYLES] },
     },
     menu: {
       categories: [
         { id: 'plates', name: 'Plates' },
         { id: 'sweets', name: 'Sweets' },
         { id: 'drinks', name: 'Drinks' },
+        { id: 'feast', name: 'Thanksgiving' },
       ],
       items: [
         { id: 'tacos', category: 'plates', name: 'Bison Red Chile Tacos', description: 'Blue corn, red chile.', priceCents: 1700, tags: ['spicy'] },
         { id: 'stew', category: 'plates', name: 'Green Chile Stew', description: 'Roasted green chile.', priceCents: 1300, tags: ['vegan', 'gluten-free'], image: '/assets/menu/stew.webp' },
         { id: 'cookies', category: 'sweets', name: 'Biscochitos (6)', description: 'Anise shortbread.', priceCents: 800, tags: ['vegetarian'] },
         { id: 'atole', category: 'drinks', name: 'Blue Corn Atole', description: 'Warm and sweet.', priceCents: 600, tags: [] },
+        { id: 'dinner', category: 'feast', name: 'Thanksgiving dinner, per person', description: 'Plated for each person.', priceCents: 8500, minQty: 2, tags: [] },
+        { id: 'pie', category: 'feast', name: 'Piñon-honey pie', description: '12-inch pie.', priceCents: 4800, tags: ['vegetarian', 'contains-nuts'] },
       ],
     },
     events: {
@@ -49,6 +62,18 @@ export function fixtureContent() {
         event({ id: 'secret', title: 'Private Dinner', date: '2026-11-22', status: 'hidden' }),
         event({ id: 'past', title: 'Harvest Pop-up', date: '2026-11-01' }),
         event({ id: 'ancient', title: 'Summer Pop-up', date: '2026-08-01' }),
+        // Orders close Friday 2026-11-20 at 8 PM MST = 2026-11-21T03:00:00Z (HARVEST_CLOSES).
+        event({
+          id: 'harvest',
+          title: 'Thanksgiving Pickup',
+          date: '2026-11-25',
+          start: '12:00',
+          end: '14:00',
+          slotMinutes: 30,
+          ordersCloseAt: '2026-11-20T20:00',
+          menu: ['dinner', 'pie'],
+          itemLimits: { dinner: 5 },
+        }),
       ],
     },
   };

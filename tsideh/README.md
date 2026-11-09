@@ -61,7 +61,7 @@ Times are 24-hour (`"13:30"`), dates are `"YYYY-MM-DD"`, money is in **cents**
 | Field | Example | What it does |
 | --- | --- | --- |
 | `id` | `"2026-11-21-santa-fe"` | Short name used in links. Lowercase letters, numbers, dashes. Do not change it once orders exist. |
-| `title` | `"Winter Pop-up"` | Shown on the site. |
+| `title` | `"Santa Fe Pop-up"` | Shown on the site. |
 | `date` | `"2026-11-21"` | The day of the pop-up. |
 | `start`, `end` | `"11:00"`, `"14:00"` | Pickup window. |
 | `locationName` | `"Santa Fe"` | Short place name. |
@@ -71,13 +71,16 @@ Times are 24-hour (`"13:30"`), dates are `"YYYY-MM-DD"`, money is in **cents**
 | `slotMinutes` | `15` | Length of each pickup time. |
 | `ordersPerSlot` | `8` | Most orders you can hand out per pickup time. |
 | `preorderOpensDaysBefore` | `21` | Pre-orders open at midnight this many days before. |
-| `menu` | `"all"` or `["red-chile-posole", "biscochitos"]` | Which menu items this pop-up offers. |
+| `ordersCloseAt` | `"2026-11-20T20:00"` | Optional. The moment orders stop, written `YYYY-MM-DDTHH:MM` in Santa Fe time, for pickups you cook days ahead (holidays). It must be after pre-orders open and before `start`. Leave it out to take orders until each pickup time. |
+| `menu` | `"all"` or `["red-chile-posole", "biscochitos"]` | Which menu items this pop-up offers. `"all"` includes the holiday dishes, so regular pop-ups list their items. |
 | `itemLimits` | `{ "red-chile-posole": 50 }` | Portions you are making. Items not listed are unlimited. |
 | `note` | `"Pickup only."` | One line shown with the pop-up. |
 
 Pickup times run from `start` to one slot before `end`: 11:00–14:00 with 15-minute slots gives
 pickups from 11:00 AM to 1:45 PM. Each pickup time closes 30 minutes before it starts
-(`leadTimeMinutes` in `site.json`). A pop-up disappears from the site once it ends.
+(`leadTimeMinutes` in `site.json`). With `ordersCloseAt`, the pop-up shows as closed for orders
+from that minute on (say so in its `note`, e.g. "Order by Friday, November 20 at 8 PM."); anyone
+already paying at that moment can still finish. A pop-up disappears from the site once it ends.
 
 ### `config/menu.json`: what you cook
 
@@ -91,6 +94,7 @@ Each entry in `items`:
 | `name` | `"Red Chile Posole"` | Shown on the menu and the receipt. |
 | `description` | `"Hominy and pork simmered in red chile…"` | One or two sentences. |
 | `priceCents` | `1400` | Price in cents ($14.00). At least 50. |
+| `minQty` | `2` | Optional. The fewest of this item one order may have (leave out for 1; at most `order.maxQtyPerItem`). With an `itemLimits` entry, the item shows as sold out once fewer than this are left. |
 | `tags` | `["gluten-free", "spicy"]` | Any of `vegetarian`, `vegan`, `gluten-free`, `dairy-free`, `spicy`, `contains-nuts`. |
 | `image` | `"/assets/menu/posole.webp"` | Optional photo. Put the file in `public/assets/menu/`. Without one, the dish is set as type only. |
 
@@ -102,6 +106,7 @@ Price changes apply to new orders only; existing orders keep what the customer p
 | --- | --- |
 | `name`, `tagline`, `description` | Site name and the lines under it (also used for search engines). |
 | `heroHeadline` | The large line under the TSIDEH wordmark at the top of the home page. |
+| `chef` | `{ "name": "Chef Rainbird Taylor", "from": "Ohkay Owingeh" }`: the chef line under the headline and in the footer. `from` is optional; leave `chef` out to show no chef line. |
 | `press` | The press line under the hero. Each entry: `name`, `kind` (`"featured"` or `"recognition"`), and optionally `url` (an https:// link to the piece) and `quote` (only a real quote from it). |
 | `timezone` | `"America/Denver"`. Leave as is. |
 | `taxRatePercent`, `taxLabel` | Sales tax added at checkout and its name on the receipt. See [Sales tax](#9-sales-tax). |
@@ -219,7 +224,7 @@ Get a message in Slack for every paid order and every catering inquiry:
 3. Put that URL in `NOTIFY_WEBHOOK_URL` on Render.
 
 A message looks like:
-`New paid order TS-7KQ4 · Winter Pop-up · pickup 11:15 AM · Maria · 2× Bison Red Chile Tacos · $36.78`.
+`New paid order TS-7KQ4 · Santa Fe Pop-up · pickup 11:15 AM · Maria · 2× Bison Red Chile Tacos · $36.78`.
 Alerts include a first name, the items and the total, never email addresses, phone numbers
 or payment details. Whatever a customer typed shows as plain text, so it cannot ping the whole
 channel or disguise a link.

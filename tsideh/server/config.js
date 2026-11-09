@@ -4,7 +4,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isDateString, isTimeString, isTimeZone, minutesOf } from './time.js';
+import {
+  addDays, dateTimeToUtc, isDateString, isDateTimeString, isTimeString, isTimeZone, minutesOf, zonedToUtc,
+} from './time.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -12,6 +14,7 @@ const TAGS = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'spicy', 'cont
 const EVENT_STATUSES = ['open', 'paused', 'closed', 'hidden'];
 const PRESS_KINDS = ['featured', 'recognition'];
 const ADMIN_PASSWORD_MIN = 12;
+const MAX_QTY_PER_ITEM = 99;
 
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
@@ -192,6 +195,10 @@ function fields(report) {
   };
 }
 
+/**
+ * Returns the settings menu.json and events.json are checked against. A setting that failed its
+ * own check comes back as null, so it does not set off follow-on problems in the other files.
+ */
 function validateSite(input, report) {
   const f = fields(report);
   const site = f.object(input, '');
@@ -199,7 +206,16 @@ function validateSite(input, report) {
   f.text(site.tagline, 'tagline', { max: 120, optional: true });
   f.text(site.heroHeadline, 'heroHeadline', { max: 120, optional: true });
   f.text(site.description, 'description', { max: 300, optional: true });
-  if (!isTimeZone(site.timezone)) report('timezone', 'must be a time zone name such as "America/Denver"');
+  if (site.chef !== undefined && site.chef !== null) {
+    if (!isObject(site.chef)) {
+      report('chef', 'must be written { "name": "...", "from": "..." }, or left out');
+    } else {
+      f.text(site.chef.name, 'chef.name', { min: 1, max: 80 });
+      f.text(site.chef.from, 'chef.from', { max: 80, optional: true });
+    }
+  }
+  const timeZone = isTimeZone(site.timezone) ? site.timezone : null;
+  if (!timeZone) report('timezone', 'must be a time zone name such as "America/Denver"');
   f.oneOf(site.currency, 'currency', ['usd']);
   if (typeof site.taxRatePercent !== 'number' || site.taxRatePercent < 0 || site.taxRatePercent > 25
     || Math.abs(site.taxRatePercent * 10_000 - Math.round(site.taxRatePercent * 10_000)) > 1e-6) {
@@ -213,7 +229,7 @@ function validateSite(input, report) {
   const order = f.object(site.order, 'order');
   f.int(order.leadTimeMinutes, 'order.leadTimeMinutes', { min: 0, max: 1440 });
   f.int(order.holdMinutes, 'order.holdMinutes', { min: 30, max: 120 });
-  f.int(order.maxQtyPerItem, 'order.maxQtyPerItem', { min: 1, max: 99 });
+  const maxQtyPerItem = f.int(order.maxQtyPerItem, 'order.maxQtyPerItem', { min: 1, max: MAX_QTY_PER_ITEM });
   f.int(order.maxItemsPerOrder, 'order.maxItemsPerOrder', { min: 1, max: 500 });
 
   const contact = f.object(site.contact, 'contact');
@@ -241,9 +257,12 @@ function validateSite(input, report) {
   const styles = f.array(catering.serviceStyles, 'catering.serviceStyles', { min: 1, max: 12 });
   styles.forEach((style, i) => f.text(style, `catering.serviceStyles[${i}]`, { min: 1, max: 40 }));
   if (new Set(styles).size !== styles.length) report('catering.serviceStyles', 'must not repeat a style');
+
+  // f.int hands back the value it was given only when that value passed.
+  return { timeZone, maxQtyPerItem: maxQtyPerItem === order.maxQtyPerItem ? maxQtyPerItem : null };
 }
 
-function validateMenu(input, report) {
+function validateMenu(input, report, { maxQtyPerItem }) {
   const f = fields(report);
   const menu = f.object(input, '');
   const categoryIds = new Set();
@@ -267,6 +286,7 @@ function validateMenu(input, report) {
     f.text(item.name, `${at}.name`, { min: 1, max: 80 });
     f.text(item.description, `${at}.description`, { max: 300, optional: true });
     f.int(item.priceCents, `${at}.priceCents`, { min: 50, max: 1_000_000 });
+    if (item.minQty !== undefined) f.int(item.minQty, `${at}.minQty`, { min: 1, max: maxQtyPerItem ?? MAX_QTY_PER_ITEM });
     const tags = f.array(item.tags ?? [], `${at}.tags`);
     tags.forEach((tag, t) => f.oneOf(tag, `${at}.tags[${t}]`, TAGS));
     if (item.image !== undefined && item.image !== null && !(typeof item.image === 'string' && MENU_IMAGE.test(item.image))) {
@@ -276,7 +296,27 @@ function validateMenu(input, report) {
   return itemIds;
 }
 
-function validateEvents(input, itemIds, report) {
+/**
+ * An event's order cutoff is local time in the site's zone. It must fall after pre-orders open and
+ * before the pop-up starts; both are compared as instants, so a DST change in between is exact.
+ */
+function checkOrdersCloseAt(event, at, timeZone, report) {
+  if (!isDateTimeString(event.ordersCloseAt)) {
+    report(at, 'must be a date and time written YYYY-MM-DDTHH:MM (e.g. "2026-11-20T20:00")');
+    return;
+  }
+  // A bad time zone, date or start time is reported on its own field; there is nothing to compare.
+  if (!timeZone || !isDateString(event.date) || !isTimeString(event.start)) return;
+  const closesAt = dateTimeToUtc(event.ordersCloseAt, timeZone);
+  if (closesAt >= zonedToUtc(event.date, event.start, timeZone)) {
+    report(at, `must be before the pop-up starts (${event.date}T${event.start})`);
+  } else if (Number.isInteger(event.preorderOpensDaysBefore)) {
+    const opensOn = addDays(event.date, -event.preorderOpensDaysBefore);
+    if (closesAt <= zonedToUtc(opensOn, '00:00', timeZone)) report(at, `must be after pre-orders open (${opensOn}T00:00)`);
+  }
+}
+
+function validateEvents(input, itemIds, report, { timeZone }) {
   const f = fields(report);
   const events = f.object(input, '');
   const eventIds = new Set();
@@ -301,6 +341,7 @@ function validateEvents(input, itemIds, report) {
     if (timesOk && minutesOf(event.end) - minutesOf(event.start) < slotMinutes) {
       report(`${at}.end`, `must be at least one slot (${slotMinutes} minutes) after start`);
     }
+    if ((event.ordersCloseAt ?? '') !== '') checkOrdersCloseAt(event, `${at}.ordersCloseAt`, timeZone, report);
 
     let onMenu = itemIds;
     if (event.menu !== 'all') {
@@ -339,9 +380,9 @@ export function loadContent(configDir) {
   if (problems.length) throw new ConfigError(problems);
 
   const reporter = (file) => (at, message) => problems.push(`config/${file}${at ? ` → ${at}` : ''}: ${message}`);
-  validateSite(site, reporter('site.json'));
-  const itemIds = validateMenu(menu, reporter('menu.json'));
-  validateEvents(events, itemIds, reporter('events.json'));
+  const settings = validateSite(site, reporter('site.json'));
+  const itemIds = validateMenu(menu, reporter('menu.json'), settings);
+  validateEvents(events, itemIds, reporter('events.json'), settings);
   if (problems.length) throw new ConfigError(problems);
 
   return { site, menu, events };

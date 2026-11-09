@@ -72,9 +72,19 @@ export function latest() {
   return best ? { eventId: best.eventId, count: count(best.eventId) } : null;
 }
 
+/** The fewest of a dish one order can have: 1, unless the kitchen sets a minimum (dinners for two and up). */
+export const minQtyOf = (item) => (Number.isInteger(item.minQty) && item.minQty > 1 ? item.minQty : 1);
+
+/** How many more of a dish one order can take: 0 when fewer than its minimum are left. */
+export function capOf(item, maxQtyPerItem) {
+  const cap = item.soldOut ? 0 : Math.min(maxQtyPerItem, item.remaining ?? Infinity);
+  return cap < minQtyOf(item) ? 0 : cap;
+}
+
 /**
- * Brings a saved cart in line with the live menu: drops items that left the menu or sold out and
- * trims quantities to what is left. Returns the names of items that changed.
+ * Brings a saved cart in line with the live menu: drops items that left the menu or sold out,
+ * trims quantities to what is left and raises any below a dish's minimum. Returns what changed:
+ * [{ name, before, after }].
  */
 export function reconcile(eventId, menuItems, maxQtyPerItem) {
   const byId = new Map(menuItems.map((item) => [item.id, item]));
@@ -84,9 +94,9 @@ export function reconcile(eventId, menuItems, maxQtyPerItem) {
   for (const [id, qty] of Object.entries(items)) {
     const item = byId.get(id);
     if (!item) continue;
-    const cap = Math.min(maxQtyPerItem, item.soldOut ? 0 : item.remaining ?? Infinity);
-    const kept = Math.min(qty, cap);
-    if (kept !== qty) changed.push(item.name);
+    const cap = capOf(item, maxQtyPerItem);
+    const kept = Math.min(Math.max(qty, minQtyOf(item)), cap);
+    if (kept !== qty) changed.push({ name: item.name, before: qty, after: kept });
     if (kept > 0) next[id] = kept;
   }
   if (Object.keys(next).length !== Object.keys(items).length || changed.length) replaceItems(eventId, next);

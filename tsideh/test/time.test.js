@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { buildCatalog } from '../server/catalog.js';
 import {
-  addDays, fixedClock, isDateString, isTimeString, isTimeZone, localDate, timeLabel, zonedToUtc,
+  addDays, dateTimeToUtc, fixedClock, isDateString, isDateTimeString, isTimeString, isTimeZone, localDate, timeLabel, zonedToUtc,
 } from '../server/time.js';
 import { fixtureContent } from './helpers.js';
 
@@ -70,6 +70,15 @@ describe('date and time helpers', () => {
     assert.equal(isTimeString('9:00'), false);
     assert.equal(isTimeZone('America/Denver'), true);
     assert.equal(isTimeZone('Mars/Olympus'), false);
+    assert.equal(isDateTimeString('2026-11-20T20:00'), true);
+    for (const value of ['2026-11-20 20:00', '2026-11-20T20:00:00', '2026-11-20T20:00Z', '2026-11-31T20:00', '2026-11-20T24:00', '2026-11-20', 'T20:00', 'TT', 20]) {
+      assert.equal(isDateTimeString(value), false, String(value));
+    }
+  });
+
+  test('dateTimeToUtc reads "YYYY-MM-DDTHH:MM" as wall time in the zone', () => {
+    assert.equal(iso(dateTimeToUtc('2026-11-20T20:00', TZ)), '2026-11-21T03:00:00.000Z');
+    assert.equal(iso(dateTimeToUtc('2026-10-30T20:00', TZ)), '2026-10-31T02:00:00.000Z');
   });
 
   test('fixedClock always reports the same instant', () => {
@@ -125,6 +134,17 @@ describe('slot generation', () => {
     const spring = catalog.events.get('on-spring-forward');
     assert.equal(iso(spring.opensAtMs), '2026-03-08T07:00:00.000Z');
     assert.equal(iso(spring.slots[0].atMs), '2026-03-08T17:00:00.000Z');
+  });
+
+  test('DST boundary: ordersCloseAt keeps its own offset when the pickup is on the other side of the change', () => {
+    const catalog = catalogWith([
+      { id: 'cutoff-in-daylight-time', date: '2026-11-03', ordersCloseAt: '2026-10-30T20:00' },
+      { id: 'cutoff-in-standard-time', date: '2026-03-10', ordersCloseAt: '2026-03-06T20:00' },
+    ]);
+    assert.equal(iso(catalog.events.get('cutoff-in-daylight-time').ordersCloseAtMs), '2026-10-31T02:00:00.000Z');
+    assert.equal(iso(catalog.events.get('cutoff-in-daylight-time').startsAtMs), '2026-11-03T18:00:00.000Z');
+    assert.equal(iso(catalog.events.get('cutoff-in-standard-time').ordersCloseAtMs), '2026-03-07T03:00:00.000Z');
+    assert.equal(iso(catalog.events.get('cutoff-in-standard-time').startsAtMs), '2026-03-10T17:00:00.000Z');
   });
 
   test('events are sorted by start time', () => {

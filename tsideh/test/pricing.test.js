@@ -7,6 +7,7 @@ import { fixtureContent } from './helpers.js';
 
 const catalog = buildCatalog(fixtureContent());
 const winter = catalog.events.get('winter');
+const harvest = catalog.events.get('harvest');
 const rules = { maxQtyPerItem: 12, maxItemsPerOrder: 30 };
 
 function rejects(fn, field) {
@@ -87,8 +88,19 @@ describe('priceCart', () => {
     rejects(() => priceCart(winter, [{ id: 'stew', qty: 12 }, { id: 'tacos', qty: 12 }, { id: 'cookies', qty: 7 }], rules), 'items');
   });
 
+  test('enforces an item\'s minQty on its merged quantity', () => {
+    assert.throws(() => priceCart(harvest, [{ id: 'dinner', qty: 1 }], rules), (error) => error instanceof ApiError
+      && error.status === 400 && error.field === 'items' && error.message === 'Order at least 2 of Thanksgiving dinner, per person.');
+    rejects(() => priceCart(harvest, [{ id: 'pie', qty: 3 }, { id: 'dinner', qty: 1 }], rules), 'items');
+    assert.deepEqual(priceCart(harvest, [{ id: 'dinner', qty: 2 }], rules), [
+      { id: 'dinner', name: 'Thanksgiving dinner, per person', unitCents: 8500, qty: 2, lineCents: 17000 },
+    ]);
+    assert.equal(priceCart(harvest, [{ id: 'dinner', qty: 1 }, { id: 'dinner', qty: 1 }], rules)[0].qty, 2);
+    assert.equal(priceCart(harvest, [{ id: 'pie', qty: 1 }], rules)[0].qty, 1, 'items without a minimum start at 1');
+  });
+
   test(`allows at most ${MAX_LINES} distinct lines`, () => {
-    const menuItems = Array.from({ length: MAX_LINES + 1 }, (_, i) => ({ id: `dish-${i}`, name: `Dish ${i}`, priceCents: 500 }));
+    const menuItems = Array.from({ length: MAX_LINES + 1 }, (_, i) => ({ id: `dish-${i}`, name: `Dish ${i}`, priceCents: 500, minQty: 1 }));
     const big = { menuItems };
     const loose = { maxQtyPerItem: 12, maxItemsPerOrder: 500 };
     assert.equal(priceCart(big, menuItems.slice(0, MAX_LINES).map(({ id }) => ({ id, qty: 1 })), loose).length, MAX_LINES);

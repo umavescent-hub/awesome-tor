@@ -110,6 +110,8 @@ legend { padding: 0; }
 .status--upcoming::before { background: var(--adobe); box-shadow: 0 0 0 2px var(--adobe-700); }
 .status--soldout::before, .status--closed::before { background: transparent; box-shadow: inset 0 0 0 2px var(--black); }
 .status--paused::before { background: var(--black); }
+/* "Order by Friday, November 20 at 8:00 PM": the last time to order, on cards and the pop-up page. */
+.deadline { font-weight: 800; }
 
 /* ---------------------------------------------------------------- header */
 
@@ -150,13 +152,14 @@ legend { padding: 0; }
   letter-spacing: var(--tracking-wordmark); text-transform: uppercase; white-space: nowrap;
 }
 .hero__headline { margin-top: 1rem; max-width: 20ch; font: 700 clamp(1.5rem, 1.15rem + 1.6vw, 2.5rem)/1.15 var(--font-display); letter-spacing: -0.01em; }
+.hero__chef { margin-top: 0.75rem; font-weight: 700; font-size: 1.125rem; line-height: 1.4; }
 .hero__next {
   display: grid; gap: 0.125rem; max-width: 28rem; margin-top: 1.5rem; padding: 1rem var(--pad);
   border-radius: var(--radius-lg); background: var(--cream-50); font-weight: 600;
 }
 .hero__next-label { color: var(--muted); font-weight: 700; font-size: var(--fs-help); }
 .hero__next-date { font-weight: 800; font-size: 1.25rem; line-height: 1.3; }
-.hero__next .status { margin-top: 0.375rem; }
+.hero__next .status, .hero__next .deadline { margin-top: 0.375rem; }
 .hero__next .skeleton { padding: 0; }
 .hero__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
 .hero__actions .btn { flex: 1 1 16rem; }
@@ -185,7 +188,7 @@ legend { padding: 0; }
 /* ---------------------------------------------------------------- pop-ups */
 
 .popups__list { max-width: 52rem; margin-inline: auto; }
-.popup-list { display: grid; gap: 1rem; }
+.popup-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
 .popup {
   display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; padding: var(--pad);
   border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong);
@@ -195,10 +198,11 @@ legend { padding: 0; }
 .popup__month { margin-top: 0.25rem; font-weight: 800; font-size: 1.125rem; }
 .popup__weekday { color: var(--muted); font-weight: 600; }
 .popup__body { flex: 1 1 17rem; min-width: 0; display: grid; gap: 0.125rem; justify-items: start; }
-.popup__title { font-size: 1.375rem; line-height: 1.25; }
+.popup__title { font-size: min(1.375rem, 11.5vw); line-height: 1.25; }   /* "Thanksgiving" fits a small phone at large text */
 .popup__time, .popup__place { font-weight: 700; }
 .popup__address { color: var(--muted); font-size: var(--fs-help); }
 .popup .status { margin-top: 0.5rem; }
+.popup .deadline { margin-top: 0.25rem; }
 .popup .btn { margin-top: 1rem; }
 @media (min-width: 40em) { .popup .btn { width: auto; min-width: 14rem; } }
 
@@ -211,7 +215,8 @@ legend { padding: 0; }
 .catering__intro h2 { font-size: min(clamp(2rem, 1.6rem + 1.8vw, 3rem), 10.5vw); }
 .catering__blurb { margin-top: 1rem; max-width: 40rem; font-size: 1.125rem; font-weight: 600; }
 .catering__points { display: grid; margin-top: 1.5rem; border-top: 2px solid var(--black); }
-.catering__points li { display: grid; padding-block: 0.75rem; border-bottom: 1px solid rgb(10 8 6 / 0.3); font-weight: 600; }
+.catering__points > li { display: grid; padding-block: 0.75rem; border-bottom: 1px solid rgb(10 8 6 / 0.3); font-weight: 600; }
+.catering__kinds { display: grid; gap: 0.125rem; margin-top: 0.125rem; padding-left: 1.25rem; list-style: disc; }
 .catering__points strong { font-weight: 800; font-size: 1.125rem; }
 .catering__form { padding: clamp(var(--pad), 3vw, 2.25rem); border-radius: var(--radius-lg); background: var(--cream-50); }
 @media (min-width: 64em) { .catering__panel { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; } }
@@ -295,7 +300,9 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
   display: inline-flex; align-items: center; gap: 0.375rem; min-height: var(--tap); margin-left: -0.25rem; padding-inline: 0.25rem 0.75rem;
   font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.25em;
 }
-.event-title { margin-top: 0.75rem; font-size: min(clamp(2rem, 1.5rem + 2.4vw, 3.25rem), 10.5vw); }
+/* Pop-up titles and menu categories come from config and can hold long words ("Thanksgiving"):
+   Syne 700, a third narrower than 800, keeps them whole on a small phone with large text. */
+.event-title { margin-top: 0.75rem; font-weight: 700; font-size: min(clamp(2rem, 1.5rem + 2.4vw, 3.25rem), 10.5vw); }
 .facts { display: grid; gap: 1rem; margin-top: 1.25rem; }
 .facts dt { color: var(--muted); font-weight: 700; font-size: var(--fs-help); }
 .facts dd { font-weight: 700; font-size: 1.125rem; }
@@ -309,6 +316,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
   .event-menu { margin-top: 1.5rem; }
   .event-menu__title { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+.event-top .deadline { max-width: 42rem; margin-top: 1.25rem; font-size: 1.125rem; }
 .event-note { max-width: 42rem; margin-top: 1.25rem; font-size: 1.125rem; }
 .event-howto { max-width: 42rem; margin-top: 1.25rem; padding: 0.875rem var(--pad); border-radius: var(--radius); background: var(--cream-200); font-weight: 700; }
 
@@ -318,7 +326,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .event-menu { margin-top: 2.5rem; }
 .event-menu__title { font-size: clamp(1.75rem, 1.5rem + 1vw, 2.25rem); }
 .menu-cat { margin-top: 2rem; }
-.menu-cat__title { padding-bottom: 0.5rem; border-bottom: 2px solid var(--black); font: 800 1.5rem/1.2 var(--font-display); }
+.menu-cat__title { padding-bottom: 0.5rem; border-bottom: 2px solid var(--black); font: 700 min(1.5rem, 12vw)/1.2 var(--font-display); }
 @media (min-width: 64em) {
   .event-layout { grid-template-columns: minmax(0, 1fr) var(--panel-w); align-items: start; gap: 3rem; }
   .event-layout--menu-only { grid-template-columns: minmax(0, 1fr); }
@@ -330,6 +338,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .dish__text { display: grid; gap: 0.25rem; justify-items: start; min-width: 0; }
 .dish__name { font: 800 1.1875rem/1.3 var(--font-body); }
 .dish__price { font-weight: 700; font-size: 1.125rem; }
+.dish__min { margin-left: 0.25rem; color: var(--muted); font-size: var(--fs-help); }
 .dish__desc { max-width: 40rem; color: var(--muted); font-size: var(--fs-help); line-height: 1.55; }
 .marks { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.25rem; }
 .mark { padding: 0.125rem 0.5rem; border: 1px solid var(--line-strong); border-radius: 0.375rem; font-size: var(--fs-help); font-weight: 700; }
@@ -357,6 +366,8 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
   background: transparent; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .stepper__btn .icon { width: 1.5rem; height: 1.5rem; }
+/* At a dish's minimum the − becomes "Remove": as tall as the others, as wide as its word. */
+.stepper__btn--word { width: auto; padding-inline: min(0.875rem, 3vw); font: inherit; font-weight: 800; }
 .stepper__btn:active { background: var(--black-700); }
 .stepper__btn:focus-visible { outline: 3px solid var(--cream); outline-offset: -3px; }
 .stepper__qty { min-width: min(2.5rem, 12vw); text-align: center; font-weight: 800; font-size: 1.25rem; }
@@ -528,6 +539,7 @@ fieldset.step > legend ~ *, fieldset.tip > legend ~ * { clear: both; }
 }
 .footer-brand { display: grid; justify-items: center; gap: 1rem; text-decoration: none; }
 .footer-brand img { width: 4.5rem; height: 4.5rem; border-radius: 1rem; box-shadow: 0 0 0 2px var(--black); }
+.footer-chef { margin-top: -0.75rem; font-weight: 700; }   /* belongs to the wordmark above it */
 .footer-brand span { font: 800 min(clamp(1.5rem, 1.25rem + 1.5vw, 2.25rem), calc(100cqi / 8.6))/1 var(--font-display); letter-spacing: var(--tracking-wordmark); margin-right: calc(-1 * var(--tracking-wordmark)); text-transform: uppercase; }
 .footer-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem 0.5rem; }
 .footer-nav a { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 0.75rem; font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; }

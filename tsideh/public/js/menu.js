@@ -1,5 +1,6 @@
 // Dish rows and category headings for a pop-up's menu.
 
+import { minQtyOf } from './cart.js';
 import { h } from './dom.js';
 import { formatMoney } from './format.js';
 
@@ -34,11 +35,13 @@ export function stockNote(item) {
  */
 export function dishNode(item, { level = 3, control = null } = {}) {
   const note = stockNote(item);
+  const min = minQtyOf(item);
   return h('li', { class: ['dish', item.soldOut ? 'dish--soldout' : ''], dataset: { item: item.id } },
     item.image ? h('img', { class: 'dish__media', src: item.image, alt: '', loading: 'lazy', decoding: 'async', width: 600, height: 400 }) : null,
     h('div', { class: 'dish__text' },
       h(`h${level}`, { class: 'dish__name' }, item.name),
-      h('p', { class: 'dish__price num' }, formatMoney(item.priceCents)),
+      h('p', { class: 'dish__price num' }, formatMoney(item.priceCents),
+        min > 1 ? [' ', h('span', { class: 'dish__min' }, `Minimum ${min}`)] : null),
       item.description ? h('p', { class: 'dish__desc' }, item.description) : null,
       marks(item.tags),
       note ? h('p', { class: 'dish__note' }, note) : null),
