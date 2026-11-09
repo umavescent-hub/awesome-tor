@@ -1,0 +1,99 @@
+{
+  "categories": [
+    { "id": "plates", "name": "Plates" },
+    { "id": "bowls", "name": "Bowls" },
+    { "id": "bread", "name": "Bread & Sides" },
+    { "id": "sweets", "name": "Sweets" },
+    { "id": "drinks", "name": "Drinks" }
+  ],
+  "items": [
+    {
+      "id": "bison-red-chile-tacos",
+      "category": "plates",
+      "name": "Bison Red Chile Tacos",
+      "description": "Three blue corn tortillas, slow-braised bison in red chile, pickled onion, cotija.",
+      "priceCents": 1700,
+      "tags": ["spicy"]
+    },
+    {
+      "id": "green-chile-lamb-plate",
+      "category": "plates",
+      "name": "Green Chile Lamb Plate",
+      "description": "Roasted lamb shoulder, Hatch green chile, horno-baked bread, garden greens.",
+      "priceCents": 1900,
+      "tags": ["spicy"]
+    },
+    {
+      "id": "three-sisters-plate",
+      "category": "plates",
+      "name": "Three Sisters Plate",
+      "description": "Charred squash, heirloom beans and sweet corn, toasted pepitas, sage oil.",
+      "priceCents": 1500,
+      "tags": ["vegan", "gluten-free"]
+    },
+    {
+      "id": "red-chile-posole",
+      "category": "bowls",
+      "name": "Red Chile Posole",
+      "description": "Hominy and pork simmered in red chile, oregano, lime, radish.",
+      "priceCents": 1400,
+      "tags": ["gluten-free", "spicy"]
+    },
+    {
+      "id": "green-chile-stew",
+      "category": "bowls",
+      "name": "Green Chile Stew",
+      "description": "Roasted green chile, potato and corn in a rich vegetable broth.",
+      "priceCents": 1300,
+      "tags": ["vegan", "gluten-free", "spicy"]
+    },
+    {
+      "id": "blue-corn-fry-bread",
+      "category": "bread",
+      "name": "Blue Corn Fry Bread",
+      "description": "Hand-stretched and fried to order, wild honey and piñon butter.",
+      "priceCents": 900,
+      "tags": ["vegetarian", "contains-nuts"]
+    },
+    {
+      "id": "horno-bread",
+      "category": "bread",
+      "name": "Horno Bread Loaf",
+      "description": "Wood-fired, crackling crust, soft crumb. Whole loaf.",
+      "priceCents": 1000,
+      "tags": ["vegan"]
+    },
+    {
+      "id": "biscochitos",
+      "category": "sweets",
+      "name": "Biscochitos (6)",
+      "description": "Anise and cinnamon shortbread cookies, baked the morning of.",
+      "priceCents": 800,
+      "tags": ["vegetarian"]
+    },
+    {
+      "id": "chokecherry-crumble",
+      "category": "sweets",
+      "name": "Chokecherry Crumble",
+      "description": "Chokecherry and apple under a blue corn and piñon crumble.",
+      "priceCents": 900,
+      "tags": ["vegetarian", "contains-nuts"]
+    },
+    {
+      "id": "blue-corn-atole",
+      "category": "drinks",
+      "name": "Blue Corn Atole",
+      "description": "Warm, lightly sweet blue corn drink with cinnamon.",
+      "priceCents": 600,
+      "tags": ["vegetarian", "gluten-free"]
+    },
+    {
+      "id": "prickly-pear-agua-fresca",
+      "category": "drinks",
+      "name": "Prickly Pear Agua Fresca",
+      "description": "Prickly pear, lime and a touch of agave, over ice.",
+      "priceCents": 500,
+      "tags": ["vegan", "gluten-free"]
+    }
+  ]
+}

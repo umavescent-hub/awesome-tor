@@ -1,0 +1,77 @@
+{
+  "events": [
+    {
+      "id": "2026-11-21-santa-fe",
+      "title": "Winter Pop-up",
+      "date": "2026-11-21",
+      "start": "11:00",
+      "end": "14:00",
+      "locationName": "Santa Fe",
+      "address": "Exact spot posted 48 hours before",
+      "mapUrl": "",
+      "status": "open",
+      "slotMinutes": 15,
+      "ordersPerSlot": 8,
+      "preorderOpensDaysBefore": 21,
+      "menu": "all",
+      "itemLimits": {
+        "bison-red-chile-tacos": 60,
+        "green-chile-lamb-plate": 40,
+        "red-chile-posole": 50,
+        "blue-corn-fry-bread": 90,
+        "chokecherry-crumble": 30
+      },
+      "note": "Pre-order for a guaranteed pickup. Walk-ups welcome while it lasts."
+    },
+    {
+      "id": "2026-12-05-espanola",
+      "title": "Española Pop-up",
+      "date": "2026-12-05",
+      "start": "10:30",
+      "end": "13:30",
+      "locationName": "Española",
+      "address": "Exact spot posted 48 hours before",
+      "mapUrl": "",
+      "status": "open",
+      "slotMinutes": 15,
+      "ordersPerSlot": 6,
+      "preorderOpensDaysBefore": 30,
+      "menu": [
+        "bison-red-chile-tacos",
+        "three-sisters-plate",
+        "red-chile-posole",
+        "green-chile-stew",
+        "blue-corn-fry-bread",
+        "biscochitos",
+        "blue-corn-atole"
+      ],
+      "itemLimits": {
+        "bison-red-chile-tacos": 48,
+        "red-chile-posole": 40,
+        "blue-corn-fry-bread": 70
+      },
+      "note": "Pickup only."
+    },
+    {
+      "id": "2026-12-19-holiday",
+      "title": "Holiday Feast Pickup",
+      "date": "2026-12-19",
+      "start": "12:00",
+      "end": "16:00",
+      "locationName": "Santa Fe",
+      "address": "Exact spot posted 48 hours before",
+      "mapUrl": "",
+      "status": "open",
+      "slotMinutes": 20,
+      "ordersPerSlot": 10,
+      "preorderOpensDaysBefore": 28,
+      "menu": "all",
+      "itemLimits": {
+        "green-chile-lamb-plate": 60,
+        "horno-bread": 80,
+        "biscochitos": 120
+      },
+      "note": "Pre-order only — horno bread and biscochitos for your holiday table."
+    }
+  ]
+}
