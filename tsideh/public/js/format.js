@@ -26,8 +26,11 @@ export const formatLongDate = (date) => longDate.format(calendarDate(date));
 const monthDay = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
 const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' });
 
-/** "November 21" and "Saturday" */
+const monthName = new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' });
+
+/** "November 21", "November" and "Saturday" */
 export const formatMonthDay = (date) => monthDay.format(calendarDate(date));
+export const formatMonth = (date) => monthName.format(calendarDate(date));
 export const formatWeekday = (date) => weekday.format(calendarDate(date));
 
 /** { weekday: 'Sat', month: 'Nov', day: '21' } */
@@ -77,14 +80,14 @@ export function percentOf(cents, percent) {
 }
 
 const STATUS = {
-  open: 'Open for orders',
+  open: 'Taking orders now',
   soldout: 'Sold out',
-  paused: 'Orders paused',
-  closed: 'Orders closed',
+  paused: 'Ordering is paused',
+  closed: 'Ordering has closed',
 };
 
-/** A pop-up's ordering status in words: "Open for orders", "Orders open Sat, Oct 31", ... */
+/** A pop-up's ordering status in words: "Taking orders now", "Ordering opens Saturday, October 31", ... */
 export function eventStatusLabel(event) {
-  if (event.status === 'upcoming') return `Orders open ${formatDate(zonedDate(event.opensAt))}`;
+  if (event.status === 'upcoming') return `Ordering opens ${formatLongDate(zonedDate(event.opensAt))}`;
   return STATUS[event.status] ?? STATUS.closed;
 }

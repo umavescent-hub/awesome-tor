@@ -90,15 +90,19 @@ export function field({ name, label, type = 'text', optional = false, hint = '',
 }
 
 /**
- * Chips on radio inputs inside a fieldset. options: [{ value, label, sub, disabled }].
- * Returns { node, value(), set(options), setSubs(fn), select(value), setError(message), target() }.
+ * Big buttons on radio inputs inside a fieldset. options: [{ value, label, sub, disabled }].
+ * The chosen one is filled and carries a check mark. hint: one helper line under the legend.
+ * Returns { node, value(), set(options), setSubs(fn), select(value), setError(message), target(), setHint(text) }.
  */
-export function choiceGroup({ name, legend, legendNode = null, className = '', options = [], onChange }) {
+export function choiceGroup({ name, legend, legendNode = null, hint = '', className = '', options = [], onChange }) {
   const errorId = nextId(`${name}-error`);
+  const hintId = `${errorId}-hint`;
   const error = errorNode(errorId);
+  const hintNode = h('p', { class: 'field__hint', id: hintId, hidden: !hint }, hint);
   const list = h('div', { class: ['choices', className] });
-  const node = h('fieldset', { class: 'choice-group', 'aria-describedby': errorId },
+  const node = h('fieldset', { class: 'choice-group', 'aria-describedby': `${hintId} ${errorId}` },
     legendNode ?? h('legend', { class: 'field__label' }, legend),
+    hintNode,
     list,
     error);
   let inputs = [];
@@ -123,8 +127,12 @@ export function choiceGroup({ name, legend, legendNode = null, className = '', o
       mount(list, next.map((option, i) => h('label', { class: 'choice' },
         inputs[i],
         h('span', { class: 'choice__box' },
-          h('span', null, option.label),
+          h('span', { class: 'choice__label' }, icon('check'), option.label),
           option.sub === undefined ? null : h('span', { class: 'choice__sub' }, option.sub)))));
+    },
+    setHint(text) {
+      hintNode.textContent = text;
+      hintNode.hidden = !text;
     },
     /** Rewrite each chip's secondary line in place (keeps focus and selection). */
     setSubs(text) {

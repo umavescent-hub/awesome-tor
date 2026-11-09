@@ -3,7 +3,8 @@
 
 import { h, mount, prefersReducedMotion } from './dom.js';
 import { createShell } from './shell.js';
-import { errorState, releaseArt } from './ui.js';
+import { handleHistoryBack } from './sheet.js';
+import { errorState } from './ui.js';
 import * as demoPayView from './views/demo-pay.js';
 import * as eventView from './views/event.js';
 import * as homeView from './views/home.js';
@@ -19,11 +20,11 @@ const ROUTES = [
 
 const notFoundView = {
   render: () => ({
-    title: 'Not found',
+    title: 'Page not found',
     node: h('div', { class: 'wrap' }, errorState({
-      title: 'This page is not on the menu',
+      title: 'We could not find this page',
       message: 'The link may be old or mistyped.',
-      action: h('a', { class: 'btn btn--primary', href: '/', 'data-link': '' }, 'Go to Tsideh'),
+      action: h('a', { class: 'btn btn--primary', href: '/', 'data-link': '' }, 'Back to home'),
     })),
   }),
 };
@@ -98,10 +99,7 @@ function render({ pop = false, initial = false } = {}) {
     return;
   }
 
-  if (current) {
-    current.instance.destroy?.();
-    releaseArt(main);
-  }
+  current?.instance.destroy?.();
   let instance;
   try {
     instance = route.view.render(ctx);
@@ -153,6 +151,8 @@ document.addEventListener('click', (event) => {
 });
 
 addEventListener('popstate', () => {
+  // Back with the order sheet open closes the sheet and stays on the page.
+  if (handleHistoryBack()) return;
   const url = new URL(location.href);
   const route = match(url.pathname);
   // A hash-only step on the same page: just scroll.

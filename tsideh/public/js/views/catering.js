@@ -1,11 +1,10 @@
-// Catering: the floating adobe block on the home page with the inquiry form.
+// Catering: the adobe block on the home page with the catering request form.
 
 import { sendCatering } from '../api.js';
-import { drawTile, seedFrom } from '../art.js';
 import { h, mount } from '../dom.js';
 import { addDays, formatLongDate, today } from '../format.js';
 import { choiceGroup, clean, emailError, errorSummary, field, phoneError } from '../forms.js';
-import { errorState, lazyArt, setBusy, skeleton, spinner } from '../ui.js';
+import { errorState, icon, setBusy, skeleton, spinner } from '../ui.js';
 
 function points(catering) {
   const styles = catering.serviceStyles.map((style, i) => (i === 0 ? style : style.toLowerCase()));
@@ -21,30 +20,32 @@ function buildForm(site, onDone) {
   const minDate = today();
   const name = field({ name: 'name', label: 'Your name', attrs: { autocomplete: 'name', autocapitalize: 'words', maxlength: 80, enterkeyhint: 'next' },
     validate: (v) => (clean(v) ? null : 'Enter your name.') });
-  const email = field({ name: 'email', label: 'Email', type: 'email', attrs: { autocomplete: 'email', inputmode: 'email', autocapitalize: 'off', spellcheck: 'false', maxlength: 254 },
+  const email = field({ name: 'email', label: 'Email', type: 'email', hint: 'We reply by email. For example: name@example.com',
+    attrs: { autocomplete: 'email', inputmode: 'email', autocapitalize: 'off', spellcheck: 'false', maxlength: 254 },
     validate: emailError });
-  const phone = field({ name: 'phone', label: 'Phone', type: 'tel', optional: true, attrs: { autocomplete: 'tel', inputmode: 'tel', maxlength: 20 },
+  const phone = field({ name: 'phone', label: 'Phone number', type: 'tel', optional: true, hint: 'For example: 505 555 0142',
+    attrs: { autocomplete: 'tel', inputmode: 'tel', maxlength: 20 },
     validate: (v) => phoneError(v, { required: false }) });
-  const date = field({ name: 'eventDate', label: 'Event date', type: 'date', hint: `We plan menus at least ${catering.leadTimeDays} days ahead.`,
+  const date = field({ name: 'eventDate', label: 'Date of your event', type: 'date', hint: `We plan menus at least ${catering.leadTimeDays} days ahead.`,
     attrs: { min: minDate, max: addDays(minDate, 730) },
     validate: (v) => {
       if (!v) return 'Choose the date of your event.';
       if (v < minDate) return 'Choose a date from today onward.';
       return null;
     } });
-  const guests = field({ name: 'guestCount', label: 'Guests', type: 'number', hint: `${catering.minGuests} to ${catering.maxGuests}`,
+  const guests = field({ name: 'guestCount', label: 'Number of guests', type: 'number', hint: `Between ${catering.minGuests} and ${catering.maxGuests}`,
     attrs: { inputmode: 'numeric', min: catering.minGuests, max: catering.maxGuests, step: 1 },
     validate: (v) => {
       const n = Number(v);
       return Number.isInteger(n) && n >= catering.minGuests && n <= catering.maxGuests && v.trim() !== ''
         ? null : `Enter a guest count from ${catering.minGuests} to ${catering.maxGuests}.`;
     } });
-  const location = field({ name: 'location', label: 'Location', hint: 'City or venue', attrs: { autocomplete: 'address-level2', maxlength: 120 },
+  const location = field({ name: 'location', label: 'Where is it?', hint: 'Town or venue', attrs: { autocomplete: 'address-level2', maxlength: 120 },
     validate: (v) => (clean(v) ? null : 'Enter where the event is.') });
-  const style = choiceGroup({ name: 'serviceStyle', legend: 'Service style', options: catering.serviceStyles.map((value) => ({ value, label: value })) });
-  const budget = field({ name: 'budget', label: 'Budget', optional: true, hint: 'A range is fine.', attrs: { maxlength: 60 } });
-  const dietary = field({ name: 'dietary', label: 'Dietary needs', optional: true, multiline: true, max: 300 });
-  const message = field({ name: 'message', label: 'Anything else', optional: true, multiline: true, max: 1500 });
+  const style = choiceGroup({ name: 'serviceStyle', legend: 'How should we serve the food?', options: catering.serviceStyles.map((value) => ({ value, label: value })) });
+  const budget = field({ name: 'budget', label: 'Budget', optional: true, hint: 'A rough range is fine.', attrs: { maxlength: 60 } });
+  const dietary = field({ name: 'dietary', label: 'Allergies or diets', optional: true, multiline: true, max: 300 });
+  const message = field({ name: 'message', label: 'Anything else we should know', optional: true, multiline: true, max: 1500 });
   const honeypot = h('div', { class: 'hp', 'aria-hidden': 'true' },
     h('label', { for: 'catering-website' }, 'Website'),
     h('input', { id: 'catering-website', name: 'website', type: 'text', tabindex: '-1', autocomplete: 'off' }));
@@ -57,9 +58,9 @@ function buildForm(site, onDone) {
   dietary.input.rows = 2;
 
   const summary = errorSummary();
-  const submit = h('button', { class: 'btn btn--primary btn--lg btn--block', type: 'submit' }, 'Send inquiry');
+  const submit = h('button', { class: 'btn btn--primary btn--lg btn--block', type: 'submit' }, 'Send catering request');
   const fields = { name, email, phone, eventDate: date, guestCount: guests, location, budget, dietary, message };
-  const form = h('form', { class: 'form', novalidate: true, 'aria-label': 'Catering inquiry' },
+  const form = h('form', { class: 'form', novalidate: true, 'aria-label': 'Catering request' },
     summary.node,
     h('div', { class: 'form__row form__row--2' }, name.node, email.node),
     h('div', { class: 'form__row form__row--2' }, phone.node, location.node),
@@ -69,7 +70,8 @@ function buildForm(site, onDone) {
     dietary.node,
     message.node,
     honeypot,
-    submit);
+    submit,
+    h('p', { class: 'form-note' }, 'Sending this does not book anything or cost anything. We will reply with a menu and a price.'));
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -84,7 +86,7 @@ function buildForm(site, onDone) {
       problems.push({ message: problem, target: style.target() });
     }
     if (problems.length) {
-      summary.show('Check these details', problems);
+      summary.show(problems.length === 1 ? 'One thing to fix before sending' : `${problems.length} things to fix before sending`, problems);
       return;
     }
     summary.hide();
@@ -107,7 +109,7 @@ function buildForm(site, onDone) {
       onDone({ firstName: clean(name.value()).split(' ')[0], date: date.value() });
     } catch (error) {
       setBusy(submit, false);
-      mount(submit, 'Send inquiry');
+      mount(submit, 'Send catering request');
       const target = error.field && fields[error.field];
       if (error.code === 'invalid' && target) {
         target.setError(error.message);
@@ -116,9 +118,9 @@ function buildForm(site, onDone) {
         style.setError(error.message);
         summary.show('Check these details', [{ message: error.message, target: style.target() }]);
       } else if (error.code === 'rate_limited') {
-        summary.show('Too many inquiries from this connection', [{ message: 'Wait a few minutes, then send it again.' }]);
+        summary.show('Too many requests from this connection', [{ message: 'Wait a few minutes, then send it again.' }]);
       } else {
-        summary.show('Your inquiry was not sent', [{ message: error.message }]);
+        summary.show('Your request was not sent', [{ message: error.message }]);
       }
     }
   });
@@ -126,13 +128,12 @@ function buildForm(site, onDone) {
 }
 
 function successNode({ firstName, date }, onAgain) {
-  const art = lazyArt(h('canvas', { 'aria-hidden': 'true' }), (canvas) => drawTile(canvas, { seed: seedFrom(`${firstName}-${date}`), variant: 'item' }));
   const title = h('h3', { tabindex: '-1' }, `Thank you, ${firstName}.`);
   const node = h('div', { class: 'catering__done', role: 'status' },
-    art,
+    h('span', { class: 'done-mark' }, icon('check')),
     title,
-    h('p', null, `Your inquiry for ${formatLongDate(date)} is with us. We'll be in touch within 48 hours.`),
-    h('button', { class: 'link', type: 'button', onclick: onAgain }, 'Send another inquiry'));
+    h('p', null, `We got your catering request for ${formatLongDate(date)}. We will reply by email within 48 hours.`),
+    h('button', { class: 'btn btn--outline', type: 'button', onclick: onAgain }, 'Send another request'));
   return { node, focus: () => title.focus() };
 }
 
@@ -166,8 +167,8 @@ export function cateringSection() {
       showForm(site);
     },
     fail(onRetry) {
-      mount(blurb, h('p', null, 'Tell us about your gathering and we will come back with a menu and a quote.'));
-      mount(formSlot, errorState({ title: 'The inquiry form did not load', message: 'Check your connection and try again.', onRetry }));
+      mount(blurb, h('p', null, 'Tell us about your gathering and we will come back with a menu and a price.'));
+      mount(formSlot, errorState({ title: 'The catering form did not load', message: 'Check your connection and try again.', onRetry }));
     },
     focusHeading() {
       heading.focus({ preventScroll: true });

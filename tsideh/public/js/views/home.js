@@ -1,77 +1,61 @@
-// Home: the adobe hero with the living mark, press, the pop-up index, a taste of the menu, and
-// catering. /catering is this same page, scrolled to the catering block.
+// Home: the adobe hero (logo, wordmark, headline, the next pop-up and two buttons), the press
+// line, the list of upcoming pop-ups, and catering. /catering is this same page, scrolled to the
+// catering block.
 
-import { getEvent, getEvents, getSite } from '../api.js';
-import { drawTile, mountHero, seedFrom } from '../art.js';
+import { getEvents, getSite } from '../api.js';
 import { h, mount } from '../dom.js';
-import { drawDotField } from '../dots.js';
-import { dateParts, eventStatusLabel, formatLongDate, formatTimeRange } from '../format.js';
-import { categoryNode, dishNode } from '../menu.js';
-import { errorState, lazyArt, skeleton, token } from '../ui.js';
+import { dateParts, eventStatusLabel, formatLongDate, formatMonth, formatTimeRange, formatWeekday } from '../format.js';
+import { errorState, skeleton } from '../ui.js';
 import { cateringSection } from './catering.js';
-
-const PREVIEW_PER_CATEGORY = 2;
 
 const eventPath = (event) => `/e/${encodeURIComponent(event.id)}`;
 const orderable = (event) => event.status === 'open';
 
-function grain(seed, motif) {
-  return lazyArt(h('canvas', { class: 'grain', 'aria-hidden': 'true' }),
-    (canvas) => drawDotField(canvas, { seed, ink: token('--black'), motif, strength: 0.075 }));
+/** Where "Order food for pickup" goes: straight to the menu when exactly one pop-up is open. */
+function orderTarget(events) {
+  const open = (events ?? []).filter(orderable);
+  return open.length === 1 ? eventPath(open[0]) : '/#popups';
 }
 
 /* ---------------------------------------------------------------- hero */
 
 function heroSection() {
-  const art = h('canvas', { class: 'hero__art', 'aria-hidden': 'true' });
   const headline = h('p', { class: 'hero__headline' });
   const next = h('div', { class: 'hero__next' }, skeleton(3));
-  const actions = h('div', { class: 'hero__actions' });
+  const orderButton = h('a', { class: 'btn btn--primary btn--lg', href: '/#popups', 'data-link': '' }, 'Order food for pickup');
   const node = h('section', { class: 'hero', 'aria-labelledby': 'hero-title' },
-    art,
     h('div', { class: 'hero__inner wrap' },
+      h('img', { class: 'hero__logo', src: '/assets/logo-512.webp', width: 512, height: 512, alt: 'Tsideh', fetchpriority: 'high' }),
       h('div', { class: 'hero__copy' },
         h('h1', { class: 'hero__word', id: 'hero-title' }, 'Tsideh'),
         headline,
-        next),
-      actions));
+        next,
+        h('div', { class: 'hero__actions' },
+          orderButton,
+          h('a', { class: 'btn btn--outline btn--lg', href: '/catering', 'data-link': '' }, 'Ask about catering')))));
 
   function fill(site, events) {
     headline.textContent = site.heroHeadline || site.tagline;
     const featured = events.find(orderable) ?? events[0];
-    if (featured) {
-      mount(next,
-        h('span', { class: 'hero__next-label' }, 'Next pop-up'),
-        h('span', { class: 'hero__next-date' }, formatLongDate(featured.date)),
-        h('span', { class: 'hero__next-meta' }, `${formatTimeRange(featured.start, featured.end)}, ${featured.locationName}`));
-    } else {
+    orderButton.setAttribute('href', orderTarget(events));
+    if (!featured) {
       next.remove();
+      return;
     }
-    mount(actions,
-      featured && orderable(featured)
-        ? h('a', { class: 'btn btn--primary', href: eventPath(featured), 'data-link': '' }, 'Order for pickup')
-        : h('a', { class: 'btn btn--primary', href: '/#popups', 'data-link': '' }, 'See upcoming pop-ups'),
-      h('a', { class: 'link', href: '/catering', 'data-link': '' }, 'Book catering'));
+    mount(next,
+      h('p', { class: 'hero__next-label' }, 'Next pop-up'),
+      h('p', { class: 'hero__next-date' }, formatLongDate(featured.date)),
+      h('p', { class: 'num' }, formatTimeRange(featured.start, featured.end)),
+      h('p', null, featured.locationName),
+      h('p', { class: ['status', `status--${featured.status}`] }, eventStatusLabel(featured)));
   }
 
   function fail() {
     headline.textContent = 'A pop-up kitchen of the Northern Rio Grande.';
     next.remove();
-    mount(actions, h('a', { class: 'link', href: '/catering', 'data-link': '' }, 'Book catering'));
   }
 
-  let hero = null;
-  return {
-    node,
-    fill,
-    fail,
-    start() {
-      hero = mountHero(art, { seed: seedFrom('tsideh') });
-    },
-    stop() {
-      hero?.destroy();
-    },
-  };
+  return { node, fill, fail };
 }
 
 /* ---------------------------------------------------------------- press */
@@ -92,7 +76,7 @@ function pressSection(press) {
   const row = (label, entries) => entries.length
     ? h('div', { class: 'press__row' },
       h('span', { class: 'press__label' }, label),
-      h('span', { class: ['press__names', entries.length === 1 ? 'press__names--single' : ''] }, joinNames(entries)))
+      h('span', { class: 'press__names' }, joinNames(entries)))
     : null;
   return h('section', { class: 'press', 'aria-label': 'Press and recognition' },
     h('div', { class: 'wrap' },
@@ -104,85 +88,49 @@ function pressSection(press) {
 
 /* ---------------------------------------------------------------- pop-ups */
 
-function popupRow(event, { featured }) {
+function popupCard(event) {
   const parts = dateParts(event.date);
   const open = orderable(event);
-  const cta = h('a', { class: ['popup__cta', 'btn', open ? 'btn--primary' : 'btn--outline'], href: eventPath(event), 'data-link': '' },
-    open ? 'Order for pickup' : 'View the menu',
-    h('span', { class: 'visually-hidden' }, `: ${event.title}, ${formatLongDate(event.date)}`));
-  return h('li', { class: ['popup', featured ? 'popup--featured' : ''] },
-    featured
-      ? lazyArt(h('canvas', { class: 'popup__art', 'aria-hidden': 'true' }),
-        (canvas) => drawTile(canvas, { seed: seedFrom(event.id), variant: 'banner' }))
-      : null,
-    h('div', { class: 'popup__row' },
-      h('div', { class: 'popup__date', 'aria-hidden': 'true' },
-        h('span', { class: 'popup__day' }, parts.day),
-        h('span', { class: 'popup__month' }, parts.month),
-        h('span', { class: 'popup__weekday' }, parts.weekday)),
-      h('div', null,
-        h('h3', { class: 'popup__title' }, event.title),
-        h('p', { class: 'visually-hidden' }, formatLongDate(event.date)),
-        h('div', { class: 'popup__facts' },
-          h('span', { class: 'num' }, formatTimeRange(event.start, event.end)),
-          h('span', null, h('strong', null, event.locationName)),
-          event.address ? h('span', { class: 'muted' }, event.address) : null)),
-      h('div', { class: 'popup__foot' },
-        h('span', { class: ['pill', `pill--${event.status}`] }, eventStatusLabel(event)),
-        cta)));
+  const longDate = formatLongDate(event.date);
+  return h('li', { class: 'popup' },
+    h('div', { class: 'popup__date', 'aria-hidden': 'true' },
+      h('span', { class: 'popup__day' }, parts.day),
+      h('span', { class: 'popup__month' }, formatMonth(event.date)),
+      h('span', { class: 'popup__weekday' }, formatWeekday(event.date))),
+    h('div', { class: 'popup__body' },
+      h('h3', { class: 'popup__title' }, event.title),
+      h('p', { class: 'visually-hidden' }, longDate),
+      h('p', { class: 'popup__time num' }, formatTimeRange(event.start, event.end)),
+      h('p', { class: 'popup__place' }, event.locationName),
+      event.address ? h('p', { class: 'popup__address' }, event.address) : null,
+      h('p', { class: ['status', `status--${event.status}`] }, eventStatusLabel(event)),
+      h('a', { class: ['btn', 'btn--block', open ? 'btn--primary' : 'btn--outline'], href: eventPath(event), 'data-link': '' },
+        open ? 'Order food' : 'See the menu',
+        h('span', { class: 'visually-hidden' }, ` from the ${event.title}, ${longDate}`))));
 }
 
 function popupsSection() {
   const list = h('div', { class: 'popups__list' }, skeleton(4, { className: 'skeleton--block' }));
   const node = h('section', { class: 'section popups', id: 'popups', 'aria-labelledby': 'popups-title' },
-    grain('tsideh-popups', 'spiral'),
     h('div', { class: 'wrap' },
       h('header', { class: 'section-head' },
         h('h2', { id: 'popups-title' }, 'Upcoming pop-ups'),
-        h('p', null, 'Order ahead, choose a pickup time and skip the line.')),
+        h('p', null, 'Order ahead online, choose a pickup time, then come and get your food.')),
       list));
 
   function fill(events, { onRetry } = {}) {
     if (!events) {
-      mount(list, errorState({ title: 'Pop-ups did not load', message: 'Check your connection and try again.', onRetry }));
+      mount(list, errorState({ title: 'The pop-ups did not load', message: 'Check your connection and try again.', onRetry }));
       return;
     }
     if (!events.length) {
       mount(list, h('div', { class: 'empty' },
         h('h3', null, 'No pop-ups on the calendar right now'),
         h('p', null, 'New dates are posted here first. Planning a gathering? ',
-          h('a', { href: '/catering', 'data-link': '' }, 'Book catering'), '.')));
+          h('a', { href: '/catering', 'data-link': '' }, 'Ask about catering'), '.')));
       return;
     }
-    mount(list, h('ul', { class: 'popup-list' }, events.map((event, i) => popupRow(event, { featured: i === 0 }))));
-  }
-
-  return { node, fill };
-}
-
-/* ---------------------------------------------------------------- menu preview */
-
-function menuSection() {
-  const body = h('div', null, skeleton(6));
-  const lead = h('p', null, 'Menus change with every pop-up.');
-  const node = h('section', { class: 'section menu-preview', 'aria-labelledby': 'menu-title' },
-    grain('tsideh-menu', 'terrace'),
-    h('div', { class: 'wrap' },
-      h('header', { class: 'section-head' }, h('h2', { id: 'menu-title' }, 'On the menu'), lead),
-      body));
-
-  function fill(detail) {
-    const { event, menu } = detail;
-    lead.textContent = `For the ${event.title}, ${formatLongDate(event.date)}. Menus change with every pop-up.`;
-    const categories = menu.categories.map((category) => ({ ...category, items: category.items.slice(0, PREVIEW_PER_CATEGORY) }));
-    const total = menu.categories.reduce((sum, category) => sum + category.items.length, 0);
-    mount(body,
-      h('div', { class: 'menu-preview__grid' },
-        categories.map((category) => categoryNode(category, { level: 3, id: `preview-${category.id}`, dish: (item) => dishNode(item, { level: 4 }) }))),
-      h('div', { class: 'menu-preview__foot' },
-        h('p', null, `${total} dishes and drinks on this menu.`),
-        h('a', { class: 'btn btn--primary', href: eventPath(event), 'data-link': '' },
-          orderable(event) ? 'See the full menu and order' : 'See the full menu')));
+    mount(list, h('ul', { class: 'popup-list' }, events.map(popupCard)));
   }
 
   return { node, fill };
@@ -193,10 +141,9 @@ function menuSection() {
 export function render(ctx) {
   const hero = heroSection();
   const popups = popupsSection();
-  const menu = menuSection();
   const catering = cateringSection();
   const pressSlot = h('div');
-  const node = h('div', { class: 'home' }, hero.node, pressSlot, popups.node, menu.node, catering.node);
+  const node = h('div', { class: 'home' }, hero.node, pressSlot, popups.node, catering.node);
   const controller = new AbortController();
 
   function scrollForRoute(next, { smooth }) {
@@ -231,17 +178,6 @@ export function render(ctx) {
       catering.fail(() => getSite().then(catering.fill, () => {}));
     }
     popups.fill(events, { onRetry: () => loadEvents().then((list) => popups.fill(list)) });
-
-    const featured = events?.find(orderable) ?? events?.[0];
-    if (!featured) {
-      menu.node.remove();
-      return;
-    }
-    try {
-      menu.fill(await getEvent(featured.id, { signal: controller.signal }));
-    } catch {
-      if (!controller.signal.aborted) menu.node.remove();
-    }
   }
 
   const ready = load().catch(() => {});
@@ -252,7 +188,6 @@ export function render(ctx) {
     ready,
     handlesScroll: true,
     mounted() {
-      hero.start();
       if (ctx.pop) return;
       // Wait for the sections above to settle so the scroll lands where it should.
       if (ctx.route === 'catering' || ctx.hash) ready.then(() => scrollForRoute(ctx, { smooth: false }));
@@ -263,7 +198,6 @@ export function render(ctx) {
     },
     destroy() {
       controller.abort();
-      hero.stop();
     },
   };
 }

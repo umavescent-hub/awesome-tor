@@ -30,7 +30,6 @@
 <link rel="preload" href="/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/site.css">
-<link rel="modulepreload" href="/js/art.js">
 <link rel="modulepreload" href="/js/views/home.js">
 <link rel="modulepreload" href="/js/views/event.js">
 <script type="module" src="/js/app.js"></script>
@@ -40,26 +39,20 @@
 
 <header class="site-header" id="site-header">
   <div class="site-header__inner">
-    <a class="brand" href="/" data-link>
+    <a class="brand" href="/" data-link aria-label="Tsideh home">
       <img class="brand__mark" src="/assets/logo-192.webp" width="40" height="40" alt="">
-      <span class="brand__word">Tsideh</span>
+      <span class="brand__word" aria-hidden="true">Tsideh</span>
     </a>
     <nav class="site-nav" aria-label="Main">
-      <a class="site-nav__link" href="/#popups" data-link data-nav="popups">Pop-ups</a>
+      <a class="site-nav__link" href="/#popups" data-link data-nav="popups">Order food</a>
       <a class="site-nav__link" href="/catering" data-link data-nav="catering">Catering</a>
     </nav>
-    <button class="cart-button" type="button" id="cart-button" hidden>
-      <span>Your order</span>
-      <span class="count-badge" id="cart-count">0</span>
-    </button>
   </div>
 </header>
 
 <main id="main" tabindex="-1"></main>
 
 <footer class="site-footer" id="site-footer"></footer>
-
-<div class="toasts" id="toasts" aria-live="polite"></div>
 
 <noscript>
   <div class="noscript">

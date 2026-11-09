@@ -1,12 +1,10 @@
 // The phone order sheet, built on <dialog>: the browser supplies the focus trap, Esc and an inert
-// page; this adds the motion, swipe-to-close, backdrop dismissal, focus return and a scroll lock
-// that holds on iOS Safari.
+// page. This adds a calm slide-in, a labelled Close button, focus return, a scroll lock that holds
+// on iOS Safari, and the phone's Back button: opening the sheet adds a history entry, so Back (or
+// the Android back gesture) closes the sheet instead of leaving the page.
 
 import { h, nextId, prefersReducedMotion } from './dom.js';
 import { icon } from './ui.js';
-
-const CLOSE_DISTANCE = 96;
-const CLOSE_VELOCITY = 0.55; // px per ms
 
 let locks = 0;
 let savedY = 0;
@@ -15,9 +13,8 @@ function lockScroll() {
   locks += 1;
   if (locks > 1) return;
   savedY = scrollY;
-  const { style } = document.body;
   document.documentElement.classList.add('is-locked');
-  style.setProperty('top', `-${savedY}px`);
+  document.body.style.setProperty('top', `-${savedY}px`);
 }
 
 function unlockScroll() {
@@ -28,92 +25,93 @@ function unlockScroll() {
   scrollTo({ top: savedY, behavior: 'instant' });
 }
 
+/* Open sheets, newest last, and history steps this module started itself. */
+const openSheets = [];
+let ownSteps = 0;
+
 /**
- * A panel that rises from the bottom (drag handle, swipe down to close).
- * Returns { el, body, open(), close(), isOpen() }. Any element marked data-close closes it.
+ * The router calls this on every popstate before it renders. Returns true when the step belonged
+ * to a sheet (Back closed it, or a sheet's own close stepped back), so the page must stay as it is.
  */
-export function createSheet({ title, className = '', onClose }) {
-  const titleId = nextId('dialog-title');
+export function handleHistoryBack() {
+  if (ownSteps > 0) {
+    ownSteps -= 1;
+    return true;
+  }
+  const top = openSheets.at(-1);
+  if (top) {
+    top.close({ fromHistory: true });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * A panel that rises from the bottom with a title and a Close button. key names its history entry,
+ * so a page that loads on that entry (Back from the payment page) can open it again in place.
+ * Returns { el, body, open(), close(), isOpen(), ownsEntry() }.
+ */
+export function createSheet({ title, key, className = '', onClose }) {
+  const id = key ?? nextId('sheet');
+  const titleId = `${id}-title`;
   const body = h('div', { class: 'sheet__body' });
   const head = h('div', { class: 'sheet__head' },
     h('h2', { class: 'sheet__title', id: titleId }, title),
-    h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Close', 'data-close': '' }, icon('close')));
-  const grip = h('div', { class: 'sheet__grip', 'aria-hidden': 'true' });
-  const panel = h('div', { class: 'sheet__panel' }, grip, head, body);
+    h('button', { class: 'btn btn--outline btn--small sheet__close', type: 'button', 'data-close': '' }, icon('close'), 'Close'));
+  const panel = h('div', { class: 'sheet__panel' }, head, body);
   const el = h('dialog', { class: ['sheet', className], 'aria-labelledby': titleId }, panel);
   document.body.append(el);
 
   let returnFocus = null;
   let closing = false;
+  const ownsEntry = () => history.state?.sheet === id;
+  const api = { el, body, open, close, ownsEntry, isOpen: () => el.open && !closing };
 
   function open() {
     if (el.open) return;
     returnFocus = document.activeElement;
     lockScroll();
     el.showModal();
+    openSheets.push(api);
+    if (!ownsEntry()) history.pushState({ ...history.state, sheet: id }, '');
     requestAnimationFrame(() => el.classList.add('is-open'));
   }
 
   function finish() {
     el.close();
     el.classList.remove('is-closing');
-    panel.style.removeProperty('transform');
     closing = false;
     unlockScroll();
     if (returnFocus instanceof HTMLElement && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });
     onClose?.();
   }
 
-  /** immediate: skip the exit motion (used when the page is leaving or the layout changes). */
-  function close({ immediate = false } = {}) {
+  /**
+   * fromHistory: Back already removed the sheet's history entry.
+   * silent: the page is going away; leave history alone and skip the motion.
+   */
+  function close({ fromHistory = false, silent = false } = {}) {
     if (!el.open || closing) return;
     closing = true;
+    openSheets.splice(openSheets.indexOf(api), 1);
+    if (!fromHistory && !silent && ownsEntry()) {
+      ownSteps += 1;
+      history.back();
+    }
     el.classList.remove('is-open');
     el.classList.add('is-closing');
-    if (immediate || prefersReducedMotion()) finish();
-    else setTimeout(finish, 320);
+    if (silent || prefersReducedMotion()) finish();
+    else setTimeout(finish, 240);
   }
 
   el.addEventListener('cancel', (event) => {
     event.preventDefault();
     close();
   });
-  // A click on the <dialog> itself (outside the panel) is a click on the backdrop; any element
-  // marked data-close inside it closes it too.
+  // A click on the <dialog> itself (outside the panel) is a click on the backdrop.
   el.addEventListener('click', (event) => {
     if (event.target === el || event.target.closest('[data-close]')) close();
   });
 
-  /* Swipe down on the grip or the title row to close. */
-  let start = null;
-  const dragZones = [grip, head];
-  const onMove = (event) => {
-    if (!start) return;
-    const dy = Math.max(0, event.clientY - start.y);
-    start.dy = dy;
-    panel.style.setProperty('transform', `translateY(${dy}px)`);
-  };
-  const onEnd = (event) => {
-    if (!start) return;
-    const { dy = 0, t, pointerId } = start;
-    start = null;
-    panel.classList.remove('is-dragging');
-    event.currentTarget.releasePointerCapture?.(pointerId);
-    const velocity = dy / Math.max(1, performance.now() - t);
-    if (dy > CLOSE_DISTANCE || velocity > CLOSE_VELOCITY) close();
-    else panel.style.removeProperty('transform');
-  };
-  for (const zone of dragZones) {
-    zone.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || event.target.closest('button, a, input')) return;
-      start = { y: event.clientY, t: performance.now(), pointerId: event.pointerId };
-      zone.setPointerCapture(event.pointerId);
-      panel.classList.add('is-dragging');
-    });
-    zone.addEventListener('pointermove', onMove);
-    zone.addEventListener('pointerup', onEnd);
-    zone.addEventListener('pointercancel', onEnd);
-  }
-
-  return { el, body, open, close, isOpen: () => el.open && !closing };
+  return api;
 }
