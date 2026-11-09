@@ -1,6 +1,6 @@
-// Modal surfaces built on <dialog>: the browser supplies the focus trap, Esc and an inert page;
-// this adds the motion, swipe-to-close, backdrop dismissal, focus return and a scroll lock that
-// holds on iOS Safari.
+// The phone order sheet, built on <dialog>: the browser supplies the focus trap, Esc and an inert
+// page; this adds the motion, swipe-to-close, backdrop dismissal, focus return and a scroll lock
+// that holds on iOS Safari.
 
 import { h, nextId, prefersReducedMotion } from './dom.js';
 import { icon } from './ui.js';
@@ -29,20 +29,18 @@ function unlockScroll() {
 }
 
 /**
- * variant 'sheet': a panel that rises from the bottom on phones (drag handle, swipe down to close).
- * variant 'overlay': a full-screen surface that fades in.
- * Returns { el, body, open(), close(), isOpen() }. `header` replaces the default title row; any
- * element marked data-close closes the dialog.
+ * A panel that rises from the bottom (drag handle, swipe down to close).
+ * Returns { el, body, open(), close(), isOpen() }. Any element marked data-close closes it.
  */
-export function createDialog({ variant = 'sheet', title = '', header = null, className = '', onClose } = {}) {
+export function createSheet({ title, className = '', onClose }) {
   const titleId = nextId('dialog-title');
-  const body = h('div', { class: `${variant}__body` });
-  const head = header ?? h('div', { class: `${variant}__head` },
-    h('h2', { class: `${variant}__title`, id: titleId }, title),
+  const body = h('div', { class: 'sheet__body' });
+  const head = h('div', { class: 'sheet__head' },
+    h('h2', { class: 'sheet__title', id: titleId }, title),
     h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Close', 'data-close': '' }, icon('close')));
-  const grip = variant === 'sheet' ? h('div', { class: 'sheet__grip', 'aria-hidden': 'true' }) : null;
-  const panel = h('div', { class: `${variant}__panel` }, grip, head, body);
-  const el = h('dialog', { class: [variant, className], 'aria-labelledby': header ? null : titleId }, panel);
+  const grip = h('div', { class: 'sheet__grip', 'aria-hidden': 'true' });
+  const panel = h('div', { class: 'sheet__panel' }, grip, head, body);
+  const el = h('dialog', { class: ['sheet', className], 'aria-labelledby': titleId }, panel);
   document.body.append(el);
 
   let returnFocus = null;
@@ -66,7 +64,7 @@ export function createDialog({ variant = 'sheet', title = '', header = null, cla
     onClose?.();
   }
 
-  /** immediate: skip the exit motion (used when a link inside is leaving the page). */
+  /** immediate: skip the exit motion (used when the page is leaving or the layout changes). */
   function close({ immediate = false } = {}) {
     if (!el.open || closing) return;
     closing = true;
@@ -86,36 +84,35 @@ export function createDialog({ variant = 'sheet', title = '', header = null, cla
     if (event.target === el || event.target.closest('[data-close]')) close();
   });
 
-  if (grip) {
-    let start = null;
-    const dragZones = [grip, head];
-    const onMove = (event) => {
-      if (!start) return;
-      const dy = Math.max(0, event.clientY - start.y);
-      start.dy = dy;
-      panel.style.setProperty('transform', `translateY(${dy}px)`);
-    };
-    const onEnd = (event) => {
-      if (!start) return;
-      const { dy = 0, t, pointerId } = start;
-      start = null;
-      panel.classList.remove('is-dragging');
-      event.currentTarget.releasePointerCapture?.(pointerId);
-      const velocity = dy / Math.max(1, performance.now() - t);
-      if (dy > CLOSE_DISTANCE || velocity > CLOSE_VELOCITY) close();
-      else panel.style.removeProperty('transform');
-    };
-    for (const zone of dragZones) {
-      zone.addEventListener('pointerdown', (event) => {
-        if (event.button !== 0 || event.target.closest('button, a, input')) return;
-        start = { y: event.clientY, t: performance.now(), pointerId: event.pointerId };
-        zone.setPointerCapture(event.pointerId);
-        panel.classList.add('is-dragging');
-      });
-      zone.addEventListener('pointermove', onMove);
-      zone.addEventListener('pointerup', onEnd);
-      zone.addEventListener('pointercancel', onEnd);
-    }
+  /* Swipe down on the grip or the title row to close. */
+  let start = null;
+  const dragZones = [grip, head];
+  const onMove = (event) => {
+    if (!start) return;
+    const dy = Math.max(0, event.clientY - start.y);
+    start.dy = dy;
+    panel.style.setProperty('transform', `translateY(${dy}px)`);
+  };
+  const onEnd = (event) => {
+    if (!start) return;
+    const { dy = 0, t, pointerId } = start;
+    start = null;
+    panel.classList.remove('is-dragging');
+    event.currentTarget.releasePointerCapture?.(pointerId);
+    const velocity = dy / Math.max(1, performance.now() - t);
+    if (dy > CLOSE_DISTANCE || velocity > CLOSE_VELOCITY) close();
+    else panel.style.removeProperty('transform');
+  };
+  for (const zone of dragZones) {
+    zone.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || event.target.closest('button, a, input')) return;
+      start = { y: event.clientY, t: performance.now(), pointerId: event.pointerId };
+      zone.setPointerCapture(event.pointerId);
+      panel.classList.add('is-dragging');
+    });
+    zone.addEventListener('pointermove', onMove);
+    zone.addEventListener('pointerup', onEnd);
+    zone.addEventListener('pointercancel', onEnd);
   }
 
   return { el, body, open, close, isOpen: () => el.open && !closing };

@@ -1,11 +1,7 @@
-// The site's grain: the same hexagonal dot lattice as the generative art, at low intensity.
-//   drawDotField   a seeded halftone field whose dots swell along a spiral or stepped terraces.
-//   mountPopupMap  "Where we pop up": a stylized dot map of the Northern Rio Grande corridor with
-//                  the river traced in larger adobe dots and a marker for each pop-up place.
+// The site's grain: the same hexagonal dot lattice as the generative art, at low intensity. A
+// seeded halftone field whose dots swell along a spiral or stepped terraces.
 
 import { seedFrom } from './art.js';
-import { h } from './dom.js';
-import { lazyArt, token } from './ui.js';
 
 const TAU = Math.PI * 2;
 const MAX_PIXELS = 5_000_000;
@@ -138,114 +134,4 @@ export function drawDotField(canvas, { seed = 'tsideh', ink, bg = null, density 
   });
   ctx.fill();
   ctx.globalAlpha = 1;
-}
-
-/* ------------------------------------------------------------------ the pop-up map */
-
-const BOUNDS = { latMin: 35.45, latMax: 36.35, lngMin: -106.45, lngMax: -105.75 };
-const RIVER = [
-  [36.32, -105.73], [36.2, -105.93], [36.1, -106.04], [36.05, -106.07], [35.99, -106.08], [35.94, -106.11],
-  [35.87, -106.14], [35.78, -106.2], [35.7, -106.26], [35.62, -106.32], [35.52, -106.37],
-];
-
-/** Equirectangular fit of the corridor's bounding box to [0, 1] x [0, 1]. */
-const project = ([lat, lng]) => ({
-  x: (lng - BOUNDS.lngMin) / (BOUNDS.lngMax - BOUNDS.lngMin),
-  y: (BOUNDS.latMax - lat) / (BOUNDS.latMax - BOUNDS.latMin),
-});
-
-function distanceToRiver(px, py, river) {
-  let best = Infinity;
-  for (let i = 1; i < river.length; i += 1) {
-    const a = river[i - 1];
-    const b = river[i];
-    const vx = b.x - a.x;
-    const vy = b.y - a.y;
-    const t = Math.max(0, Math.min(1, ((px - a.x) * vx + (py - a.y) * vy) / (vx * vx + vy * vy)));
-    best = Math.min(best, Math.hypot(px - (a.x + vx * t), py - (a.y + vy * t)));
-  }
-  return best;
-}
-
-function drawMap(canvas, colors) {
-  const box = fit(canvas);
-  if (!box) return;
-  const { ctx, w, height } = box;
-  const S = Math.max(9, Math.min(13, w / 34));
-  const noise = valueNoise(seedFrom('rio-grande'));
-  const river = RIVER.map(project).map((p) => ({ x: p.x * w, y: p.y * height }));
-  const ground = new Path2D();
-  const water = new Path2D();
-  lattice(w, height, S, (x, y) => {
-    const d = distanceToRiver(x, y, river) / S;
-    if (d < 1.1) {
-      const r = S * (0.4 - d * 0.14);
-      water.moveTo(x + r, y);
-      water.arc(x, y, r, 0, TAU);
-      return;
-    }
-    // Higher ground reads as slightly larger dots; the valley floor stays fine.
-    const lift = noise(x / (S * 9), y / (S * 9)) * smoothstep(1.1, 9, d);
-    const r = S * (0.08 + Math.round(lift * 4) * 0.035);
-    ground.moveTo(x + r, y);
-    ground.arc(x, y, r, 0, TAU);
-  });
-  ctx.clearRect(0, 0, w, height);
-  ctx.globalAlpha = 0.34;
-  ctx.fillStyle = colors.ink;
-  ctx.fill(ground);
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = colors.river;
-  ctx.fill(water);
-}
-
-/**
- * Mount the map into `container`. events: EventSummary[] (those without coords are skipped).
- * onSelect(eventIds, how): a place was hovered ('hover') or clicked ('click'); null on leave.
- * Returns { highlight(eventId | null) }, or null when no event has coordinates.
- */
-export function mountPopupMap(container, { events, onSelect }) {
-  const places = new Map();
-  for (const event of events) {
-    const { coords } = event;
-    if (!coords || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) continue;
-    const key = `${coords.lat.toFixed(3)},${coords.lng.toFixed(3)}`;
-    if (!places.has(key)) places.set(key, { name: event.locationName, coords, ids: [] });
-    places.get(key).ids.push(event.id);
-  }
-  if (places.size === 0) return null;
-
-  const colors = { ink: token('--black'), river: token('--adobe') };
-  const canvas = lazyArt(h('canvas', { class: 'map__canvas' }), (c) => drawMap(c, colors));
-  const label = project([35.56, -106.33]);
-  const markers = [];
-  const layer = h('div', { class: 'map__layer' },
-    h('span', { class: 'map__river', style: { left: `${label.x * 100}%`, top: `${label.y * 100}%` } }, 'Rio Grande'));
-
-  for (const place of places.values()) {
-    const at = project([place.coords.lat, place.coords.lng]);
-    const marker = h('span', {
-      class: ['map__marker', at.x > 0.62 ? 'map__marker--left' : ''],
-      style: { left: `${at.x * 100}%`, top: `${at.y * 100}%` },
-      onpointerenter: () => onSelect?.(place.ids, 'hover'),
-      onpointerleave: () => onSelect?.(null, 'hover'),
-      onclick: () => onSelect?.(place.ids, 'click'),
-    },
-    h('span', { class: 'map__dot' }),
-    h('span', { class: 'map__name' }, place.name));
-    markers.push({ marker, ids: new Set(place.ids) });
-    layer.append(marker);
-  }
-
-  const names = [...places.values()].map((place) => place.name);
-  container.setAttribute('role', 'img');
-  container.setAttribute('aria-label', `Map of the Northern Rio Grande showing where the next pop-ups are: ${[...new Set(names)].join(', ')}.`);
-  layer.setAttribute('aria-hidden', 'true');
-  container.replaceChildren(canvas, layer);
-
-  return {
-    highlight(eventId) {
-      for (const { marker, ids } of markers) marker.classList.toggle('is-active', eventId !== null && ids.has(eventId));
-    },
-  };
 }

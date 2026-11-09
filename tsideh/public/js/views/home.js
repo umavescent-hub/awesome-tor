@@ -1,10 +1,10 @@
-// Home: the adobe hero with the living mark, press, the pop-up index beside the dot map, a taste
-// of the menu, and catering. /catering is this same page, scrolled to the catering block.
+// Home: the adobe hero with the living mark, press, the pop-up index, a taste of the menu, and
+// catering. /catering is this same page, scrolled to the catering block.
 
 import { getEvent, getEvents, getSite } from '../api.js';
 import { drawTile, mountHero, seedFrom } from '../art.js';
-import { h, mount, prefersReducedMotion } from '../dom.js';
-import { drawDotField, mountPopupMap } from '../dots.js';
+import { h, mount } from '../dom.js';
+import { drawDotField } from '../dots.js';
 import { dateParts, eventStatusLabel, formatLongDate, formatTimeRange } from '../format.js';
 import { categoryNode, dishNode } from '../menu.js';
 import { errorState, lazyArt, skeleton, token } from '../ui.js';
@@ -110,7 +110,7 @@ function popupRow(event, { featured }) {
   const cta = h('a', { class: ['popup__cta', 'btn', open ? 'btn--primary' : 'btn--outline'], href: eventPath(event), 'data-link': '' },
     open ? 'Order for pickup' : 'View the menu',
     h('span', { class: 'visually-hidden' }, `: ${event.title}, ${formatLongDate(event.date)}`));
-  return h('li', { class: ['popup', featured ? 'popup--featured' : ''], dataset: { event: event.id } },
+  return h('li', { class: ['popup', featured ? 'popup--featured' : ''] },
     featured
       ? lazyArt(h('canvas', { class: 'popup__art', 'aria-hidden': 'true' }),
         (canvas) => drawTile(canvas, { seed: seedFrom(event.id), variant: 'banner' }))
@@ -134,28 +134,17 @@ function popupRow(event, { featured }) {
 
 function popupsSection() {
   const list = h('div', { class: 'popups__list' }, skeleton(4, { className: 'skeleton--block' }));
-  const mapCol = h('div', { class: 'popups__map-col' });
-  const grid = h('div', { class: 'popups__grid' }, list, mapCol);
   const node = h('section', { class: 'section popups', id: 'popups', 'aria-labelledby': 'popups-title' },
     grain('tsideh-popups', 'spiral'),
     h('div', { class: 'wrap' },
       h('header', { class: 'section-head' },
         h('h2', { id: 'popups-title' }, 'Upcoming pop-ups'),
         h('p', null, 'Order ahead, choose a pickup time and skip the line.')),
-      grid));
-
-  /** Without a map the list takes the whole width. */
-  function dropMap() {
-    mapCol.remove();
-    grid.classList.add('popups__grid--single');
-  }
+      list));
 
   function fill(events, { onRetry } = {}) {
-    grid.classList.remove('popups__grid--single');
-    grid.append(mapCol);
     if (!events) {
       mount(list, errorState({ title: 'Pop-ups did not load', message: 'Check your connection and try again.', onRetry }));
-      dropMap();
       return;
     }
     if (!events.length) {
@@ -163,37 +152,9 @@ function popupsSection() {
         h('h3', null, 'No pop-ups on the calendar right now'),
         h('p', null, 'New dates are posted here first. Planning a gathering? ',
           h('a', { href: '/catering', 'data-link': '' }, 'Book catering'), '.')));
-      dropMap();
       return;
     }
-    const rows = events.map((event, i) => popupRow(event, { featured: i === 0 }));
-    const ul = h('ul', { class: 'popup-list' }, rows);
-    mount(list, ul);
-
-    const mapBox = h('div', { class: 'map' });
-    const map = mountPopupMap(mapBox, {
-      events,
-      onSelect(ids, how) {
-        for (const row of rows) row.classList.toggle('is-active', ids !== null && ids.includes(row.dataset.event));
-        if (how === 'click' && ids) {
-          const row = rows.find((candidate) => ids.includes(candidate.dataset.event));
-          row?.scrollIntoView({ behavior: prefersReducedMotion() ? 'instant' : 'smooth', block: 'center' });
-        }
-      },
-    });
-    if (!map) {
-      dropMap();
-      return;
-    }
-    mount(mapCol, h('h3', null, 'Where we pop up'), mapBox);
-    for (const row of rows) {
-      const on = () => map.highlight(row.dataset.event);
-      const off = () => map.highlight(null);
-      row.addEventListener('pointerenter', on);
-      row.addEventListener('pointerleave', off);
-      row.addEventListener('focusin', on);
-      row.addEventListener('focusout', off);
-    }
+    mount(list, h('ul', { class: 'popup-list' }, events.map((event, i) => popupRow(event, { featured: i === 0 }))));
   }
 
   return { node, fill };

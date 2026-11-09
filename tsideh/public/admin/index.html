@@ -27,10 +27,6 @@
         <label for="password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required>
       </div>
-      <div class="field" id="totp-field" hidden>
-        <label for="totp">Authenticator code</label>
-        <input id="totp" name="totp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" spellcheck="false">
-      </div>
       <button id="login-submit" class="btn btn-primary btn-block" type="submit">Sign in</button>
     </form>
   </main>
@@ -57,11 +53,6 @@
       </p>
 
       <div class="topbar-tools">
-        <button id="sound-toggle" class="bar-btn" type="button" aria-pressed="false">
-          <svg class="icon icon-sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/></svg>
-          <svg class="icon icon-sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5m0-5-5 5"/></svg>
-          <span class="bar-btn-label">Sound</span>
-        </button>
         <button id="logout" class="bar-btn" type="button">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4.5H5.5v15H10M14.5 8l4 4-4 4M18.5 12H9.5"/></svg>
           <span class="bar-btn-label">Sign out</span>
@@ -72,12 +63,6 @@
         <button class="tab" type="button" role="tab" id="tab-orders" aria-controls="panel-orders" data-tab="orders">Orders<span class="tab-count" id="count-orders" hidden></span></button>
         <button class="tab" type="button" role="tab" id="tab-prep" aria-controls="panel-prep" data-tab="prep">Prep</button>
         <button class="tab" type="button" role="tab" id="tab-catering" aria-controls="panel-catering" data-tab="catering">Catering<span class="tab-count tab-count-new" id="count-catering" hidden></span></button>
-        <button class="tab" type="button" role="tab" id="tab-activity" aria-controls="panel-activity" data-tab="activity" hidden>Activity</button>
-      </div>
-
-      <div id="paused-banner" class="paused-banner" hidden>
-        <p><strong>Online ordering is paused.</strong> Customers can’t place new pre-orders for this event.</p>
-        <button id="banner-resume" class="btn btn-primary" type="button">Resume online ordering</button>
       </div>
     </header>
 
@@ -104,22 +89,13 @@
       <section id="panel-prep" class="panel" role="tabpanel" aria-labelledby="tab-prep" hidden>
         <header class="panel-head">
           <div>
-            <h2 class="panel-title">Prep sheet</h2>
+            <h2 class="panel-title">Prep</h2>
             <p id="prep-event" class="panel-sub"></p>
           </div>
           <div class="panel-actions">
             <button id="print" class="btn btn-quiet" type="button">Print</button>
-            <a id="csv" class="btn btn-quiet" download>Download CSV</a>
           </div>
         </header>
-
-        <div class="ordering">
-          <p class="ordering-state">
-            <span>Online ordering</span>
-            <strong id="ordering-state" class="pill"></strong>
-          </p>
-          <button id="pause-toggle" class="btn btn-quiet" type="button">Pause online ordering</button>
-        </div>
 
         <div class="table-scroll">
           <table class="prep-table">
@@ -131,18 +107,11 @@
                 <th scope="col" class="num col-pending">Pending</th>
                 <th scope="col" class="num col-limit">Limit</th>
                 <th scope="col" class="num">Remaining</th>
-                <th scope="col" class="col-86"><abbr title="Mark sold out">86</abbr></th>
               </tr>
             </thead>
             <tfoot id="prep-total"></tfoot>
           </table>
         </div>
-
-        <h3 class="section-title" id="matrix-title">By pickup time</h3>
-        <div id="matrix-scroll" class="table-scroll matrix-scroll" role="region" aria-labelledby="matrix-title" tabindex="0">
-          <table id="matrix" class="matrix"></table>
-        </div>
-        <div id="matrix-empty" class="empty" hidden></div>
       </section>
 
       <section id="panel-catering" class="panel" role="tabpanel" aria-labelledby="tab-catering" hidden>
@@ -155,17 +124,6 @@
         <div id="inquiries" class="inquiries"></div>
         <div id="catering-empty" class="empty" hidden></div>
       </section>
-
-      <section id="panel-activity" class="panel" role="tabpanel" aria-labelledby="tab-activity" hidden>
-        <header class="panel-head">
-          <div>
-            <h2 class="panel-title">Activity</h2>
-            <p class="panel-sub">Sign-ins and kitchen changes, newest first. This log can’t be edited.</p>
-          </div>
-        </header>
-        <ol id="activity" class="activity"></ol>
-        <div id="activity-empty" class="empty" hidden></div>
-      </section>
     </main>
 
     <p id="announcer" class="visually-hidden" aria-live="polite"></p>
@@ -173,17 +131,6 @@
       <p id="toast-text" class="toast-text"></p>
       <button id="toast-action" class="toast-action" type="button" hidden></button>
     </div>
-
-    <dialog id="confirm" class="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-body">
-      <form method="dialog" class="confirm-form">
-        <h2 id="confirm-title" class="confirm-title"></h2>
-        <p id="confirm-body" class="confirm-body"></p>
-        <div class="confirm-actions">
-          <button class="btn btn-quiet" value="cancel" type="submit">Cancel</button>
-          <button id="confirm-ok" class="btn btn-primary" value="confirm" type="submit"></button>
-        </div>
-      </form>
-    </dialog>
   </div>
 </body>
 </html>

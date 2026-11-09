@@ -88,7 +88,7 @@ Each entry in `items`:
 | `description` | `"Hominy and pork simmered in red chile…"` | One or two sentences. |
 | `priceCents` | `1400` | Price in cents ($14.00). At least 50. |
 | `tags` | `["gluten-free", "spicy"]` | Any of `vegetarian`, `vegan`, `gluten-free`, `dairy-free`, `spicy`, `contains-nuts`. |
-| `image` | `"/assets/menu/posole.webp"` | Optional photo. Put the file in `public/assets/menu/`. Without one, the site draws an art tile. |
+| `image` | `"/assets/menu/posole.webp"` | Optional photo. Put the file in `public/assets/menu/`. Without one, the dish is set as type only. |
 
 Price changes apply to new orders only; existing orders keep what the customer paid.
 
@@ -97,6 +97,8 @@ Price changes apply to new orders only; existing orders keep what the customer p
 | Field | What it does |
 | --- | --- |
 | `name`, `tagline`, `description` | Site name and the lines under it (also used for search engines). |
+| `heroHeadline` | The large line under the TSIDEH wordmark at the top of the home page. |
+| `press` | The press line under the hero. Each entry: `name`, `kind` (`"featured"` or `"recognition"`), and optionally `url` (an https:// link to the piece) and `quote` (only a real quote from it). |
 | `timezone` | `"America/Denver"`. Leave as is. |
 | `taxRatePercent`, `taxLabel` | Sales tax added at checkout and its name on the receipt. See [Sales tax](#9-sales-tax). |
 | `tipPresetsPercent` | Tip buttons offered at checkout, e.g. `[0, 10, 15, 20]`. |
@@ -179,8 +181,8 @@ Good to know:
 
 - Each deploy restarts the site for a few seconds. Avoid deploying while a pop-up's orders are
   rushing in.
-- Render keeps daily snapshots of the disk. Downloading the CSV from `/admin` after each pop-up
-  gives you your own copy too.
+- Render keeps daily snapshots of the disk, and every paid order is also in your Stripe
+  Dashboard.
 - Another host works the same way: the included `Dockerfile` builds a small image; mount a
   volume at `/data` and set the same environment values.
 
@@ -189,18 +191,17 @@ Good to know:
 ## 5. The kitchen screen (`/admin`)
 
 Sign in at `https://YOURDOMAIN/admin` with `ADMIN_PASSWORD`. A sign-in lasts 12 hours on that
-device. Sign-in allows five attempts a minute, so guessing the password is impractical.
+device, or ends sooner after 2 hours with the screen closed. Sign-in allows five attempts a
+minute, so guessing the password is impractical.
 
-- **Orders board:** every paid order by pickup time. Mark each one **Ready**, then
-  **Picked up**. Orders flagged **oversold** were paid after their hold ran out and the spot
-  was taken meanwhile: Stripe collected the money, so the order stands, but it pushes that
+- **Orders:** pick a pop-up and see its paid orders by pickup time. Mark each one **Ready**,
+  then **Picked up**. Orders flagged **oversold** were paid after their hold ran out and the
+  spot was taken meanwhile: Stripe collected the money, so the order stands, but it pushes that
   pickup time or item past what you planned for.
-- **Pause:** stop new orders for a pop-up at once. Existing orders are not affected.
-- **86 an item:** mark an item sold out for one pop-up; customers see it immediately.
-- **Prep sheet:** how many of each item are paid for, still being paid for, and what goes out
-  in each pickup time.
-- **CSV export:** every order for a pop-up, for your records or a printed pickup list.
-- **Catering inbox:** every inquiry, marked new, contacted, booked or declined.
+- **Prep:** how many of each item are paid for, still being paid for, and what is left of each
+  limit. To stop selling an item, lower its limit in `config/events.json`; to stop all orders
+  for a pop-up, set its `status` to `"paused"`.
+- **Catering:** every inquiry, marked new, contacted, booked or declined.
 
 ---
 
@@ -240,14 +241,17 @@ or payment details.
 - **Prices are set by the server**, never by the browser.
 - **Order pages need a private link.** Each order gets a long random key; the database keeps
   only a fingerprint of it, and a wrong key looks exactly like a missing order.
-- **The kitchen screen** uses a password compared in constant time, a 12-hour session cookie
-  that scripts cannot read and other sites cannot send, an extra check on every change, and a
-  limit on sign-in attempts.
-- **Strict browser rules** (Content Security Policy): pages load only this site's own files.
-  No trackers, ad scripts, third-party fonts or embeds. Pages cannot be framed by other sites.
+- **The kitchen screen** uses a password compared in constant time, a session cookie (12 hours
+  at most, 2 hours idle) that scripts cannot read and other sites cannot send, an extra check
+  on every change, and a limit on sign-in attempts.
+- **Strict browser rules** (Content Security Policy with Trusted Types, cross-origin
+  isolation): pages load only this site's own files and never turn text into code. No
+  trackers, ad scripts, third-party fonts or embeds. Pages cannot be framed by other sites.
 - **HTTPS only** on the live site, with HSTS. Requests are size-limited, rate-limited per
   visitor, and every text field is cleaned before it is stored.
-- **Stripe webhooks are verified** by signature and timestamp; repeats are ignored.
+- **Stripe webhooks are verified** by signature and timestamp; repeats are ignored. A payment
+  is recorded only if Stripe charged exactly the order's total; anything else is left unpaid
+  and sent to your Slack alerts for review.
 - **Logs** record method, path, status and timing only: never card data, keys, contact details
   or private order links.
 - **Your data stays yours:** one database file on your Render disk.
@@ -273,6 +277,10 @@ The tax appears as its own line on the Stripe receipt, labelled with `taxLabel`.
   `node:zlib`, `node:test`. The front end is plain ES modules with no build step.
 - `npm start` runs the server, `npm run dev` restarts on changes, `npm test` runs the suite
   (unit tests plus full API flows in demo and Stripe mode against a local fake Stripe).
+- `npm run e2e` drives the real site in Chromium on a phone and a desktop viewport: order, demo
+  payment, confirmation, catering inquiry and the kitchen screen, failing on any console error,
+  Content Security Policy violation or sideways scroll. It needs Playwright, which is not a
+  project dependency: `npm install --no-save playwright && npx playwright install chromium`.
 - Settings are environment variables, documented in `.env.example`.
 
 ```
@@ -293,7 +301,7 @@ server/
   routes/        public and admin API
 config/          site.json, menu.json, events.json
 public/          the site, the admin, fonts and images
-test/            node:test suites
+test/            node:test suites; test/e2e/ holds the browser check
 ```
 
 API summary (JSON; errors are `{ "error": { "code", "message", "field"?, "details"? } }`):
@@ -309,4 +317,4 @@ API summary (JSON; errors are `{ "error": { "code", "message", "field"?, "detail
 | POST | `/api/catering` | Catering inquiry |
 | POST | `/api/stripe/webhook` | Stripe events (signed) |
 | POST | `/api/demo/pay/:code` | Demo mode only: simulate payment |
-| * | `/api/admin/…` | Kitchen: session, events, orders, prep, CSV, status, pause, 86, catering |
+| * | `/api/admin/…` | Kitchen: session, events, orders, prep, order status, catering |

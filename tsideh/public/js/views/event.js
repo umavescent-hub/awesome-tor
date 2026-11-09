@@ -9,7 +9,7 @@ import { drawDotField } from '../dots.js';
 import { eventStatusLabel, formatDate, formatLongDate, formatMoney, formatMonthDay, formatTimeRange, formatWeekday, percentOf, plural, zonedDate } from '../format.js';
 import { choiceGroup, clean, emailError, errorSummary, field, phoneError } from '../forms.js';
 import { categoryNode, dishNode } from '../menu.js';
-import { createDialog } from '../sheet.js';
+import { createSheet } from '../sheet.js';
 import { errorState, icon, lazyArt, setBusy, skeleton, spinner, toast, token } from '../ui.js';
 
 const DESKTOP = '(min-width: 1024px)';
@@ -350,7 +350,7 @@ function buildPage(site, detail, ctx) {
       },
     };
   })();
-  const sheet = createDialog({ variant: 'sheet', title: 'Your order', className: 'order-sheet', onClose: () => update() });
+  const sheet = createSheet({ title: 'Your order', className: 'order-sheet', onClose: () => update() });
   const panelSlot = h('aside', { class: 'panel-slot', id: 'order', 'aria-label': 'Your order' });
   layout.append(panelSlot);
   node.append(bar.node);

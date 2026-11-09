@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/index.js",
     "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch-path=server --watch-path=config server/index.js",
-    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
+    "e2e": "node --disable-warning=ExperimentalWarning test/e2e/e2e.mjs"
   }
 }

@@ -1,4 +1,4 @@
-// Tsideh kitchen screen: live orders board, prep sheet and catering inbox.
+// Tsideh kitchen screen: orders by pickup time, the prep list and catering inquiries.
 //
 // Safety model: customer-provided strings only ever reach the page as text nodes (h() never parses
 // markup, and nothing here touches innerHTML), the page runs under a strict CSP with Trusted Types,
@@ -6,7 +6,6 @@
 // SameSite=Strict session cookie. A 401 from any call returns the screen to sign-in.
 
 const POLL_MS = 15_000;
-const FRESH_MS = 8_000;
 const TOAST_MS = 6_000;
 const STORAGE_KEY = 'tsideh-kitchen';
 const LOGIN_PATH = '/api/admin/login';
@@ -34,16 +33,6 @@ const FILTERS = {
 };
 
 const CATERING_STATUS = { new: 'New', contacted: 'Contacted', booked: 'Booked', declined: 'Declined' };
-
-const ACTIVITY_LABELS = {
-  login_success: 'Signed in',
-  login_failure: 'Sign-in failed',
-  logout: 'Signed out',
-  order_status: 'Order',
-  event_pause: 'Online ordering',
-  item_sold_out: '86',
-  catering_status: 'Catering',
-};
 
 /* ------------------------------------------------------------------ DOM */
 
@@ -223,7 +212,6 @@ const eventPath = (suffix = '') => `/api/admin/events/${encodeURIComponent(state
 
 const state = {
   signedIn: false,
-  features: { totp: false, activity: false },
   events: [],
   eventsSig: '',
   eventId: null,
@@ -232,18 +220,12 @@ const state = {
   query: '',
   orders: [],
   ordersLoaded: false,
-  seen: new Set(),
-  fresh: new Map(),
   pendingStatus: new Map(),
   prep: null,
-  prepSig: '',
-  pending86: new Set(),
   inquiries: [],
   pendingInquiry: new Map(),
-  activitySig: '',
   updatedAt: 0,
   online: true,
-  sound: false,
 };
 
 const currentEvent = () => state.events.find((event) => event.id === state.eventId) ?? null;
@@ -256,8 +238,6 @@ const loginEl = $('login');
 const loginForm = $('login-form');
 const loginNotice = $('login-notice');
 const passwordInput = $('password');
-const totpField = $('totp-field');
-const totpInput = $('totp');
 const loginSubmit = $('login-submit');
 let lockTimer = 0;
 
@@ -271,7 +251,6 @@ function showLogin({ notice, tone, disabled = false } = {}) {
   app.hidden = true;
   loginEl.hidden = false;
   $('password-field').hidden = disabled;
-  totpField.hidden = disabled || !state.features.totp;
   loginSubmit.hidden = disabled;
   setNotice(notice, tone);
   if (!disabled) passwordInput.focus();
@@ -313,17 +292,13 @@ loginForm.addEventListener('submit', async (submitEvent) => {
     passwordInput.focus();
     return;
   }
-  const body = { password };
-  if (!totpField.hidden) body.totp = totpInput.value.trim();
   loginSubmit.disabled = true;
   loginSubmit.textContent = 'Signing in';
   try {
-    await api(LOGIN_PATH, { method: 'POST', body });
+    await api(LOGIN_PATH, { method: 'POST', body: { password } });
     passwordInput.value = '';
-    totpInput.value = '';
     loginSubmit.disabled = false;
     loginSubmit.textContent = 'Sign in';
-    state.features = featuresOf(await api('/api/admin/session'));
     await enterApp({ focus: true });
   } catch (error) {
     loginSubmit.disabled = false;
@@ -335,16 +310,8 @@ loginForm.addEventListener('submit', async (submitEvent) => {
 function loginFailed(error) {
   if (error.code === 'rate_limited') return lockLogin(error.retryAfter || 60);
   if (error.code === 'admin_disabled') return showLogin({ notice: disabledNotice(), tone: 'info', disabled: true });
-  if (error.field === 'totp') {
-    totpField.hidden = false;
-    setNotice(error.message);
-    totpInput.focus();
-    return;
-  }
   if (error.code === 'bad_credentials') {
-    setNotice(totpField.hidden
-      ? 'That password didn’t work. Check it and try again.'
-      : 'That password or code didn’t work. Check both and try again.');
+    setNotice('That password didn’t work. Check it and try again.');
     passwordInput.select();
     return;
   }
@@ -358,24 +325,18 @@ const eventSelect = $('event-select');
 const liveEl = $('live');
 const liveLong = $('live-long');
 const liveShort = $('live-short');
-const soundToggle = $('sound-toggle');
 const tabs = [...document.querySelectorAll('[role="tab"]')];
 let pollTimer = 0;
 let refreshing = null;
-
-/** Optional server capabilities advertised by GET /api/admin/session; absent means off. */
-const featuresOf = (session) => ({ totp: session?.totp === true, activity: session?.activity === true });
 
 async function enterApp({ focus = false } = {}) {
   state.signedIn = true;
   loginEl.hidden = true;
   app.hidden = false;
-  $('tab-activity').hidden = !state.features.activity;
   const stored = prefs.read();
   state.filter = FILTERS[stored.filter] ? stored.filter : 'active';
   renderFilter();
   selectTab(stored.tab, { focus });
-  keepAwake();
   await refresh();
 }
 
@@ -383,15 +344,8 @@ function signedOut(error) {
   if (!state.signedIn) return;
   state.signedIn = false;
   clearTimeout(pollTimer);
-  releaseAwake();
   hideToast();
-  if (confirmEl.open) confirmEl.close();
-  Object.assign(state, {
-    events: [], eventsSig: '', orders: [], ordersLoaded: false, prep: null, prepSig: '',
-    inquiries: [], activitySig: '',
-  });
-  state.seen.clear();
-  state.fresh.clear();
+  Object.assign(state, { events: [], eventsSig: '', orders: [], ordersLoaded: false, prep: null, inquiries: [] });
   if (error?.code === 'admin_disabled') showLogin({ notice: disabledNotice(), tone: 'info', disabled: true });
   else showLogin({ notice: error ? 'Your session ended. Sign in again to keep going.' : 'Signed out.', tone: error ? 'error' : 'info' });
 }
@@ -438,7 +392,6 @@ function renderEventChrome() {
   const meta = $('event-meta');
   if (!event) {
     mount(meta, 'No events coming up or in the last two weeks.');
-    $('paused-banner').hidden = true;
     return;
   }
   const [statusKey, statusLabel] = eventStatus(event);
@@ -446,27 +399,16 @@ function renderEventChrome() {
     h('span', null, fmt.span(event)),
     h('span', null, event.locationName),
     h('span', { class: 'event-status', 'data-status': statusKey }, statusLabel));
-  $('paused-banner').hidden = !event.paused;
-  $('csv').href = eventPath('/orders.csv');
   mount($('prep-event'),
     h('span', { class: 'prep-event-title' }, event.title),
     h('span', null, fmt.longDay(event.date)),
     h('span', null, fmt.span(event)),
     h('span', null, event.locationName));
-
-  const pill = $('ordering-state');
-  pill.dataset.status = statusKey;
-  pill.textContent = statusLabel;
-  const toggle = $('pause-toggle');
-  const lockedByConfig = event.configStatus === 'paused' && !event.paused;
-  toggle.textContent = event.paused ? 'Resume online ordering' : 'Pause online ordering';
-  toggle.disabled = lockedByConfig;
-  toggle.title = lockedByConfig ? 'This event is paused in the events config file.' : '';
 }
 
 function eventStatus(event) {
   if (hasEnded(event)) return ['ended', 'Ended'];
-  if (event.paused || event.status === 'paused') return ['paused', 'Ordering paused'];
+  if (event.status === 'paused') return ['paused', 'Ordering paused'];
   if (event.configStatus === 'hidden') return ['hidden', 'Hidden from the site'];
   if (event.status === 'open') return ['open', 'Taking orders'];
   if (event.status === 'soldout') return ['soldout', 'Sold out'];
@@ -477,11 +419,8 @@ function eventStatus(event) {
 eventSelect.addEventListener('change', () => {
   state.eventId = eventSelect.value;
   prefs.write({ eventId: state.eventId });
-  Object.assign(state, { orders: [], ordersLoaded: false, prep: null, prepSig: '' });
-  state.seen.clear();
-  state.fresh.clear();
+  Object.assign(state, { orders: [], ordersLoaded: false, prep: null });
   state.pendingStatus.clear();
-  state.pending86.clear();
   renderEventChrome();
   renderOrders();
   renderPrep();
@@ -512,7 +451,6 @@ function selectTab(name, { focus = true } = {}) {
 /** Bring the newly opened view up to date without waiting for the next poll. */
 function loadTab() {
   if (state.tab === 'prep') loadPrep().catch(reportLoadError);
-  if (state.tab === 'activity') loadActivity().catch(reportLoadError);
 }
 
 for (const tab of tabs) {
@@ -542,11 +480,7 @@ function refresh() {
     clearTimeout(pollTimer);
     if (!state.signedIn) return;
     const eventJobs = () => Promise.all([loadOrders(), (state.tab === 'prep' || !state.prep) && loadPrep()]);
-    const results = await Promise.allSettled([
-      loadEvents().then(eventJobs),
-      loadCatering(),
-      state.tab === 'activity' && loadActivity(),
-    ]);
+    const results = await Promise.allSettled([loadEvents().then(eventJobs), loadCatering()]);
     if (!state.signedIn) return;
     const failure = results.find((result) => result.status === 'rejected');
     state.online = !failure;
@@ -566,12 +500,8 @@ function schedule() {
 
 document.addEventListener('visibilitychange', () => {
   if (!state.signedIn) return;
-  if (document.hidden) {
-    clearTimeout(pollTimer);
-  } else {
-    keepAwake();
-    refresh();
-  }
+  if (document.hidden) clearTimeout(pollTimer);
+  else refresh();
 });
 
 function renderLive() {
@@ -593,72 +523,6 @@ setInterval(() => {
   if (state.signedIn && !document.hidden) renderLive();
 }, 1000);
 
-/* Screen wake lock: a kitchen tablet at the pass should not dim mid-service. */
-let wakeLock = null;
-async function keepAwake() {
-  if (!('wakeLock' in navigator) || wakeLock || document.hidden) return;
-  try {
-    wakeLock = await navigator.wakeLock.request('screen');
-    wakeLock.addEventListener('release', () => {
-      wakeLock = null;
-    });
-  } catch {
-    wakeLock = null;
-  }
-}
-function releaseAwake() {
-  wakeLock?.release();
-}
-
-/* Sound ---------------------------------------------------------------- */
-
-let audio = null;
-
-/** AudioContext needs a user gesture: create or resume it from one. */
-function unlockAudio() {
-  audio ??= new AudioContext();
-  if (audio.state === 'suspended') audio.resume();
-}
-
-function chime() {
-  if (!state.sound || audio?.state !== 'running') return;
-  const start = audio.currentTime + 0.02;
-  for (const [frequency, offset] of [[880, 0], [1318.5, 0.17]]) {
-    const oscillator = audio.createOscillator();
-    const gain = audio.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.value = frequency;
-    gain.gain.setValueAtTime(0.0001, start + offset);
-    gain.gain.exponentialRampToValueAtTime(0.3, start + offset + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.6);
-    oscillator.connect(gain).connect(audio.destination);
-    oscillator.start(start + offset);
-    oscillator.stop(start + offset + 0.65);
-  }
-}
-
-function renderSound() {
-  soundToggle.setAttribute('aria-pressed', String(state.sound));
-  soundToggle.querySelector('.bar-btn-label').textContent = state.sound ? 'Sound on' : 'Sound off';
-}
-
-soundToggle.addEventListener('click', () => {
-  state.sound = !state.sound;
-  prefs.write({ sound: state.sound });
-  renderSound();
-  if (state.sound) {
-    unlockAudio();
-    chime();
-  }
-});
-
-/* A remembered "sound on" still needs one gesture after a reload before the browser allows audio. */
-for (const type of ['pointerdown', 'keydown']) {
-  document.addEventListener(type, () => {
-    if (state.sound) unlockAudio();
-  }, { capture: true, passive: true });
-}
-
 /* ---------------------------------------------------------------- orders */
 
 const board = $('board');
@@ -670,28 +534,14 @@ async function loadOrders() {
   const eventId = state.eventId;
   const { orders } = await api(eventPath('/orders?all=1'));
   if (eventId !== state.eventId) return;
-  const now = Date.now();
-  let arrivals = 0;
   for (const order of orders) {
     const pending = state.pendingStatus.get(order.code);
     if (pending) order.status = pending.to;
-    if (!['paid', 'ready', 'picked_up'].includes(order.status) || state.seen.has(order.code)) continue;
-    state.seen.add(order.code);
-    if (state.ordersLoaded && order.status === 'paid') {
-      state.fresh.set(order.code, now + FRESH_MS);
-      arrivals += 1;
-    }
   }
   state.orders = orders;
   state.ordersLoaded = true;
-  if (arrivals) {
-    chime();
-    setTimeout(renderOrders, FRESH_MS + 50);
-  }
   renderOrders();
 }
-
-const isFresh = (code) => (state.fresh.get(code) ?? 0) > Date.now();
 
 function matchesQuery(order) {
   const query = state.query.trim().toLowerCase();
@@ -702,18 +552,7 @@ function matchesQuery(order) {
   return digits.length >= 3 && digitsOf(order.customer.phone).includes(digits);
 }
 
-/** The pickup slot that is happening right now, on the event's own day and clock. */
-function currentSlot() {
-  const event = currentEvent();
-  const slots = state.prep?.slots;
-  if (!event || !slots?.length) return null;
-  const now = fmt.wall();
-  if (now.date !== event.date || now.time < slots[0].time || now.time >= event.end) return null;
-  return slots.findLast((slot) => slot.time <= now.time)?.time ?? null;
-}
-
 function renderOrders() {
-  for (const [code, until] of state.fresh) if (until <= Date.now()) state.fresh.delete(code);
   const counts = { active: 0, ready: 0, picked_up: 0, all: state.orders.length };
   for (const order of state.orders) {
     for (const key of ['active', 'ready', 'picked_up']) if (FILTERS[key].test(order)) counts[key] += 1;
@@ -734,7 +573,6 @@ function renderOrders() {
   }
   const groups = [...bySlot.values()].sort((a, b) => a.slot.localeCompare(b.slot));
 
-  const nowSlot = currentSlot();
   const sections = reconcile(board, groups.map((group) => ({
     key: group.slot,
     sig: group.slot,
@@ -745,15 +583,12 @@ function renderOrders() {
   for (const group of groups) {
     const section = sections.get(group.slot).node;
     const [head, grid] = section.children;
-    const isNow = group.slot === nowSlot;
-    section.classList.toggle('is-now', isNow);
     mount(head,
       h('h3', { class: 'slot-time', id: `slot-${group.slot.replace(':', '')}` }, group.label),
-      h('span', { class: 'slot-count' }, plural(group.orders.length, 'order', 'orders')),
-      isNow && h('span', { class: 'tag tag-now' }, 'Now'));
+      h('span', { class: 'slot-count' }, plural(group.orders.length, 'order', 'orders')));
     reconcile(grid, group.orders.map((order) => ({
       key: order.code,
-      sig: JSON.stringify([order, isFresh(order.code), state.pendingStatus.has(order.code)]),
+      sig: JSON.stringify([order, state.pendingStatus.has(order.code)]),
       build: () => ticket(order),
     })));
   }
@@ -771,7 +606,6 @@ function renderOrders() {
 
 function ticket(order) {
   const status = ORDER_STATUS[order.status] ?? { label: order.status };
-  const fresh = isFresh(order.code);
   const busy = state.pendingStatus.has(order.code);
   const id = `ticket-${order.code}`;
   const split = order.code.indexOf('-') + 1;
@@ -780,8 +614,8 @@ function ticket(order) {
     : order.status === 'pending' ? `Checking out since ${fmt.when(order.createdAt)}`
       : `Placed ${fmt.when(order.createdAt)}`;
 
-  return h('article', { class: ['ticket', `is-${order.status}`, fresh && 'is-fresh'], 'aria-labelledby': id },
-    h('p', { class: 'ticket-strip' }, h('span', null, status.label), fresh && h('span', { class: 'tag tag-new' }, 'New')),
+  return h('article', { class: ['ticket', `is-${order.status}`], 'aria-labelledby': id },
+    h('p', { class: 'ticket-strip' }, h('span', null, status.label)),
     h('h4', { class: 'ticket-code', id }, h('span', { class: 'ticket-code-prefix' }, order.code.slice(0, split)), order.code.slice(split)),
     h('p', { class: 'ticket-name' }, order.customer.name),
     order.customer.phone && h('a', { class: 'ticket-phone', href: telHref(order.customer.phone) }, order.customer.phone),
@@ -863,19 +697,14 @@ function clearSearch() {
 const prepTable = document.querySelector('.prep-table');
 const prepHead = prepTable.tHead;
 const prepTotal = $('prep-total');
-const matrix = $('matrix');
 
 async function loadPrep() {
   if (!state.eventId) return;
   const eventId = state.eventId;
   const prep = await api(eventPath('/prep'));
   if (eventId !== state.eventId) return;
-  for (const item of prep.items) {
-    if (state.pending86.has(item.id)) item.soldOut = !item.soldOut;
-  }
   state.prep = prep;
   renderPrep();
-  renderOrders();
 }
 
 function renderPrep() {
@@ -883,7 +712,6 @@ function renderPrep() {
   if (!prep) {
     reconcile(prepTable, [], prepHead);
     mount(prepTotal);
-    mount(matrix);
     return;
   }
   const categories = [];
@@ -896,142 +724,45 @@ function renderPrep() {
     key: category.name,
     sig: category.name,
     build: () => h('tbody', null,
-      h('tr', { class: 'group-row' }, h('th', { scope: 'rowgroup', colspan: '6' }, category.name))),
+      h('tr', { class: 'group-row' }, h('th', { scope: 'rowgroup', colspan: '5' }, category.name))),
   })), prepHead);
   for (const category of categories) {
     const body = bodies.get(category.name).node;
     reconcile(body, category.items.map((item) => ({
       key: item.id,
-      sig: JSON.stringify([item, state.pending86.has(item.id)]),
+      sig: JSON.stringify(item),
       build: () => prepRow(item),
     })), body.firstElementChild);
   }
 
   const committed = prep.items.reduce((sum, item) => sum + item.committed, 0);
   const pending = prep.items.reduce((sum, item) => sum + item.pending, 0);
-  const off = prep.items.filter((item) => item.soldOut).length;
   mount(prepTotal, h('tr', null,
     h('th', { scope: 'row', class: 'col-item' }, 'Total'),
     h('td', { class: 'num num-major' }, committed, pending > 0 && h('span', { class: 'pending-sub' }, `+${pending} pending`)),
     h('td', { class: 'num col-pending' }, pending),
     h('td', { class: 'num col-limit' }),
-    h('td', { class: 'num' }),
-    h('td', { class: 'col-86 total-86' }, off > 0 && `${off} out`)));
-
-  renderMatrix();
+    h('td', { class: 'num' })));
 }
 
 function prepRow(item) {
   const limited = item.limit !== null;
   const out = limited && item.remaining <= 0;
   const low = limited && !out && item.remaining <= Math.max(3, Math.ceil(item.limit * 0.1));
-  const busy = state.pending86.has(item.id);
-  return h('tr', { class: ['prep-row', item.soldOut && 'is-off'] },
+  return h('tr', { class: ['prep-row', out && 'is-off'] },
     h('th', { scope: 'row', class: 'col-item' },
       h('span', { class: 'prep-name' }, item.name),
-      item.soldOut && h('span', { class: 'prep-flag' }, out ? 'Limit reached' : '86’d')),
+      out && h('span', { class: 'prep-flag' }, 'Limit reached')),
     h('td', { class: 'num num-major' }, item.committed,
       item.pending > 0 && h('span', { class: 'pending-sub' }, `+${item.pending} pending`)),
     h('td', { class: ['num', 'col-pending', item.pending === 0 && 'is-zero'] }, item.pending),
     h('td', { class: 'num col-limit' }, limited ? item.limit : noLimit()),
     h('td', { class: ['num', low && 'is-low', out && 'is-out'] },
-      limited ? [String(Math.max(0, item.remaining)), h('span', { class: 'of-limit' }, ` of ${item.limit}`), low && hiddenText(', running low')] : noLimit()),
-    h('td', { class: 'col-86' },
-      h('button', {
-        class: 'switch',
-        type: 'button',
-        role: 'switch',
-        'aria-checked': String(item.soldOut),
-        'aria-label': `86 ${item.name}`,
-        title: out ? 'The limit is reached, so it’s sold out already.' : item.soldOut ? 'Put back on the menu' : 'Mark sold out',
-        'data-focus': 'switch',
-        'aria-busy': busy ? 'true' : null,
-        disabled: out,
-        onclick: () => toggle86(item.id),
-      }, h('span', { class: 'switch-text', 'aria-hidden': 'true' }, '86'), h('span', { class: 'switch-knob' }))));
-}
-
-function renderMatrix() {
-  const { items, slots } = state.prep;
-  const nowSlot = currentSlot();
-  const columns = items.filter((item) => slots.some((slot) => slot.items[item.id]));
-  const sig = JSON.stringify([columns.map((item) => [item.id, item.name]), slots, nowSlot]);
-  if (sig === state.prepSig) return;
-  state.prepSig = sig;
-  const empty = columns.length === 0;
-  $('matrix-scroll').hidden = empty;
-  $('matrix-empty').hidden = !empty;
-  if (empty) {
-    mount($('matrix-empty'), h('p', null, 'Nothing committed yet. The breakdown fills in as orders are paid.'));
-    mount(matrix);
-    return;
-  }
-  const qty = (value) => (value ? String(value) : [h('span', { class: 'dash', 'aria-hidden': 'true' }, '–'), hiddenText('0')]);
-  const total = (id) => slots.reduce((sum, slot) => sum + (slot.items[id] ?? 0), 0);
-  mount(matrix,
-    h('thead', null, h('tr', null,
-      h('th', { scope: 'col', class: 'col-slot' }, 'Pickup'),
-      h('th', { scope: 'col', class: 'num col-orders' }, 'Orders'),
-      columns.map((item) => h('th', { scope: 'col', class: 'num' }, item.name)))),
-    h('tbody', null, slots.map((slot) => h('tr', { class: [slot.orders === 0 && 'is-quiet', slot.time === nowSlot && 'is-now'] },
-      h('th', { scope: 'row', class: 'col-slot' }, slot.label, slot.time === nowSlot && h('span', { class: 'tag tag-now' }, 'Now')),
-      h('td', { class: 'num col-orders' }, qty(slot.orders)),
-      columns.map((item) => h('td', { class: 'num' }, qty(slot.items[item.id])))))),
-    h('tfoot', null, h('tr', null,
-      h('th', { scope: 'row', class: 'col-slot' }, 'Total'),
-      h('td', { class: 'num col-orders' }, slots.reduce((sum, slot) => sum + slot.orders, 0)),
-      columns.map((item) => h('td', { class: 'num' }, total(item.id))))));
-}
-
-async function toggle86(itemId) {
-  const item = state.prep?.items.find((candidate) => candidate.id === itemId);
-  if (!item || state.pending86.has(itemId)) return;
-  const eventId = state.eventId;
-  const soldOut = !item.soldOut;
-  state.pending86.add(itemId);
-  item.soldOut = soldOut;
-  renderPrep();
-  try {
-    await api(`${eventPath('/items/')}${encodeURIComponent(itemId)}/sold-out`, { method: 'POST', body: { soldOut } });
-    toast(soldOut ? `${item.name} is 86’d. Customers see it as sold out.` : `${item.name} is back on the menu.`);
-  } catch (error) {
-    item.soldOut = !soldOut;
-    if (error.status !== 401) toast(`${item.name} wasn’t changed. ${error.message}`, { tone: 'error' });
-  }
-  state.pending86.delete(itemId);
-  if (eventId !== state.eventId) return;
-  renderPrep();
-  loadPrep().catch(() => null);
+      limited ? [String(Math.max(0, item.remaining)), h('span', { class: 'of-limit' }, ` of ${item.limit}`), low && hiddenText(', running low')] : noLimit()));
 }
 
 $('print').addEventListener('click', () => window.print());
 
-async function setPaused(paused) {
-  const event = currentEvent();
-  if (!event) return;
-  if (paused) {
-    const confirmed = await confirmDialog({
-      title: `Pause online ordering for ${event.title}?`,
-      body: 'Customers won’t be able to place new pre-orders until you resume. Orders already paid stay on the board.',
-      confirm: 'Pause ordering',
-    });
-    if (!confirmed) return;
-  }
-  event.paused = paused;
-  renderEventChrome();
-  try {
-    await api(eventPath('/pause'), { method: 'POST', body: { paused } });
-    toast(paused ? 'Online ordering is paused.' : 'Online ordering is back on.');
-    loadEvents().catch(() => null);
-  } catch (error) {
-    event.paused = !paused;
-    renderEventChrome();
-    if (error.status !== 401) toast(`Online ordering wasn’t changed. ${error.message}`, { tone: 'error' });
-  }
-}
-
-$('pause-toggle').addEventListener('click', () => setPaused(!currentEvent()?.paused));
-$('banner-resume').addEventListener('click', () => setPaused(false));
 
 /* -------------------------------------------------------------- catering */
 
@@ -1125,24 +856,7 @@ async function setInquiryStatus(id, select) {
   renderCatering();
 }
 
-/* -------------------------------------------------------------- activity */
-
-async function loadActivity() {
-  if (!state.features.activity) return;
-  const { entries } = await api('/api/admin/activity');
-  const sig = JSON.stringify(entries);
-  if (sig === state.activitySig) return;
-  state.activitySig = sig;
-  mount($('activity'), entries.map((entry) => h('li', { class: ['activity-entry', `is-${entry.action}`] },
-    h('time', { datetime: entry.at }, fmt.stamp(entry.at)),
-    h('span', { class: 'activity-action' }, ACTIVITY_LABELS[entry.action] ?? entry.action.replaceAll('_', ' ')),
-    h('span', { class: 'activity-detail' }, entry.detail))));
-  const empty = $('activity-empty');
-  empty.hidden = entries.length > 0;
-  if (!empty.hidden) mount(empty, h('p', null, 'Nothing logged yet.'));
-}
-
-/* ---------------------------------------------------------- toast, dialog */
+/* ---------------------------------------------------------------- toast */
 
 const toastEl = $('toast');
 const toastText = $('toast-text');
@@ -1172,24 +886,9 @@ function hideToast() {
   toastEl.hidden = true;
 }
 
-const confirmEl = $('confirm');
-
-function confirmDialog({ title, body, confirm }) {
-  $('confirm-title').textContent = title;
-  $('confirm-body').textContent = body;
-  $('confirm-ok').textContent = confirm;
-  confirmEl.returnValue = '';
-  confirmEl.showModal();
-  return new Promise((resolve) => {
-    confirmEl.addEventListener('close', () => resolve(confirmEl.returnValue === 'confirm'), { once: true });
-  });
-}
-
 /* ------------------------------------------------------------------ boot */
 
 async function boot() {
-  state.sound = prefs.read().sound === true;
-  renderSound();
   const [session, site] = await Promise.allSettled([api('/api/admin/session'), api('/api/site')]);
   if (site.status === 'fulfilled' && site.value?.timezone) fmt.setZone(site.value.timezone);
   if (session.status === 'rejected') {
@@ -1198,7 +897,6 @@ async function boot() {
     else showLogin({ notice: error.message });
     return;
   }
-  state.features = featuresOf(session.value);
   if (session.value.authenticated) await enterApp();
   else showLogin();
 }

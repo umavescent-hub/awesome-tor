@@ -1,5 +1,5 @@
 // Boot and routing. One HTML shell; each route renders a view into <main>. Same-origin links
-// marked data-link move through the History API, with View Transitions where supported.
+// marked data-link move through the History API.
 
 import { h, mount, prefersReducedMotion } from './dom.js';
 import { createShell } from './shell.js';
@@ -8,7 +8,6 @@ import * as demoPayView from './views/demo-pay.js';
 import * as eventView from './views/event.js';
 import * as homeView from './views/home.js';
 import * as orderView from './views/order.js';
-import * as privacyView from './views/privacy.js';
 
 const ROUTES = [
   { name: 'home', pattern: /^\/$/, view: homeView },
@@ -16,7 +15,6 @@ const ROUTES = [
   { name: 'event', pattern: /^\/e\/([^/]+)\/?$/, keys: ['id'], view: eventView },
   { name: 'order', pattern: /^\/order\/([^/]+)\/?$/, keys: ['code'], view: orderView },
   { name: 'demo-pay', pattern: /^\/pay\/demo\/([^/]+)\/?$/, keys: ['code'], view: demoPayView },
-  { name: 'privacy', pattern: /^\/privacy\/?$/, view: privacyView },
 ];
 
 const notFoundView = {
@@ -100,34 +98,29 @@ function render({ pop = false, initial = false } = {}) {
     return;
   }
 
-  const swap = () => {
-    if (current) {
-      current.instance.destroy?.();
-      releaseArt(main);
-    }
-    let instance;
-    try {
-      instance = route.view.render(ctx);
-    } catch (error) {
-      console.error(error);
-      instance = { title: 'Something went wrong', node: h('div', { class: 'wrap' }, errorState({ message: 'Reload the page to try again.', onRetry: () => location.reload() })) };
-    }
-    current = { route, instance, search: url.search };
-    mount(main, instance.node);
-    setTitle(instance.title);
-    shell.setRoute(route);
-    instance.mounted?.();
-    if (pop && history.state?.scrollY !== undefined) {
-      const y = history.state.scrollY;
-      Promise.resolve(instance.ready).then(() => scrollTo({ top: y, behavior: 'instant' }));
-    } else if (!instance.handlesScroll) {
-      scrollToTarget(url.hash);
-    }
-    if (!initial) main.focus({ preventScroll: true });
-  };
-
-  if (!initial && document.startViewTransition && !prefersReducedMotion()) document.startViewTransition(swap);
-  else swap();
+  if (current) {
+    current.instance.destroy?.();
+    releaseArt(main);
+  }
+  let instance;
+  try {
+    instance = route.view.render(ctx);
+  } catch (error) {
+    console.error(error);
+    instance = { title: 'Something went wrong', node: h('div', { class: 'wrap' }, errorState({ message: 'Reload the page to try again.', onRetry: () => location.reload() })) };
+  }
+  current = { route, instance, search: url.search };
+  mount(main, instance.node);
+  setTitle(instance.title);
+  shell.setRoute(route);
+  instance.mounted?.();
+  if (pop && history.state?.scrollY !== undefined) {
+    const y = history.state.scrollY;
+    Promise.resolve(instance.ready).then(() => scrollTo({ top: y, behavior: 'instant' }));
+  } else if (!instance.handlesScroll) {
+    scrollToTarget(url.hash);
+  }
+  if (!initial) main.focus({ preventScroll: true });
 }
 
 function rememberScroll() {
