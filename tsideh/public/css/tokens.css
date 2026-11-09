@@ -1,5 +1,6 @@
 /* Tsideh design tokens — shared by the public site and the kitchen admin.
-   Palette sampled directly from the Tsideh mark. Do not hardcode colors elsewhere. */
+   Owner palette: adobe orange, kelly green, cream, black. Adobe is sampled from the Tsideh mark.
+   Do not hardcode colors elsewhere; use these variables. Contrast notes are WCAG 2.2 ratios. */
 
 @font-face {
   font-family: "Syne";
@@ -26,38 +27,39 @@
 :root {
   color-scheme: light;
 
-  /* Brand — from the mark */
-  --clay: #c16742;        /* terracotta ground */
-  --clay-600: #a9552f;
-  --clay-700: #8a4426;    /* text-safe clay on bone (AA) */
-  --clay-200: #e9c3b0;
-  --clay-100: #f3ded3;
-  --ink: #0a0806;         /* linework black */
-  --ink-800: #1b1612;
-  --ink-700: #2a231e;
-  --ink-500: #5a4f47;     /* muted text on bone (AA) */
-  --silver-50: #f4f2f1;
-  --silver-100: #eceae8;
-  --silver-300: #d2cecb;
-  --silver: #b7b2af;      /* silver forms */
-  --silver-600: #8c8784;
-  --sprout: #00b055;      /* vivid stripe green */
-  --sprout-700: #00753a;  /* text-safe green on bone (AA) */
-  --leaf: #72c366;        /* leaf green */
-  --earth: #623f32;       /* deep shadow brown */
+  /* ---- The four colors ---------------------------------------------------- */
+  --adobe: #c16742;       /* adobe orange — the mark's ground. Black text on it (5.0:1); cream only for large display type (3.3:1). */
+  --kelly: #4cbb17;       /* kelly green — fills/accents with black text (8.0:1). Never as text or focus ring on cream (2.1:1). */
+  --cream: #f3ead7;       /* cream — page background */
+  --black: #0a0806;       /* black — type and linework (sampled from the mark) */
 
-  /* Surfaces */
-  --bone: #f7f1eb;        /* page background */
-  --bone-2: #efe6dd;      /* raised/alt section */
-  --paper: #fffdfb;       /* cards */
-  --line: #e3d8ce;        /* hairlines on bone */
-  --danger: #b3261e;
-  --warn: #9a5b00;
+  /* ---- Tints & shades (derived from the four; use these, not new hues) ----- */
+  --adobe-700: #8a4426;   /* adobe as text on cream (6.0:1) */
+  --adobe-600: #a9552f;   /* pressed adobe */
+  --adobe-200: #e5bba3;
+  --adobe-100: #efd6c3;
+  --kelly-700: #2a6e0b;   /* kelly as text / focus ring on cream (5.3:1) */
+  --kelly-100: #dcefcd;
+  --cream-50: #fbf6ec;    /* raised surfaces, inputs */
+  --cream-200: #e9dcc3;   /* alternate section, quiet fills */
+  --cream-300: #dccbab;   /* control borders on cream (decorative) */
+  --black-800: #1b1612;
+  --black-700: #2a231e;
+  --muted: #5c5248;       /* secondary text on cream (6.4:1) */
+  --line: rgb(10 8 6 / 0.14);      /* hairlines on cream */
+  --line-strong: rgb(10 8 6 / 0.32);
+  --danger: #9c3a1a;      /* errors: deep adobe (5.8:1 on cream) — always paired with text, never color alone */
 
-  /* Silver metal gradient (forms in the mark) */
-  --metal: linear-gradient(135deg, #e6e3e1 0%, #b7b2af 45%, #8c8784 100%);
+  /* Legacy aliases (kept so older selectors resolve to the new palette) */
+  --clay: var(--adobe);
+  --clay-700: var(--adobe-700);
+  --ink: var(--black);
+  --bone: var(--cream);
+  --paper: var(--cream-50);
+  --sprout: var(--kelly);
+  --sprout-700: var(--kelly-700);
 
-  /* Type */
+  /* ---- Type ---------------------------------------------------------------- */
   --font-display: "Syne", "Avenir Next", "Futura", system-ui, sans-serif;
   --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --fs-xs: 0.75rem;
@@ -68,33 +70,37 @@
   --fs-2xl: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem);
   --fs-3xl: clamp(2.2rem, 1.4rem + 3.4vw, 3.75rem);
   --fs-hero: clamp(3.4rem, 1.6rem + 9vw, 9rem);
-  --tracking-wide: 0.14em;
+  --tracking-wordmark: 0.3em;
 
-  /* Space (4px grid) */
+  /* ---- Space (8px rhythm, 4px half-steps) ---------------------------------- */
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px;
-  --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px; --s-16: 64px; --s-20: 80px;
-  --gutter: 16px;          /* mobile side gutter; widens at breakpoints */
+  --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px; --s-16: 64px; --s-20: 80px; --s-24: 96px;
+  --section: clamp(88px, 12vw, 176px);
+  --gutter: 20px;
   --maxw: 1200px;
 
-  /* Shape & depth */
-  --r-sm: 8px; --r-md: 14px; --r-lg: 22px; --r-pill: 999px;
-  --stroke: 2px solid var(--ink);   /* the mark's black linework */
-  --shadow-1: 0 1px 2px rgb(10 8 6 / 0.06), 0 2px 8px rgb(10 8 6 / 0.06);
-  --shadow-2: 0 2px 6px rgb(10 8 6 / 0.08), 0 12px 32px rgb(10 8 6 / 0.12);
-  --focus: 0 0 0 3px var(--bone), 0 0 0 6px var(--sprout);
+  /* ---- Shape & depth -------------------------------------------------------- */
+  --r-xs: 4px; --r-sm: 8px; --r-md: 14px; --r-lg: 22px; --r-xl: 36px; --r-pill: 999px;
+  --shadow-float: 0 24px 60px -24px rgb(10 8 6 / 0.35), 0 4px 14px rgb(10 8 6 / 0.08);
+  --focus: 0 0 0 2px var(--cream-50), 0 0 0 5px var(--black);          /* on cream / light */
+  --focus-on-dark: 0 0 0 2px var(--black), 0 0 0 5px var(--cream);      /* on black / adobe */
 
-  /* Motion */
+  /* ---- Motion --------------------------------------------------------------- */
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --t-fast: 140ms;
   --t-med: 260ms;
-  --t-slow: 480ms;
+  --t-slow: 520ms;
 
-  /* Touch */
-  --tap: 44px;             /* minimum target */
+  /* ---- Touch ---------------------------------------------------------------- */
+  --tap: 48px;            /* meets 44pt iOS / 48dp Android */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 
-@media (min-width: 720px) { :root { --gutter: 32px; } }
-@media (min-width: 1100px) { :root { --gutter: 48px; } }
+@media (min-width: 720px) { :root { --gutter: 40px; } }
+@media (min-width: 1100px) { :root { --gutter: 64px; } }
+@media (min-width: 1440px) { :root { --gutter: 96px; } }
 
 @media (prefers-reduced-motion: reduce) {
   :root { --t-fast: 0ms; --t-med: 0ms; --t-slow: 0ms; }
@@ -105,8 +111,8 @@
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0;
-  background: var(--bone);
-  color: var(--ink);
+  background: var(--cream);
+  color: var(--black);
   font-family: var(--font-body);
   font-size: var(--fs-md);
   line-height: 1.55;
@@ -115,7 +121,7 @@ body {
 }
 img, canvas, svg { display: block; max-width: 100%; }
 button, input, select, textarea { font: inherit; color: inherit; }
-:focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--r-sm); }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--r-xs); }
 .visually-hidden {
   position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
