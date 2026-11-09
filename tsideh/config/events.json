@@ -9,6 +9,10 @@
       "locationName": "Santa Fe",
       "address": "Exact spot posted 48 hours before",
       "mapUrl": "",
+      "coords": {
+        "lat": 35.687,
+        "lng": -105.9378
+      },
       "status": "open",
       "slotMinutes": 15,
       "ordersPerSlot": 8,
@@ -32,6 +36,10 @@
       "locationName": "Española",
       "address": "Exact spot posted 48 hours before",
       "mapUrl": "",
+      "coords": {
+        "lat": 35.9911,
+        "lng": -106.0806
+      },
       "status": "open",
       "slotMinutes": 15,
       "ordersPerSlot": 6,
@@ -61,6 +69,10 @@
       "locationName": "Santa Fe",
       "address": "Exact spot posted 48 hours before",
       "mapUrl": "",
+      "coords": {
+        "lat": 35.687,
+        "lng": -105.9378
+      },
       "status": "open",
       "slotMinutes": 20,
       "ordersPerSlot": 10,
