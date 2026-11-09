@@ -9,7 +9,8 @@
   --tap-lg: 3.5rem;
   --radius: 0.75rem;
   --radius-lg: 1.25rem;
-  --gutter: 1.25rem;
+  --gutter: min(1.25rem, 5vw);         /* page edges follow the screen, not the text size */
+  --pad: min(1.25rem, 4vw);            /* inner padding of cards and panels, same idea */
   --maxw: 75rem;
   --panel-w: 27rem;
   --section: clamp(3.5rem, 2rem + 6vw, 7rem);
@@ -123,11 +124,11 @@ legend { padding: 0; }
   margin-right: calc(-1 * var(--tracking-wordmark));
 }
 @media (max-width: 29.99em) { .brand__word { display: none; } }
-.site-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; margin-left: auto; margin-right: -0.75rem; }
+.site-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; margin-left: auto; margin-right: calc(-1 * min(0.75rem, 3vw)); }
 /* On the home page the hero's own logo and wordmark sit right below, so the header shows only the links. */
 .is-home .site-header .brand { display: none; }
 .site-nav__link {
-  display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 0.75rem; border-radius: var(--radius);
+  display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 min(0.75rem, 3vw); border-radius: var(--radius);
   font-weight: 700; text-decoration: none; white-space: nowrap;
 }
 .site-nav__link[aria-current="true"] { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.3em; }
@@ -147,7 +148,7 @@ legend { padding: 0; }
 }
 .hero__headline { margin-top: 1rem; max-width: 20ch; font: 700 clamp(1.5rem, 1.15rem + 1.6vw, 2.5rem)/1.15 var(--font-display); letter-spacing: -0.01em; }
 .hero__next {
-  display: grid; gap: 0.125rem; max-width: 28rem; margin-top: 1.5rem; padding: 1rem 1.25rem;
+  display: grid; gap: 0.125rem; max-width: 28rem; margin-top: 1.5rem; padding: 1rem var(--pad);
   border-radius: var(--radius-lg); background: var(--cream-50); font-weight: 600;
 }
 .hero__next-label { color: var(--muted); font-weight: 700; font-size: var(--fs-help); }
@@ -179,10 +180,10 @@ legend { padding: 0; }
 .popups__list { max-width: 52rem; margin-inline: auto; }
 .popup-list { display: grid; gap: 1rem; }
 .popup {
-  display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; padding: 1.25rem;
+  display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; padding: var(--pad);
   border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong);
 }
-.popup__date { flex: 0 0 6.5rem; display: grid; align-content: start; justify-items: start; line-height: 1.25; }
+.popup__date { flex: 0 0 auto; min-width: min(6.5rem, 100%); display: grid; align-content: start; justify-items: start; line-height: 1.25; }
 .popup__day { font: 800 3rem/1 var(--font-display); letter-spacing: -0.02em; }
 .popup__month { margin-top: 0.25rem; font-weight: 800; font-size: 1.125rem; }
 .popup__weekday { color: var(--muted); font-weight: 600; }
@@ -197,7 +198,7 @@ legend { padding: 0; }
 /* ---------------------------------------------------------------- catering */
 
 .catering__panel {
-  display: grid; gap: 2rem; padding: clamp(1.25rem, 4vw, 4rem);
+  display: grid; gap: 2rem; padding: clamp(var(--pad), 4vw, 4rem);
   border-radius: var(--radius-lg); background: var(--adobe); color: var(--black);
 }
 .catering__intro h2 { font-size: clamp(2rem, 1.6rem + 1.8vw, 3rem); }
@@ -205,7 +206,7 @@ legend { padding: 0; }
 .catering__points { display: grid; margin-top: 1.5rem; border-top: 2px solid var(--black); }
 .catering__points li { display: grid; padding-block: 0.75rem; border-bottom: 1px solid rgb(10 8 6 / 0.3); font-weight: 600; }
 .catering__points strong { font-weight: 800; font-size: 1.125rem; }
-.catering__form { padding: clamp(1.25rem, 3vw, 2.25rem); border-radius: var(--radius-lg); background: var(--cream-50); }
+.catering__form { padding: clamp(var(--pad), 3vw, 2.25rem); border-radius: var(--radius-lg); background: var(--cream-50); }
 @media (min-width: 64em) { .catering__panel { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; } }
 .catering__done { display: grid; justify-items: center; gap: 1rem; padding-block: 1.5rem; text-align: center; }
 .catering__done h3 { font-size: 1.5rem; }
@@ -239,7 +240,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .form-note { color: var(--muted); font-size: var(--fs-help); }
 .hp { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 
-.error-summary { padding: 1rem 1.25rem; border: 3px solid var(--danger); border-radius: var(--radius); background: var(--cream-50); }
+.error-summary { padding: 1rem var(--pad); border: 3px solid var(--danger); border-radius: var(--radius); background: var(--cream-50); }
 .error-summary h3 { font-size: 1.125rem; color: var(--danger); }
 .error-summary ul { display: grid; gap: 0.25rem; margin-top: 0.5rem; padding-left: 1.25rem; list-style: disc; }
 .error-summary a { color: var(--danger); font-weight: 700; }
@@ -271,7 +272,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 /* ---------------------------------------------------------------- notices */
 
 .notice {
-  display: flex; gap: 0.75rem; align-items: flex-start; margin-top: 1.25rem; padding: 1rem 1.25rem;
+  display: flex; gap: 0.75rem; align-items: flex-start; margin-top: 1.25rem; padding: 1rem var(--pad);
   border-radius: var(--radius); background: var(--cream-200); box-shadow: inset 4px 0 0 var(--adobe);
 }
 .notice .icon { margin-top: 0.15em; }
@@ -293,7 +294,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .facts dd .muted { display: block; font-weight: 500; font-size: var(--fs-help); }
 @media (min-width: 45em) { .facts { grid-template-columns: repeat(3, minmax(0, max-content)); column-gap: 3rem; } }
 .event-note { max-width: 42rem; margin-top: 1.25rem; font-size: 1.125rem; }
-.event-howto { max-width: 42rem; margin-top: 1.25rem; padding: 0.875rem 1.125rem; border-radius: var(--radius); background: var(--cream-200); font-weight: 700; }
+.event-howto { max-width: 42rem; margin-top: 1.25rem; padding: 0.875rem var(--pad); border-radius: var(--radius); background: var(--cream-200); font-weight: 700; }
 
 .event-layout { display: grid; gap: 2.5rem; padding-bottom: var(--section); }
 .event-main { min-width: 0; }
@@ -334,13 +335,14 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 /* Big amount buttons: − amount + */
 .stepper { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem; border-radius: var(--radius); background: var(--black); color: var(--cream); }
 .stepper__btn {
-  display: grid; place-items: center; width: var(--tap); height: var(--tap); padding: 0; border: 0; border-radius: 0.5rem;
+  /* 48px or more; with very large text on a narrow phone, sized by the screen so the row still fits */
+  display: grid; place-items: center; width: max(48px, min(var(--tap), 20vw)); height: max(48px, min(var(--tap), 20vw)); padding: 0; border: 0; border-radius: 0.5rem;
   background: transparent; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .stepper__btn .icon { width: 1.5rem; height: 1.5rem; }
 .stepper__btn:active { background: var(--black-700); }
 .stepper__btn:focus-visible { outline: 3px solid var(--cream); outline-offset: -3px; }
-.stepper__qty { min-width: 2.5rem; text-align: center; font-weight: 800; font-size: 1.25rem; }
+.stepper__qty { min-width: min(2.5rem, 12vw); text-align: center; font-weight: 800; font-size: 1.25rem; }
 
 /* The order checklist: beside the menu on desktop, in the sheet on phones */
 .panel-slot { display: none; }
@@ -446,7 +448,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .status-when { max-width: 34rem; font-size: 1.25rem; font-weight: 600; line-height: 1.5; }
 .code-plate {
   container-type: inline-size; display: grid; justify-items: center; gap: 0.25rem; width: 100%; max-width: 30rem;
-  margin-top: 0.5rem; padding: 1.5rem 1.25rem; border-radius: var(--radius-lg); background: var(--black); color: var(--cream);
+  margin-top: 0.5rem; padding: 1.5rem var(--pad); border-radius: var(--radius-lg); background: var(--black); color: var(--cream);
 }
 .code-plate__label { color: var(--cream-200); font-weight: 700; font-size: 1.125rem; }
 /* The widest code (TS-WWWW) is about 6em wide: sized to its card, never wider. */
@@ -470,7 +472,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 /* ---------------------------------------------------------------- demo payment */
 
 .demo-pay { display: grid; place-items: center; padding-block: 2rem var(--section); }
-.demo-card { width: 100%; max-width: 30rem; padding: clamp(1.25rem, 4vw, 2rem); border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.demo-card { width: 100%; max-width: 30rem; padding: clamp(var(--pad), 4vw, 2rem); border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .demo-card .demo-flag { margin: 0 0 1.25rem; }
 .demo-card h1 { font-size: 1.75rem; }
 .demo-card__code { margin-top: 0.25rem; color: var(--muted); font-weight: 700; }
@@ -485,7 +487,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .site-footer { padding: 1.5rem max(0.75rem, calc(var(--gutter) / 2)) calc(max(0.75rem, calc(var(--gutter) / 2)) + var(--safe-bottom)); }
 .site-footer__panel {
   max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto;
-  display: grid; justify-items: center; gap: 1.5rem; padding: clamp(2.5rem, 6vw, 4.5rem) 1.25rem 1.75rem;
+  display: grid; justify-items: center; gap: 1.5rem; padding: clamp(2.5rem, 6vw, 4.5rem) var(--pad) 1.75rem;
   border-radius: var(--radius-lg); background: var(--adobe); color: var(--black); text-align: center;
 }
 .footer-brand { display: grid; justify-items: center; gap: 1rem; text-decoration: none; }
@@ -505,7 +507,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .state__title { font-size: clamp(1.75rem, 1.5rem + 1vw, 2.25rem); }
 .state__text { max-width: 34rem; color: var(--black-700); }
 .state__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: 0.5rem; }
-.empty { padding: 2rem 1.25rem; border-radius: var(--radius-lg); background: var(--cream-50); text-align: center; }
+.empty { padding: 2rem var(--pad); border-radius: var(--radius-lg); background: var(--cream-50); text-align: center; }
 .empty h3 { font-size: 1.375rem; }
 .empty p { margin-top: 0.5rem; color: var(--muted); }
 
