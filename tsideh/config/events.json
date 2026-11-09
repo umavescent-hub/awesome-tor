@@ -63,7 +63,7 @@
         "pie-pinon-honey": 15,
         "pie-nm-cherry": 15
       },
-      "note": "Order by Friday, November 20 at 8 PM. Pickup is the day before Thanksgiving."
+      "note": "Pickup is the day before Thanksgiving."
     },
     {
       "id": "2026-12-05-espanola",
@@ -119,8 +119,7 @@
         "winter-feast-table-per-person": 40,
         "blue-corn-tamales-dozen": 30,
         "biscochitos": 120
-      },
-      "note": "Order by Wednesday, December 16 at 8 PM."
+      }
     }
   ]
 }

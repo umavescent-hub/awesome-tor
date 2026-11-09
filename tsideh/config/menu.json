@@ -22,7 +22,7 @@
       "id": "thanksgiving-dinner",
       "category": "thanksgiving",
       "name": "Thanksgiving dinner, per person",
-      "description": "The same Thanksgiving dinner, plated for each person. Minimum 2.",
+      "description": "The same Thanksgiving dinner, plated for each person.",
       "priceCents": 8500,
       "minQty": 2,
       "tags": ["contains-nuts"]
@@ -63,7 +63,7 @@
       "id": "winter-feast-table-per-person",
       "category": "winter",
       "name": "Winter Feast Table, per person",
-      "description": "The same winter feast, plated for each person. Minimum 2.",
+      "description": "The same winter feast, plated for each person.",
       "priceCents": 7200,
       "minQty": 2,
       "tags": ["spicy"]

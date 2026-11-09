@@ -79,8 +79,9 @@ Times are 24-hour (`"13:30"`), dates are `"YYYY-MM-DD"`, money is in **cents**
 Pickup times run from `start` to one slot before `end`: 11:00–14:00 with 15-minute slots gives
 pickups from 11:00 AM to 1:45 PM. Each pickup time closes 30 minutes before it starts
 (`leadTimeMinutes` in `site.json`). With `ordersCloseAt`, the pop-up shows as closed for orders
-from that minute on (say so in its `note`, e.g. "Order by Friday, November 20 at 8 PM."); anyone
-already paying at that moment can still finish. A pop-up disappears from the site once it ends.
+from that minute on; until then the site shows "Order by Friday, November 20 at 8:00 PM" on its
+card, on its page and in the hero when it is the next pop-up, so the `note` need not repeat it. Anyone already paying at that
+moment can still finish. A pop-up disappears from the site once it ends.
 
 ### `config/menu.json`: what you cook
 
@@ -94,7 +95,7 @@ Each entry in `items`:
 | `name` | `"Red Chile Posole"` | Shown on the menu and the receipt. |
 | `description` | `"Hominy and pork simmered in red chile…"` | One or two sentences. |
 | `priceCents` | `1400` | Price in cents ($14.00). At least 50. |
-| `minQty` | `2` | Optional. The fewest of this item one order may have (leave out for 1; at most `order.maxQtyPerItem`). With an `itemLimits` entry, the item shows as sold out once fewer than this are left. |
+| `minQty` | `2` | Optional. The fewest of this item one order may have (leave out for 1; at most `order.maxQtyPerItem`). The menu shows "Minimum 2" beside the price, so the description need not say it. With an `itemLimits` entry, the item shows as sold out once fewer than this are left. |
 | `tags` | `["gluten-free", "spicy"]` | Any of `vegetarian`, `vegan`, `gluten-free`, `dairy-free`, `spicy`, `contains-nuts`. |
 | `image` | `"/assets/menu/posole.webp"` | Optional photo. Put the file in `public/assets/menu/`. Without one, the dish is set as type only. |
 
