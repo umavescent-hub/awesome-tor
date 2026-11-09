@@ -1,30 +1,30 @@
 {
   "categories": [
-    { "id": "thanksgiving", "name": "Thanksgiving" },
+    { "id": "thanksgiving", "name": "Harvest Table" },
     { "id": "pies", "name": "Pies" },
     { "id": "winter", "name": "Winter Feast Table" },
     { "id": "plates", "name": "Plates" },
     { "id": "bowls", "name": "Bowls" },
-    { "id": "bread", "name": "Bread & Sides" },
+    { "id": "bread", "name": "Bread and sides" },
     { "id": "sweets", "name": "Sweets" },
-    { "id": "drinks", "name": "Drinks" }
+    { "id": "drinks", "name": "Drinks" },
+    { "id": "add-ons", "name": "For the host" }
   ],
   "items": [
     {
-      "id": "harvest-table-for-6",
+      "id": "harvest-table-for-six",
       "category": "thanksgiving",
-      "name": "Harvest Table for 6",
-      "description": "Whole turkey, piñon-sage cornbread dressing, red chile gravy, Three Sisters succotash, blue corn rolls and cranberry-chokecherry sauce. Serves 6.",
+      "name": "Harvest Table for six",
+      "description": "Thanksgiving, ready to heat: sage and piñon turkey, cornbread dressing, red chile gravy, Three Sisters succotash, blue corn rolls and cranberry-chokecherry sauce. Serves six.",
       "priceCents": 49500,
       "tags": ["contains-nuts"]
     },
     {
-      "id": "thanksgiving-dinner",
+      "id": "harvest-table-for-two",
       "category": "thanksgiving",
-      "name": "Thanksgiving dinner, per person",
-      "description": "The same Thanksgiving dinner, plated for each person.",
-      "priceCents": 8500,
-      "minQty": 2,
+      "name": "Harvest Table for two",
+      "description": "Thanksgiving, ready to heat: sage and piñon turkey, cornbread dressing, red chile gravy, Three Sisters succotash, blue corn rolls and cranberry-chokecherry sauce. Serves two.",
+      "priceCents": 18000,
       "tags": ["contains-nuts"]
     },
     {
@@ -52,10 +52,10 @@
       "tags": ["vegetarian"]
     },
     {
-      "id": "winter-feast-table-for-6",
+      "id": "winter-feast-table-for-six",
       "category": "winter",
-      "name": "Winter Feast Table for 6",
-      "description": "Red chile posole, blue corn tamales, oven bread and biscochitos. Serves 6.",
+      "name": "Winter Feast Table for six",
+      "description": "Red chile posole, blue corn tamales, oven bread and biscochitos for Christmas Eve and the farolito walk. Serves six.",
       "priceCents": 42000,
       "tags": ["spicy"]
     },
@@ -63,15 +63,14 @@
       "id": "winter-feast-table-per-person",
       "category": "winter",
       "name": "Winter Feast Table, per person",
-      "description": "The same winter feast, plated for each person.",
+      "description": "The same Christmas Eve feast, for one guest. Add one for each person.",
       "priceCents": 7200,
-      "minQty": 2,
       "tags": ["spicy"]
     },
     {
       "id": "blue-corn-tamales-dozen",
       "category": "winter",
-      "name": "Blue corn tamales, dozen",
+      "name": "Blue corn tamales, a dozen",
       "description": "Twelve tamales made with blue corn masa.",
       "priceCents": 3800,
       "tags": []
@@ -79,39 +78,39 @@
     {
       "id": "bison-red-chile-tacos",
       "category": "plates",
-      "name": "Bison Red Chile Tacos",
-      "description": "Three blue corn tortillas, slow-braised bison in red chile, pickled onion, cotija.",
+      "name": "Bison red chile tacos",
+      "description": "Slow-braised bison in red chile on three blue corn tortillas, with pickled onion and cotija.",
       "priceCents": 1700,
       "tags": ["spicy"]
     },
     {
       "id": "green-chile-lamb-plate",
       "category": "plates",
-      "name": "Green Chile Lamb Plate",
-      "description": "Roasted lamb shoulder, Hatch green chile, horno-baked bread, garden greens.",
+      "name": "Green chile lamb plate",
+      "description": "Roasted lamb shoulder and Hatch green chile, with horno-baked bread and garden greens.",
       "priceCents": 1900,
       "tags": ["spicy"]
     },
     {
       "id": "three-sisters-plate",
       "category": "plates",
-      "name": "Three Sisters Plate",
-      "description": "Charred squash, heirloom beans and sweet corn, toasted pepitas, sage oil.",
+      "name": "Three Sisters plate",
+      "description": "Charred squash, heirloom beans and sweet corn, finished with toasted pepitas and sage oil.",
       "priceCents": 1500,
       "tags": ["vegan", "gluten-free"]
     },
     {
       "id": "red-chile-posole",
       "category": "bowls",
-      "name": "Red Chile Posole",
-      "description": "Hominy and pork simmered in red chile, oregano, lime, radish.",
+      "name": "Red chile posole",
+      "description": "Hominy and pork simmered in red chile, with oregano, lime and radish.",
       "priceCents": 1400,
       "tags": ["gluten-free", "spicy"]
     },
     {
       "id": "green-chile-stew",
       "category": "bowls",
-      "name": "Green Chile Stew",
+      "name": "Green chile stew",
       "description": "Roasted green chile, potato and corn in a rich vegetable broth.",
       "priceCents": 1300,
       "tags": ["vegan", "gluten-free", "spicy"]
@@ -119,31 +118,31 @@
     {
       "id": "blue-corn-fry-bread",
       "category": "bread",
-      "name": "Blue Corn Fry Bread",
-      "description": "Hand-stretched and fried to order, wild honey and piñon butter.",
+      "name": "Blue corn fry bread",
+      "description": "Hand-stretched and fried to order, with wild honey and piñon butter.",
       "priceCents": 900,
       "tags": ["vegetarian", "contains-nuts"]
     },
     {
       "id": "horno-bread",
       "category": "bread",
-      "name": "Horno Bread Loaf",
-      "description": "Wood-fired, crackling crust, soft crumb. Whole loaf.",
+      "name": "Horno bread, whole loaf",
+      "description": "Wood-fired, with a crackling crust and a soft crumb.",
       "priceCents": 1000,
       "tags": ["vegan"]
     },
     {
       "id": "biscochitos",
       "category": "sweets",
-      "name": "Biscochitos (6)",
-      "description": "Anise and cinnamon shortbread cookies, baked the morning of.",
+      "name": "Biscochitos, half a dozen",
+      "description": "Anise and cinnamon shortbread cookies, baked the morning of the pop-up.",
       "priceCents": 800,
       "tags": ["vegetarian"]
     },
     {
       "id": "chokecherry-crumble",
       "category": "sweets",
-      "name": "Chokecherry Crumble",
+      "name": "Chokecherry crumble",
       "description": "Chokecherry and apple under a blue corn and piñon crumble.",
       "priceCents": 900,
       "tags": ["vegetarian", "contains-nuts"]
@@ -151,7 +150,7 @@
     {
       "id": "blue-corn-atole",
       "category": "drinks",
-      "name": "Blue Corn Atole",
+      "name": "Blue corn atole",
       "description": "Warm, lightly sweet blue corn drink with cinnamon.",
       "priceCents": 600,
       "tags": ["vegetarian", "gluten-free"]
@@ -159,10 +158,18 @@
     {
       "id": "prickly-pear-agua-fresca",
       "category": "drinks",
-      "name": "Prickly Pear Agua Fresca",
+      "name": "Prickly pear agua fresca",
       "description": "Prickly pear, lime and a touch of agave, over ice.",
       "priceCents": 500,
       "tags": ["vegan", "gluten-free"]
+    },
+    {
+      "id": "host-upgrade",
+      "category": "add-ons",
+      "name": "Host upgrade, per person",
+      "description": "Zero-cleanup: palm-leaf plates, linen-feel napkins and printed place menus. Add one for each guest.",
+      "priceCents": 500,
+      "tags": []
     }
   ]
 }

@@ -63,7 +63,11 @@ function createApp({
   const context = { config, catalog, clock: appClock, orders, catering, auth, payments, notifier, holds };
   const router = createRouter([...publicRoutes(context), ...adminRoutes(context)]);
   const limiters = Object.fromEntries(Object.entries(RATE_LIMITS).map(([name, rule]) => [name, createRateLimiter(rule)]));
-  const serveStatic = createStaticHandler(publicDir);
+  const serveStatic = createStaticHandler(publicDir, {
+    publicUrl: config.publicUrl,
+    eventIds: catalog.eventList.map((event) => event.id),
+    demoPay: config.paymentsMode === 'demo',
+  });
   const baseHeaders = securityHeaders({ production: config.production });
 
   async function handleApi(req, res, url, client) {

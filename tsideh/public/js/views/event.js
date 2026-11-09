@@ -1,18 +1,27 @@
 // A pop-up: its details, its menu with plain "Add" buttons, and the order checklist (beside the
-// menu on desktop, in a sheet on phones behind the "View order" bar): 1 Your food, 2 Choose a
-// pickup time, 3 Your details, an optional tip, the total and Pay, which opens Stripe Checkout.
+// menu on desktop, in a sheet on phones behind the "View order" bar): 1 Your food,
+// 2 Choose a pickup time, an optional tip, the total and one Pay button. Pay opens Stripe
+// Checkout, where Apple Pay, Google Pay or Link fill in the name, email and mobile number, so the
+// customer types nothing here.
 
 import { cancelOrder, checkout, getEvent, getSite } from '../api.js';
 import * as cart from '../cart.js';
 import { h, mount, nextId, prefersReducedMotion } from '../dom.js';
 import { formatDate, formatLongDate, formatMoney, formatTimeRange, orderByLabel, percentOf, plural, zonedDate } from '../format.js';
-import { choiceGroup, clean, emailError, errorSummary, field, phoneError } from '../forms.js';
+import { choiceGroup, errorSummary, field } from '../forms.js';
 import { categoryNode, dishNode } from '../menu.js';
 import { createSheet } from '../sheet.js';
 import { errorState, icon, notice, setBusy, skeleton, spinner } from '../ui.js';
 
 const DESKTOP = '(min-width: 64em)';
-const PAY_NEXT = 'Next you’ll pay securely with card, Apple Pay or Google Pay on Stripe’s checkout page.';
+const PAY_NEXT = 'Next: pay in one tap with Apple Pay or Google Pay, or enter a card. Secured by Stripe.';
+const PAY_CONTACT = 'Stripe asks for your name, email and mobile number there, so you don’t type them here.';
+
+/* The host upgrade is sold one per guest. With a holiday table in the order, its Add button offers
+   one for every guest the tables serve, in a single tap, and says what that costs (never added
+   on its own). */
+const HOST_UPGRADE = 'host-upgrade';
+const TABLE_GUESTS = new Map([['harvest-table-for-two', 2], ['harvest-table-for-six', 6], ['winter-feast-table-for-six', 6]]);
 
 const NOTICES = {
   upcoming: (event) => ({
@@ -20,7 +29,7 @@ const NOTICES = {
     text: `You can look at the menu now. Ordering opens on ${formatLongDate(zonedDate(event.opensAt))}.`,
   }),
   paused: () => ({ title: 'Ordering is paused', text: 'The kitchen has paused new orders for now. Please check back soon.' }),
-  soldout: () => ({ title: 'This pop-up is sold out', text: 'Every pickup time or dish has been ordered. Thank you for checking.' }),
+  soldout: () => ({ title: 'This pop-up is sold out', text: 'Every pickup time or dish has been claimed. New dates are posted on the home page.' }),
   closed: () => ({ title: 'Online ordering has closed', text: 'Ordering for this pop-up has ended.' }),
 };
 
@@ -50,6 +59,9 @@ function buildPage(site, detail, ctx, pageNotices) {
   const draft = cart.getDraft();
   const cleanup = [];
   const open = event.status === 'open';
+  // Holiday pre-orders close days before pickup and come back only next year: while one is taking
+  // orders, its low-stock notes say so.
+  const seasonal = open && Boolean(event.ordersCloseAt);
 
   let slots = detail.slots;
   let items = new Map(detail.menu.categories.flatMap((category) => category.items.map((item) => [item.id, item])));
@@ -79,6 +91,8 @@ function buildPage(site, detail, ctx, pageNotices) {
   const lineItems = () => Object.entries(cart.getItems(eventId))
     .map(([id, qty]) => ({ item: items.get(id), qty }))
     .filter((line) => line.item);
+  /** How many guests the holiday tables in the order serve (0 without a table). */
+  const tableGuests = () => lineItems().reduce((sum, { item, qty }) => sum + (TABLE_GUESTS.get(item.id) ?? 0) * qty, 0);
   const orderSummary = () => {
     const lines = lineItems();
     const n = lines.reduce((sum, line) => sum + line.qty, 0);
@@ -97,7 +111,7 @@ function buildPage(site, detail, ctx, pageNotices) {
       const cap = capFor(item);
       if (next > cap) {
         const why = cap === 0 ? `${item.name} is sold out.`
-          : cap < maxQtyPerItem ? `Only ${cap} ${item.name} are left, and they are all in your order.`
+          : cap < maxQtyPerItem ? `Only ${cap} left of ${item.name}, and they’re all in your order.`
             : `One order can have up to ${maxQtyPerItem} of the same dish. For more, ask about catering.`;
         say(why, { tone: 'info' });
         return;
@@ -140,6 +154,11 @@ function buildPage(site, detail, ctx, pageNotices) {
         removeButton(item, qty));
     }
     if (capFor(item) === 0) return h('p', { class: 'dish__soldout' }, 'Sold out');
+    const guests = item.id === HOST_UPGRADE ? tableGuests() : 0;
+    if (guests > 1 && guests <= capFor(item)) {
+      return h('button', { class: 'btn btn--add', type: 'button', dataset: { role: 'add' }, onclick: () => change(item, guests) },
+        icon('plus'), `Add host upgrade for ${guests} guests (${formatMoney(item.priceCents * guests)} total)`);
+    }
     const min = cart.minQtyOf(item);
     return h('button', { class: 'btn btn--add', type: 'button', dataset: { role: 'add' }, onclick: () => change(item, min) },
       icon('plus'), min > 1 ? `Add ${min}` : 'Add', h('span', { class: 'visually-hidden' }, ` ${item.name}`));
@@ -184,7 +203,7 @@ function buildPage(site, detail, ctx, pageNotices) {
     event.note ? h('p', { class: 'event-note' }, event.note) : null,
     pageNotices.map((entry) => notice(entry)),
     statusNotice ? notice({ ...statusNotice, tone: 'alert' }) : null,
-    open ? h('p', { class: 'event-howto' }, 'Add the dishes you want, then choose a pickup time and pay.') : null);
+    open ? h('p', { class: 'event-howto' }, 'Three steps: add your dishes, choose a pickup time, then pay.') : null);
 
   /* --- menu --- */
   const controlSlots = new Map();
@@ -195,7 +214,7 @@ function buildPage(site, detail, ctx, pageNotices) {
       controlSlots.set(item.id, slot);
       mount(slot, control(item));
     }
-    const node = dishNode(item, { level: 4, control: slot });
+    const node = dishNode(item, { level: 4, control: slot, seasonal });
     dishNodes.set(item.id, node);
     return node;
   }
@@ -211,23 +230,28 @@ function buildPage(site, detail, ctx, pageNotices) {
   const summary = errorSummary();
   const panelStatus = statusNode('action-status--panel');
 
-  // 1 Your food
+  // 1 Your food, with an optional note for the kitchen
   const linesBox = h('ul', { class: 'lines' });
   const itemsTitleId = nextId('items');
   const itemsError = h('p', { class: 'field__error', 'aria-live': 'polite' });
+  const notes = field({ name: 'notes', label: 'Allergies or a note for the kitchen', optional: true, multiline: true, max: 300,
+    hint: 'Most of our menu is naturally gluten-free and plant-forward. Tell us about allergies or dietary needs — there’s never an extra charge.',
+    attrs: { rows: 2, value: draft.notes ?? '' },
+    validate: (v) => (v.trim().length > 300 ? 'Keep the note to 300 characters.' : null) });
+  notes.input.addEventListener('input', () => cart.saveDraft({ notes: notes.input.value }));
   const itemsStep = h('section', { class: 'step', 'aria-labelledby': itemsTitleId },
-    stepHead(1, 'Your food', 'Change amounts or remove dishes here.', { id: itemsTitleId }), linesBox, itemsError);
+    stepHead(1, 'Your food', 'Change how many, or remove a dish.', { id: itemsTitleId }), linesBox, itemsError, notes.node);
 
   // 2 Choose a pickup time: only times that can be chosen are shown
   const slotOptions = () => slots.filter((slot) => slot.available).map((slot) => ({ value: slot.time, label: slot.label }));
   const slotHint = () => {
     const full = slots.some((slot) => !slot.available && slot.remaining === 0);
-    if (!slots.some((slot) => slot.available)) return 'There are no pickup times left for this pop-up.';
-    return full ? 'Times that are already full are not shown.' : '';
+    if (!slots.some((slot) => slot.available)) return 'Every pickup time for this pop-up has been taken.';
+    return full ? 'Some times have already filled up. Every time shown here is still open.' : '';
   };
   const slotGroup = choiceGroup({
     name: 'slot',
-    legendNode: stepHead(2, 'Choose a pickup time', 'Pick when you will come to get your food. Times are Mountain Time.', { tag: 'legend' }),
+    legendNode: stepHead(2, 'Choose a pickup time', 'Pick when you’ll come for your food. All times are Mountain Time.', { tag: 'legend' }),
     hint: slotHint(),
     className: 'choices--times',
     options: slotOptions(),
@@ -239,32 +263,6 @@ function buildPage(site, detail, ctx, pageNotices) {
   slotGroup.node.classList.add('step');
   const savedSlot = draft.slots?.[eventId];
   if (slots.some((slot) => slot.time === savedSlot && slot.available)) slotGroup.select(savedSlot);
-
-  // 3 Your details
-  const remember = (key) => (input) => input.addEventListener('input', () => {
-    cart.saveDraft({ [key]: input.value });
-    showMissing();
-  });
-  const name = field({ name: 'name', label: 'Your name', hint: 'We say this name when we hand you your food.',
-    attrs: { autocomplete: 'name', autocapitalize: 'words', maxlength: 80, enterkeyhint: 'next', value: draft.name ?? '' },
-    validate: (v) => (clean(v) ? null : 'Enter your name.') });
-  const phone = field({ name: 'phone', label: 'Mobile number', type: 'tel', hint: 'For example: 505 555 0142',
-    attrs: { autocomplete: 'tel', inputmode: 'tel', maxlength: 20, enterkeyhint: 'next', value: draft.phone ?? '' },
-    validate: (v) => phoneError(v, { required: true }) });
-  const email = field({ name: 'email', label: 'Email', type: 'email', hint: ['For your receipt. For example: name', h('wbr'), '@example.com'],
-    attrs: { autocomplete: 'email', inputmode: 'email', autocapitalize: 'off', spellcheck: 'false', maxlength: 254, enterkeyhint: 'done', value: draft.email ?? '' },
-    validate: emailError });
-  const notes = field({ name: 'notes', label: 'Allergies or a note for the kitchen', optional: true, multiline: true, max: 300,
-    hint: 'Tell us about allergies or dietary needs. There’s never an extra charge.',
-    attrs: { rows: 2, value: draft.notes ?? '' },
-    validate: (v) => (v.trim().length > 300 ? 'Keep the note to 300 characters.' : null) });
-  remember('name')(name.input);
-  remember('phone')(phone.input);
-  remember('email')(email.input);
-  remember('notes')(notes.input);
-  const detailsStep = h('fieldset', { class: 'step' },
-    stepHead(3, 'Your details', 'We only contact you about this order.', { tag: 'legend' }),
-    h('div', { class: 'form' }, name.node, phone.node, email.node, notes.node));
 
   // Tip: optional, "No tip" unless the customer picks one
   let tipPercent = presets.includes(draft.tip) ? draft.tip : presets.includes(0) ? 0 : presets[0] ?? 0;
@@ -289,18 +287,17 @@ function buildPage(site, detail, ctx, pageNotices) {
   const pay = h('div', { class: 'pay' },
     missing,
     payButton,
-    h('p', { class: 'pay__next' }, icon('lock'), PAY_NEXT));
+    h('div', { class: 'pay__next' }, h('p', null, icon('lock'), PAY_NEXT), h('p', null, PAY_CONTACT)));
 
   // On desktop the steps scroll inside the panel and Pay stays in view below them.
   const steps = h('div', { class: 'order-form__steps' },
     h('h2', { class: 'order-form__title', id: 'order-title' }, 'Your order'),
     site.payments?.mode === 'demo' ? h('p', { class: 'demo-flag' }, 'Demo mode — no real charges') : null,
-    site.payments?.mode === 'disabled' ? h('p', { class: 'demo-flag' }, 'Online payment is switched off right now, so orders cannot be placed.') : null,
+    site.payments?.mode === 'disabled' ? h('p', { class: 'demo-flag' }, 'Online payment is off right now, so orders can’t be placed here.') : null,
     panelStatus,
     summary.node,
     itemsStep,
     slotGroup.node,
-    detailsStep,
     tipGroup.node,
     totals);
   const form = h('form', { class: 'order-form', novalidate: true, 'aria-labelledby': 'order-title' }, steps, pay);
@@ -315,22 +312,20 @@ function buildPage(site, detail, ctx, pageNotices) {
   /** What still has to happen before paying, in one sentence (or nothing). */
   function whatIsMissing() {
     if (!lineItems().length) return 'Add at least one dish to continue.';
-    if (!slotGroup.value()) return slotOptions().length ? 'Choose a pickup time to continue.' : 'There are no pickup times left, so this order cannot be placed.';
-    const left = [
-      [name, 'your name'],
-      [phone, 'your mobile number'],
-      [email, 'your email'],
-    ].filter(([f]) => f.node.classList.contains('is-invalid') || !clean(f.value())).map(([, label]) => label);
-    if (left.length) {
-      const list = left.length > 1 ? `${left.slice(0, -1).join(', ')} and ${left.at(-1)}` : left[0];
-      return `Fill in ${list} to continue.`;
-    }
+    if (!slotGroup.value()) return slotOptions().length ? 'Choose a pickup time to continue.' : 'Every pickup time has been taken, so this order can’t be placed online.';
     return '';
   }
+
+  // True while the summary lists what Pay found missing; it goes away once nothing is.
+  let summaryListsMissing = false;
   function showMissing() {
     const text = whatIsMissing();
     missing.textContent = text;
     missing.hidden = !text;
+    if (!text && summaryListsMissing) {
+      summary.hide();
+      summaryListsMissing = false;
+    }
   }
 
   let busy = false;
@@ -348,7 +343,7 @@ function buildPage(site, detail, ctx, pageNotices) {
         h('p', { class: 'line__unit num' }, `${formatMoney(item.priceCents)} each`, min > 1 ? `, minimum ${min}` : null),
         h('div', { class: 'line__controls' }, stepper(item, qty), removeButton(item, qty)));
     });
-    mount(linesBox, rows.length ? rows : h('li', { class: 'lines-empty' }, 'No dishes yet. Use the Add buttons on the menu.'));
+    mount(linesBox, rows.length ? rows : h('li', { class: 'lines-empty' }, 'Nothing added yet. Press Add next to any dish.'));
     if (focusLine) {
       const slot = linesBox.querySelector(`[data-line="${CSS.escape(focusLine)}"]`);
       if (!slot || !focusLike(slot, active.dataset.role)) document.getElementById(itemsTitleId)?.focus();
@@ -358,12 +353,12 @@ function buildPage(site, detail, ctx, pageNotices) {
     tipGroup.setSubs((value) => (value === '0' ? '' : formatMoney(percentOf(sums.subtotal, Number(value)))));
 
     mount(totals,
-      h('div', null, h('dt', null, 'Food'), h('dd', { class: 'num' }, formatMoney(sums.subtotal))),
+      h('div', null, h('dt', null, 'Items'), h('dd', { class: 'num' }, formatMoney(sums.subtotal))),
       h('div', null, h('dt', null, site.taxLabel || 'Tax'), h('dd', { class: 'num' }, formatMoney(sums.tax))),
       h('div', null, h('dt', null, 'Tip'), h('dd', { class: 'num' }, formatMoney(sums.tip))),
       h('div', { class: 'totals__grand' }, h('dt', null, 'Total'), h('dd', { class: 'num' }, formatMoney(sums.total))));
 
-    if (!busy) mount(payButton, icon('lock'), `Pay ${formatMoney(sums.total)}`);
+    if (!busy) mount(payButton, icon('lock'), lines.length ? `Pay ${formatMoney(sums.total)}` : 'Pay');
     payButton.disabled = busy || site.payments?.mode === 'disabled';
     showMissing();
 
@@ -455,7 +450,7 @@ function buildPage(site, detail, ctx, pageNotices) {
     for (const [id, old] of dishNodes) {
       const item = items.get(id);
       if (!item) continue;
-      const replacement = dishNode(item, { level: 4, control: controlSlots.get(id) });
+      const replacement = dishNode(item, { level: 4, control: controlSlots.get(id), seasonal });
       old.replaceWith(replacement);
       dishNodes.set(id, replacement);
     }
@@ -478,24 +473,19 @@ function buildPage(site, detail, ctx, pageNotices) {
       slotGroup.setError(message);
       problems.push({ message, target: slotGroup.target() });
     }
-    for (const f of [name, phone, email, notes]) {
-      const message = f.check();
-      if (message) problems.push({ message, target: f.input });
-    }
+    const message = notes.check();
+    if (message) problems.push({ message, target: notes.input });
     return problems;
   }
-
-  const fieldsByServerName = { 'customer.name': name, 'customer.phone': phone, 'customer.email': email, notes };
 
   async function handleCheckoutError(error) {
     switch (error.code) {
       case 'slot_unavailable': {
-        const message = 'That pickup time just filled up. Please choose another time.';
         if (!(await reload().catch(() => true))) return closedNow();
         slotGroup.select(null);
-        slotGroup.setError(message);
+        slotGroup.setError('That pickup time just filled up. Please choose another time.');
         showMissing();
-        summary.show('Your pickup time is no longer free', [{ message, target: slotGroup.target() }]);
+        summary.show('That pickup time just filled up', [{ message: 'Please choose another time below.', target: slotGroup.target() }]);
         return;
       }
       case 'sold_out': {
@@ -512,10 +502,9 @@ function buildPage(site, detail, ctx, pageNotices) {
       case 'event_closed':
         return closedNow();
       case 'invalid': {
-        const target = fieldsByServerName[error.field];
-        if (target) {
-          target.setError(error.message);
-          summary.show('Please check this', [{ message: error.message, target: target.input }]);
+        if (error.field === 'notes') {
+          notes.setError(error.message);
+          summary.show('Please check this', [{ message: error.message, target: notes.input }]);
         } else if (error.field === 'slot') {
           slotGroup.setError(error.message);
           summary.show('Please check this', [{ message: error.message, target: slotGroup.target() }]);
@@ -546,18 +535,19 @@ function buildPage(site, detail, ctx, pageNotices) {
     const problems = validate();
     if (problems.length) {
       summary.show(problems.length === 1 ? 'One thing to fix before paying' : `${problems.length} things to fix before paying`, problems);
+      summaryListsMissing = true;
       return;
     }
     summary.hide();
+    summaryListsMissing = false;
     busy = true;
     setBusy(payButton, true);
-    mount(payButton, spinner(), 'Opening the secure payment page');
+    mount(payButton, spinner(), 'Opening Stripe’s secure payment page');
     try {
       const result = await checkout({
         eventId,
         slot: slotGroup.value(),
         items: lineItems().map(({ item, qty }) => ({ id: item.id, qty })),
-        customer: { name: clean(name.value()), email: clean(email.value()), phone: clean(phone.value()) },
         notes: notes.value().trim(),
         tipPercent,
       });
@@ -611,7 +601,7 @@ export function render(ctx) {
         return 'paid';
       }
     }
-    return { title: 'You have not paid yet', text: 'You left the payment page, so nothing was charged. Your order is saved below.' };
+    return { title: 'You haven’t paid yet', text: 'You left the payment page, so nothing was charged. Your order is saved below. Press Pay when you’re ready.' };
   }
 
   async function load() {

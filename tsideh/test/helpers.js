@@ -188,15 +188,20 @@ export function rawRequest(port, requestPath, { method = 'GET', headers = {} } =
   });
 }
 
-const customer = { name: 'Maria Ortiz', email: 'maria@example.com', phone: '(505) 555-0142' };
-
 export function checkoutBody(overrides = {}) {
   return {
     eventId: 'winter',
     slot: '11:00',
     items: [{ id: 'stew', qty: 1 }],
-    customer,
     tipPercent: 0,
     ...overrides,
   };
+}
+
+/** What a customer gives on the payment page (Stripe's, or the demo page standing in for it). */
+export const CONTACT = { name: 'Maria Ortiz', email: 'maria@example.com', phone: '(505) 555-0142' };
+
+/** The demo payment page's request: the order's view token plus the contact details. */
+export function demoPayment(viewToken, contact = CONTACT) {
+  return { k: viewToken, ...contact };
 }

@@ -80,5 +80,6 @@ export function getOrder(code, token, sessionId, options) {
 }
 
 export const cancelOrder = (code, token) => request(`/api/orders/${enc(code)}/cancel`, { method: 'POST', body: { k: token } });
-export const demoPay = (code, token) => request(`/api/demo/pay/${enc(code)}`, { method: 'POST', body: { k: token } });
+/** Demo mode: marks the order paid with the { name, email, phone } the demo page collected. */
+export const demoPay = (code, token, contact) => request(`/api/demo/pay/${enc(code)}`, { method: 'POST', body: { k: token, ...contact } });
 export const sendCatering = (body) => request('/api/catering', { method: 'POST', body });

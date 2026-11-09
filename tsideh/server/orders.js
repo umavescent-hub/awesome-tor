@@ -76,7 +76,7 @@ export function createOrders({ db, catalog }) {
         created_at, expires_at, updated_at
       ) VALUES (
         :code, :tokenHash, :eventId, :eventJson, :slot, :pickupAt, 'pending',
-        :name, :email, :phone, :notes,
+        '', '', '', :notes,
         :subtotal, :tax, :tipPercent, :tip, :total,
         :now, :expiresAt, :now
       )`),
@@ -90,6 +90,7 @@ export function createOrders({ db, catalog }) {
       WHERE code = :code AND stripe_payment_intent IS NULL`),
     markPaid: db.prepare(`
       UPDATE orders SET status = 'paid', paid_at = :now, oversold = :oversold, updated_at = :now,
+        customer_name = :name, customer_email = :email, customer_phone = :phone,
         stripe_payment_intent = COALESCE(:paymentIntent, stripe_payment_intent)
       WHERE code = :code`),
     transition: db.prepare(`
@@ -153,8 +154,9 @@ export function createOrders({ db, catalog }) {
     /**
      * Re-checks availability and inserts a pending hold in one BEGIN IMMEDIATE transaction, so two
      * customers can never take the last spot. Returns the new code and its one-time view token.
+     * The customer's name, email and phone arrive with the payment (see markPaid).
      */
-    reserve({ event, slot, lines, customer, notes, tipPercent, totals, now, holdMs }) {
+    reserve({ event, slot, lines, notes, tipPercent, totals, now, holdMs }) {
       return transaction(db, () => {
         const state = inspect(event, now);
         if (state.status === 'closed' || state.status === 'paused' || state.status === 'upcoming') {
@@ -193,9 +195,6 @@ export function createOrders({ db, catalog }) {
           }),
           slot,
           pickupAt: event.slotsByTime.get(slot).atMs,
-          name: customer.name,
-          email: customer.email,
-          phone: customer.phone,
           notes,
           subtotal: totals.subtotalCents,
           tax: totals.taxCents,
@@ -230,10 +229,11 @@ export function createOrders({ db, catalog }) {
     },
 
     /**
-     * Records a payment. Money taken is always recorded, even after the hold lapsed or the order was
-     * canceled; if that pushes the slot or an item past capacity the order is flagged oversold.
+     * Records a payment and the contact details given with it ({ name, email, phone }). Money taken
+     * is always recorded, even after the hold lapsed or the order was canceled; if that pushes the
+     * slot or an item past capacity the order is flagged oversold.
      */
-    markPaid(code, { paymentIntent = null } = {}, now) {
+    markPaid(code, { paymentIntent = null, contact }, now) {
       return transaction(db, () => {
         const order = read(code);
         if (!order) return { order: null, changed: false };
@@ -241,7 +241,7 @@ export function createOrders({ db, catalog }) {
           if (paymentIntent) sql.setPaymentIntent.run({ code, paymentIntent, now });
           return { order: read(code), changed: false };
         }
-        sql.markPaid.run({ code, now, paymentIntent, oversold: exceedsCapacity(order, now) ? 1 : 0 });
+        sql.markPaid.run({ code, now, paymentIntent, oversold: exceedsCapacity(order, now) ? 1 : 0, ...contact });
         return { order: read(code), changed: true };
       });
     },

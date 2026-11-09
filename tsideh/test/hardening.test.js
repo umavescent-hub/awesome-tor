@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { ADMIN_PASSWORD, checkoutBody, fixtureContent, MINUTE, startTestServer } from './helpers.js';
+import { ADMIN_PASSWORD, checkoutBody, demoPayment, fixtureContent, MINUTE, startTestServer } from './helpers.js';
 
 /** Fixture with roomy pickup times, so only the per-client hold limit can turn an order away. */
 function roomyContent() {
@@ -14,8 +14,9 @@ function roomyContent() {
   return content;
 }
 
-const person = (n) => ({ name: `Guest ${n}`, email: `guest${n}@example.com`, phone: `(505) 555-01${String(n).padStart(2, '0')}` });
-const order = (c, n, overrides = {}) => c.post('/api/checkout', checkoutBody({ customer: person(n), ...overrides }));
+/** A checkout from a browser: a new one each time, unless `cookie` says which browser it is. */
+const order = (c, overrides = {}, cookie) => c.post('/api/checkout', checkoutBody(overrides), { headers: cookie ? { Cookie: cookie } : {} });
+const cookieOf = (response) => response.headers.get('set-cookie').split(';')[0];
 const status = async (c, placed) => (await c.get(`/api/orders/${placed.body.code}?k=${placed.body.viewToken}`)).body.order.status;
 
 /** In-process stand-in for Stripe and the alert webhook, answering after a short delay like the real thing. */
@@ -61,9 +62,9 @@ describe('unpaid holds per client (RT-1, demo mode)', () => {
 
   test('one client keeps at most two unpaid orders; everyone else can still order', async () => {
     const c = server.client();
-    assert.equal((await order(c, 1, { items: [{ id: 'tacos', qty: 1 }] })).status, 200);
-    assert.equal((await order(c, 2, { items: [{ id: 'tacos', qty: 1 }] })).status, 200);
-    const third = await order(c, 3, { items: [{ id: 'tacos', qty: 1 }] });
+    assert.equal((await order(c, { items: [{ id: 'tacos', qty: 1 }] })).status, 200);
+    assert.equal((await order(c, { items: [{ id: 'tacos', qty: 1 }] })).status, 200);
+    const third = await order(c, { items: [{ id: 'tacos', qty: 1 }] });
     assert.equal(third.status, 429);
     assert.equal(third.body.error.code, 'too_many_holds');
     assert.equal(third.body.error.message, 'Other orders from this internet connection are still waiting for payment. Finish paying for one of them, or try again in 30 minutes.');
@@ -71,63 +72,89 @@ describe('unpaid holds per client (RT-1, demo mode)', () => {
 
     const { body } = await c.get('/api/events/winter');
     assert.equal(body.menu.categories[0].items[0].remaining, 1, 'the refused order held nothing');
-    assert.equal((await order(server.client(), 4, { items: [{ id: 'tacos', qty: 1 }] })).status, 200, 'another customer gets the last one');
+    assert.equal((await order(server.client(), { items: [{ id: 'tacos', qty: 1 }] })).status, 200, 'another customer gets the last one');
   });
 
   test('paying, canceling or letting a hold lapse frees a place', async () => {
     const c = server.client();
-    const first = await order(c, 11);
-    const second = await order(c, 12);
-    assert.equal((await order(c, 13)).status, 429);
+    const first = await order(c);
+    const second = await order(c);
+    assert.equal((await order(c)).status, 429);
 
-    assert.deepEqual((await c.post(`/api/demo/pay/${first.body.code}`, { k: first.body.viewToken })).body, { ok: true });
-    const third = await order(c, 13);
+    assert.deepEqual((await c.post(`/api/demo/pay/${first.body.code}`, demoPayment(first.body.viewToken))).body, { ok: true });
+    const third = await order(c);
     assert.equal(third.status, 200, 'a paid order no longer counts');
-    assert.equal((await order(c, 14)).status, 429);
+    assert.equal((await order(c)).status, 429);
 
     await c.post(`/api/orders/${second.body.code}/cancel`, { k: second.body.viewToken });
-    assert.equal((await order(c, 14)).status, 200, 'a canceled order no longer counts');
-    assert.equal((await order(c, 15)).status, 429);
+    assert.equal((await order(c)).status, 200, 'a canceled order no longer counts');
+    assert.equal((await order(c)).status, 429);
 
     server.clock.advance(30 * MINUTE);
     try {
-      assert.equal((await order(c, 15)).status, 200, 'lapsed holds no longer count');
+      assert.equal((await order(c)).status, 200, 'lapsed holds no longer count');
     } finally {
       server.clock.advance(-30 * MINUTE);
     }
   });
 
-  test('the same person starting over (Back on the payment page) replaces their earlier attempts', async () => {
+  test('checkout marks the browser with a short-lived cookie sent only to checkout', async () => {
     const c = server.client();
-    const maria = { name: 'Maria Ortiz', email: 'maria.o@example.com', phone: '(505) 555-0142' };
-    const first = await c.post('/api/checkout', checkoutBody({ eventId: 'winter', customer: maria }));
-    const second = await c.post('/api/checkout', checkoutBody({ eventId: 'winter', customer: maria }));
-    const again = await c.post('/api/checkout', checkoutBody({ eventId: 'winter', customer: { ...maria, email: 'Maria.O@Example.com', phone: '505-555-0142' } }));
+    const first = await order(c);
+    assert.match(first.headers.get('set-cookie'), /^tsideh_checkout=[A-Za-z0-9_-]{43}; HttpOnly; SameSite=Strict; Path=\/api\/checkout; Max-Age=1800$/);
+    const cookie = cookieOf(first);
+    assert.equal(cookieOf(await order(c, {}, cookie)), cookie, 'the same browser keeps its id');
+    for (const forged of ['tsideh_checkout=short', `tsideh_checkout=${'%'.repeat(43)}`]) {
+      const fresh = cookieOf(await order(server.client(), {}, forged));
+      assert.match(fresh, /^tsideh_checkout=[A-Za-z0-9_-]{43}$/, forged);
+      assert.notEqual(fresh, forged);
+    }
+    const refused = await order(c);
+    assert.equal(refused.status, 429);
+    assert.equal(refused.headers.get('set-cookie'), null, 'a refused checkout sets no cookie');
+  });
+
+  test('the same browser starting over (Back on the payment page) replaces its earlier attempts', async () => {
+    const c = server.client();
+    const first = await order(c);
+    const cookie = cookieOf(first);
+    const second = await order(c, {}, cookie);
+    const again = await order(c, {}, cookie);
     assert.equal(again.status, 200);
     assert.equal(await status(c, first), 'canceled');
     assert.equal(await status(c, second), 'canceled');
     assert.equal(await status(c, again), 'pending');
 
-    assert.equal((await order(c, 21)).status, 200, 'someone else on the connection still has a place');
-    assert.equal((await order(c, 22)).status, 429);
+    assert.equal((await order(c)).status, 200, 'another browser on the connection still has a place');
+    assert.equal((await order(c)).status, 429);
+  });
+
+  test('another browser on the same connection never replaces someone\'s unpaid order', async () => {
+    const c = server.client();
+    const neighbor = await order(c);
+    const mine = await order(c);
+    const refused = await order(c, {}, `tsideh_checkout=${'A'.repeat(43)}`);
+    assert.equal(refused.status, 429);
+    assert.equal(refused.body.error.code, 'too_many_holds');
+    assert.equal(await status(c, neighbor), 'pending');
+    assert.equal(await status(c, mine), 'pending');
   });
 
   test('another pop-up\'s unpaid order is not replaced', async () => {
     const c = server.client();
-    const maria = person(31);
-    const today = await c.post('/api/checkout', checkoutBody({ eventId: 'today', slot: '10:45', customer: maria }));
+    const today = await order(c, { eventId: 'today', slot: '10:45' });
     assert.equal(today.status, 200);
-    await order(c, 32);
-    assert.equal((await order(c, 31)).status, 429);
+    await order(c);
+    assert.equal((await order(c, {}, cookieOf(today))).status, 429);
     assert.equal(await status(c, today), 'pending');
   });
 
   test('addresses in one IPv6 /64 share the limit', async () => {
     const [a, b, d] = ['2001:db8:77:1::1', '2001:db8:77:1:abcd::2', '2001:DB8:77:1::3'].map((ip) => server.client(ip));
-    assert.equal((await order(a, 41)).status, 200);
-    assert.equal((await order(b, 42)).status, 200);
-    assert.equal((await order(d, 43)).status, 429);
-    assert.equal((await order(server.client('2001:db8:77:2::1'), 44)).status, 200, 'the next /64 is someone else');
+    assert.equal((await order(a)).status, 200);
+    assert.equal((await order(b)).status, 200);
+    assert.equal((await order(d)).status, 429);
+    assert.equal((await order(server.client('2001:db8:77:2::1'))).status, 200, 'the next /64 is someone else');
   });
 });
 
@@ -176,19 +203,37 @@ describe('Stripe mode (RT-1 race, RT-3, RT-5, RT-6)', () => {
 
   test('simultaneous checkouts from one client cannot race past the hold limit', async () => {
     const c = server.client();
-    const results = await Promise.all([1, 2, 3, 4, 5].map((n) => order(c, 50 + n)));
+    const results = await Promise.all([1, 2, 3, 4, 5].map(() => order(c)));
     assert.deepEqual(results.map((response) => response.status).sort(), [200, 200, 429, 429, 429]);
   });
 
   test('starting over expires the earlier Checkout Session at Stripe', async () => {
     const c = server.client();
-    const maria = person(60);
-    const first = await c.post('/api/checkout', checkoutBody({ customer: maria }));
-    await c.post('/api/checkout', checkoutBody({ customer: maria }));
-    assert.equal((await c.post('/api/checkout', checkoutBody({ customer: maria }))).status, 200);
+    const first = await order(c);
+    const cookie = cookieOf(first);
+    await order(c, {}, cookie);
+    assert.equal((await order(c, {}, cookie)).status, 200);
     assert.equal(await status(c, first), 'canceled');
     const firstSession = [...services.sessions.values()].find((session) => session.client_reference_id === first.body.code);
     assert.equal(firstSession.status, 'expired');
+  });
+
+  test('in production the checkout cookie is __Secure- prefixed and Secure', async () => {
+    const prod = await startTestServer({
+      env: { NODE_ENV: 'production', PUBLIC_URL: 'https://tsideh.test', STRIPE_SECRET_KEY: 'sk_test_fakekey123', STRIPE_API_BASE: 'https://stripe.test' },
+      content: roomyContent(),
+      fetch: fakeServices().fetch,
+    });
+    try {
+      const send = (cookie) => prod.client().post('/api/checkout', checkoutBody(), { headers: { 'X-Forwarded-Proto': 'https', ...(cookie && { Cookie: cookie }) } });
+      const first = await send();
+      assert.match(first.headers.get('set-cookie'), /^__Secure-tsideh_checkout=[A-Za-z0-9_-]{43}; HttpOnly; SameSite=Strict; Path=\/api\/checkout; Max-Age=1800; Secure$/);
+      const cookie = cookieOf(first);
+      assert.equal(cookieOf(await send(cookie)), cookie);
+      assert.notEqual(cookieOf(await send(cookie.replace('__Secure-', ''))).split('=')[1], cookie.split('=')[1], 'the unprefixed name is not trusted');
+    } finally {
+      await prod.close();
+    }
   });
 
   test('a catering inquiry cannot put Slack commands in the kitchen alert', async () => {
@@ -208,8 +253,8 @@ describe('Stripe mode (RT-1 race, RT-3, RT-5, RT-6)', () => {
   });
 
   test('Stripe error text never puts a customer\'s email in the log', async () => {
-    services.failNextCreate({ type: 'invalid_request_error', code: 'email_invalid', param: 'customer_email', message: 'Invalid email address: maria.lopez@example.com' });
-    const failed = await server.client().post('/api/checkout', checkoutBody({ customer: { name: 'Maria Lopez', email: 'maria.lopez@example.com', phone: '505-555-0199' } }));
+    services.failNextCreate({ type: 'invalid_request_error', code: 'email_invalid', message: 'Invalid email address: maria.lopez@example.com' });
+    const failed = await order(server.client());
     assert.equal(failed.status, 502);
     const line = server.logs.find((entry) => entry.startsWith('stripe: checkout session for') && entry.includes('email_invalid'));
     assert.ok(line, 'the failure is still logged');
@@ -219,7 +264,7 @@ describe('Stripe mode (RT-1 race, RT-3, RT-5, RT-6)', () => {
 
   test('order lookups after Stripe ask Stripe at most once every 5 seconds per order', async () => {
     const c = server.client();
-    const placed = await order(c, 70);
+    const placed = await order(c);
     const session = [...services.sessions.values()].find((entry) => entry.client_reference_id === placed.body.code);
     const lookup = () => c.get(`/api/orders/${placed.body.code}?k=${placed.body.viewToken}&session_id=${session.id}`);
     const retrieves = () => services.calls.filter((call) => call === `GET /v1/checkout/sessions/${session.id}`).length;

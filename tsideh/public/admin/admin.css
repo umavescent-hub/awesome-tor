@@ -506,6 +506,7 @@ code {
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
+.ticket-name.is-unknown { color: var(--muted); font-size: var(--fs-md); font-weight: 600; }
 .ticket-phone {
   align-self: flex-start;
   margin: calc(-1 * var(--s-3)) 0 calc(-1 * var(--s-1));

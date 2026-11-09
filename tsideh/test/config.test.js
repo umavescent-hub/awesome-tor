@@ -1,9 +1,22 @@
 import assert from 'node:assert/strict';
-import { rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { ConfigError, loadContent, readEnv, ROOT } from '../server/config.js';
-import { fixtureContent, SERVICE_STYLES, tempDir, writeConfig } from './helpers.js';
+import { fixtureContent, tempDir, writeConfig } from './helpers.js';
+
+const CONFIG_DIR = path.join(ROOT, 'config');
+
+/** The owner's catering tiers and seasonal pre-order lines, word for word from the price sheets. */
+const OWNER_TIERS = [
+  "Chef's Table — five-course plated tasting with the chef, parties up to 30 (book 3 weeks ahead)",
+  'Family Table — family-style or elevated buffet, 25 guests or more (book 2 weeks ahead)',
+  'Harvest Drop-Off — delivered and styled, no staff, 25 guests or more (72 hours ahead)',
+  'Boxed lunches — 10 boxes or more (order by noon, two business days ahead)',
+  'Not sure yet',
+];
+const DIETARY = 'Most of our menu is naturally gluten-free and plant-forward. Tell us about allergies or dietary needs — there\'s never an extra charge.';
+const SEASONAL = 'Each order carries a finishing card: oven temperatures, garnish, and where every ingredient came from. Every drop is capped. When it sells out, it\'s gone until next year.';
 
 /** Writes the fixture config to a temp dir, runs `fn(dir)`, then removes the dir. */
 function withConfig(content, fn) {
@@ -32,35 +45,59 @@ function problemsFor(mutate) {
 
 describe('content files', () => {
   test('the shipped config/*.json is valid', () => {
-    const content = loadContent(path.join(ROOT, 'config'));
+    const content = loadContent(CONFIG_DIR);
     assert.equal(content.site.timezone, 'America/Denver');
     assert.ok(content.menu.items.length > 0);
   });
 
-  test('the shipped config carries the owner\'s chef line, catering styles and holiday pickups', () => {
-    const { site, menu, events } = loadContent(path.join(ROOT, 'config'));
-    assert.deepEqual(site.chef, { name: 'Chef Rainbird Taylor', from: 'Ohkay Owingeh' });
-    assert.deepEqual(site.catering.serviceStyles, SERVICE_STYLES);
-    assert.ok(site.catering.blurb.endsWith('Most of our menu is naturally gluten-free and plant-forward. Tell us about allergies or dietary needs — there\'s never an extra charge.'));
+  test('the shipped config has no dollar sign: prices print as plain numbers', () => {
+    for (const file of ['site.json', 'menu.json', 'events.json']) {
+      assert.equal(readFileSync(path.join(CONFIG_DIR, file), 'utf8').includes('$'), false, file);
+    }
+  });
 
-    const holiday = menu.items.filter((item) => ['thanksgiving', 'pies', 'winter'].includes(item.category));
-    assert.deepEqual(Object.fromEntries(holiday.map((item) => [item.id, [item.priceCents, item.minQty ?? 1]])), {
-      'harvest-table-for-6': [49500, 1],
-      'thanksgiving-dinner': [8500, 2],
-      'pie-pumpkin-blue-corn': [4800, 1],
-      'pie-pinon-honey': [4800, 1],
-      'pie-nm-cherry': [4800, 1],
-      'winter-feast-table-for-6': [42000, 1],
-      'winter-feast-table-per-person': [7200, 2],
-      'blue-corn-tamales-dozen': [3800, 1],
-    });
+  test('the shipped config carries the owner\'s chef line and catering tiers', () => {
+    const { site } = loadContent(CONFIG_DIR);
+    assert.deepEqual(site.chef, { name: 'Chef Rainbird Taylor', from: 'Ohkay Owingeh' });
+    assert.deepEqual(site.catering.serviceStyles, OWNER_TIERS);
+    assert.ok(site.catering.blurb.endsWith(DIETARY));
+  });
+
+  test('the shipped holiday menus follow the owner\'s price sheets', () => {
+    const { menu, events } = loadContent(CONFIG_DIR);
+    const holiday = menu.items.filter((item) => ['thanksgiving', 'pies', 'winter', 'add-ons'].includes(item.category));
+    // Menu order is display order within a section: the larger table first, no minimums anywhere.
+    assert.deepEqual(holiday.map((item) => [item.id, item.name, item.priceCents, item.minQty ?? 1]), [
+      ['harvest-table-for-six', 'Harvest Table for six', 49500, 1],
+      ['harvest-table-for-two', 'Harvest Table for two', 18000, 1],
+      ['pie-pumpkin-blue-corn', 'Pumpkin pie with blue corn crust', 4800, 1],
+      ['pie-pinon-honey', 'Piñon-honey pie', 4800, 1],
+      ['pie-nm-cherry', 'Northern New Mexico cherry pie', 4800, 1],
+      ['winter-feast-table-for-six', 'Winter Feast Table for six', 42000, 1],
+      ['winter-feast-table-per-person', 'Winter Feast Table, per person', 7200, 1],
+      ['blue-corn-tamales-dozen', 'Blue corn tamales, a dozen', 3800, 1],
+      ['host-upgrade', 'Host upgrade, per person', 500, 1],
+    ]);
+    assert.equal(menu.categories.at(-1).id, 'add-ons', 'the host upgrade is listed after the food');
+
     const byId = new Map(events.events.map((event) => [event.id, event]));
+    const thanksgiving = byId.get('2026-11-25-thanksgiving');
+    const winter = byId.get('2026-12-24-winter-feast');
+    assert.deepEqual([thanksgiving.date, thanksgiving.status, thanksgiving.ordersCloseAt], ['2026-11-25', 'open', '2026-11-20T20:00']);
+    // Hidden until the owner sends pickup hours; start and end are placeholders until then.
+    assert.deepEqual([winter.date, winter.status, winter.ordersCloseAt], ['2026-12-24', 'hidden', '2026-12-18T20:00']);
+    assert.deepEqual(thanksgiving.menu, ['harvest-table-for-six', 'harvest-table-for-two', 'pie-pumpkin-blue-corn', 'pie-pinon-honey', 'pie-nm-cherry', 'host-upgrade']);
+    assert.deepEqual(winter.menu, ['winter-feast-table-for-six', 'winter-feast-table-per-person', 'blue-corn-tamales-dozen', 'host-upgrade']);
+    for (const event of [thanksgiving, winter]) {
+      assert.ok(event.note.endsWith(SEASONAL), `${event.id} note`);
+      assert.ok(event.menu.every((id) => holiday.some((item) => item.id === id)), `${event.id}: only holiday dishes, so "gone until next year" is true of each`);
+      const food = event.menu.filter((id) => id !== 'host-upgrade');
+      assert.deepEqual(food.filter((id) => !Number.isInteger(event.itemLimits[id])), [], `${event.id}: every dish is capped, as its note says`);
+    }
     for (const id of ['2026-11-21-santa-fe', '2026-12-05-espanola']) {
       const offered = byId.get(id).menu;
       assert.ok(Array.isArray(offered) && holiday.every((item) => !offered.includes(item.id)), `${id} offers no holiday dishes`);
     }
-    assert.equal(byId.get('2026-11-25-thanksgiving').ordersCloseAt, '2026-11-20T20:00');
-    assert.equal(byId.get('2026-12-19-holiday').ordersCloseAt, '2026-12-16T20:00');
   });
 
   test('the fixture config is valid', () => {
@@ -125,6 +162,15 @@ describe('content files', () => {
     assert.deepEqual(problemsFor((content) => {
       content.site.chef = { name: ' ', from: 7 };
     }), ['config/site.json → chef.name: must not be empty', 'config/site.json → chef.from: must be text in quotes']);
+  });
+
+  test('a catering service style can describe a whole tier, up to 120 characters', () => {
+    const content = fixtureContent();
+    content.site.catering.serviceStyles = OWNER_TIERS;
+    withConfig(content, (dir) => assert.deepEqual(loadContent(dir).site.catering.serviceStyles, OWNER_TIERS));
+    assert.deepEqual(problemsFor((changed) => {
+      changed.site.catering.serviceStyles = ['x'.repeat(121)];
+    }), ['config/site.json → catering.serviceStyles[0]: must be at most 120 characters']);
   });
 
   test('checks minQty: a whole number from 1 to order.maxQtyPerItem', () => {
@@ -225,6 +271,13 @@ describe('environment', () => {
     assert.ok(warnings.some((w) => w.includes('STRIPE_SECRET_KEY')));
     assert.ok(warnings.some((w) => w.includes('STRIPE_WEBHOOK_SECRET')));
     assert.ok(warnings.some((w) => w.includes('ADMIN_PASSWORD')));
+  });
+
+  test('production warns when TRUST_PROXY is missing (every customer would look like the proxy)', () => {
+    const live = { NODE_ENV: 'production', PUBLIC_URL: 'https://tsideh.com' };
+    assert.ok(readEnv(live).warnings.some((w) => w.startsWith('TRUST_PROXY is not set')));
+    assert.equal(readEnv({ ...live, TRUST_PROXY: '1' }).warnings.some((w) => w.startsWith('TRUST_PROXY')), false);
+    assert.equal(readEnv({}).warnings.some((w) => w.startsWith('TRUST_PROXY')), false, 'not on a computer');
   });
 
   test('NOW freezes the clock only outside production', () => {

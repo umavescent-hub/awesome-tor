@@ -73,6 +73,27 @@ describe('npm start', () => {
     assert.match(output.stderr, /WARNING: STRIPE_SECRET_KEY is not set/);
     assert.match(output.stderr, /WARNING: STRIPE_WEBHOOK_SECRET is not set/);
     assert.match(output.stderr, /WARNING: ADMIN_PASSWORD is not set/);
+    assert.match(output.stderr, /WARNING: TRUST_PROXY is not set/);
     assert.match(output.stdout, /payments: OFF/);
+  });
+
+  test('starts clean in production with every setting (Render\'s values, Stripe test keys)', async () => {
+    const { child, output, listening } = boot({
+      NODE_ENV: 'production',
+      PUBLIC_URL: 'https://tsideh.test',
+      TRUST_PROXY: '1',
+      STRIPE_SECRET_KEY: 'sk_test_dummy',
+      STRIPE_WEBHOOK_SECRET: 'whsec_dummy',
+      ADMIN_PASSWORD: 'sixteen-chars-ok',
+    });
+    const port = await listening;
+    const site = await (await fetch(`http://127.0.0.1:${port}/api/site`, { headers: { 'X-Forwarded-Proto': 'https' } })).json();
+    assert.equal(site.payments.mode, 'stripe');
+    child.kill('SIGTERM');
+    const [code] = await once(child, 'exit');
+    assert.equal(code, 0);
+    assert.equal(output.stderr, 'WARNING: STRIPE_SECRET_KEY is a TEST key: no real money will be collected.\n', 'the only warning');
+    assert.match(output.stdout, /public address: https:\/\/tsideh\.test\n/);
+    assert.match(output.stdout, /payments: Stripe \(test mode\) · kitchen admin: https:\/\/tsideh\.test\/admin · data: /);
   });
 });

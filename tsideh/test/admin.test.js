@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { ADMIN_PASSWORD, checkoutBody, startTestServer } from './helpers.js';
+import { ADMIN_PASSWORD, checkoutBody, CONTACT, demoPayment, startTestServer } from './helpers.js';
 
 let server;
 before(async () => {
@@ -23,10 +23,11 @@ async function signIn() {
   };
 }
 
-async function paidOrder(overrides) {
+/** Checks out, then pays on the demo page with `contact`. */
+async function paidOrder(overrides, contact = CONTACT) {
   const c = server.client();
   const { body } = await c.post('/api/checkout', checkoutBody(overrides));
-  await c.post(`/api/demo/pay/${body.code}`, { k: body.viewToken });
+  await c.post(`/api/demo/pay/${body.code}`, demoPayment(body.viewToken, contact));
   return body;
 }
 
@@ -189,7 +190,7 @@ describe('kitchen board', () => {
   test('orders: active by default, all=1 adds every status; sorted by slot then time', async () => {
     const admin = await signIn();
     const c = server.client();
-    const late = await paidOrder({ slot: '12:30', customer: { name: 'Zia Late', email: 'z@example.com', phone: '5055550100' } });
+    const late = await paidOrder({ slot: '12:30' }, { name: 'Zia Late', email: 'z@example.com', phone: '5055550100' });
     const early = await paidOrder({ slot: '11:00', notes: 'No cilantro.' });
     server.clock.advance(1000);
     const { body: canceled } = await c.post('/api/checkout', checkoutBody({ slot: '11:00' }));
@@ -204,15 +205,17 @@ describe('kitchen board', () => {
       oversold: false,
       slot: '11:00',
       slotLabel: '11:00 AM',
-      customer: { name: 'Maria Ortiz', email: 'maria@example.com', phone: '(505) 555-0142' },
+      customer: CONTACT,
       items: [{ id: 'stew', name: 'Green Chile Stew', qty: 1 }],
       notes: 'No cilantro.',
       totalCents: 1406,
       createdAt: new Date(server.clock.now()).toISOString(),
       paidAt: new Date(server.clock.now()).toISOString(),
     });
+    assert.deepEqual(active[1].customer, { name: 'Zia Late', email: 'z@example.com', phone: '5055550100' });
     const all = (await admin.get('/api/admin/events/winter/orders?all=1')).body.orders;
     assert.deepEqual(all.map((order) => [order.code, order.status]), [[early.code, 'paid'], [canceled.code, 'canceled'], [late.code, 'paid']]);
+    assert.deepEqual(all[1].customer, { name: '', email: '', phone: '' }, 'an order never paid has no contact details');
     assert.equal((await admin.get('/api/admin/events/nope/orders')).status, 404);
   });
 
@@ -242,7 +245,7 @@ describe('kitchen board', () => {
       const cookie = login.headers.get('set-cookie').split(';')[0];
       const pay = async (overrides) => {
         const { body } = await c.post('/api/checkout', checkoutBody(overrides));
-        await c.post(`/api/demo/pay/${body.code}`, { k: body.viewToken });
+        await c.post(`/api/demo/pay/${body.code}`, demoPayment(body.viewToken));
       };
       await pay({ slot: '11:00', items: [{ id: 'tacos', qty: 2 }, { id: 'stew', qty: 1 }] });
       await pay({ slot: '11:15', items: [{ id: 'stew', qty: 3 }] });

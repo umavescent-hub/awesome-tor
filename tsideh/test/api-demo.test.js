@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import {
-  ADMIN_PASSWORD, checkoutBody, fixtureContent, HARVEST_CLOSES, MINUTE, SERVICE_STYLES, startTestServer,
+  ADMIN_PASSWORD, checkoutBody, CONTACT, demoPayment, fixtureContent, HARVEST_CLOSES, MINUTE, SERVICE_STYLES, startTestServer,
 } from './helpers.js';
 
 const CODE = /^TS-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/;
@@ -119,7 +119,7 @@ describe('site and events', () => {
 });
 
 describe('checkout and payment (demo)', () => {
-  test('full flow: checkout -> pending order -> demo pay -> paid', async () => {
+  test('full flow: checkout (no contact details) -> pending order -> demo pay with contact details -> paid', async () => {
     const c = server.client();
     const created = await checkout(c, {
       slot: '11:15',
@@ -138,8 +138,9 @@ describe('checkout and payment (demo)', () => {
     assert.equal(pending.status, 200);
     assert.equal(pending.body.order.status, 'pending');
     assert.equal(pending.body.order.paidAt, null);
+    assert.equal(pending.body.order.firstName, '', 'no name until the payment page collects one');
 
-    const paid = await c.post(`/api/demo/pay/${code}`, { k: viewToken });
+    const paid = await c.post(`/api/demo/pay/${code}`, demoPayment(viewToken, { name: '  Maria   Ortiz ', email: ' maria@example.com', phone: '(505) 555-0142' }));
     assert.deepEqual(paid.body, { ok: true });
 
     const { body } = await c.get(`/api/orders/${code.toLowerCase()}?k=${viewToken}`);
@@ -170,8 +171,37 @@ describe('checkout and payment (demo)', () => {
     assert.equal(body.order.paidAt, new Date(server.clock.now()).toISOString());
     assert.equal(JSON.stringify(body).includes('maria@example.com'), false, 'order view must not echo contact details');
 
-    const again = await c.post(`/api/demo/pay/${code}`, { k: viewToken });
+    const admin = await adminSession();
+    const { orders } = (await admin.get('/api/admin/events/winter/orders')).body;
+    assert.deepEqual(orders.find((entry) => entry.code === code).customer, CONTACT, 'the kitchen gets the cleaned details');
+
+    const again = await c.post(`/api/demo/pay/${code}`, demoPayment(viewToken, { name: 'Someone Else', email: 'else@example.com', phone: '5055550100' }));
     assert.deepEqual(again.body, { ok: true });
+    const unchanged = (await admin.get('/api/admin/events/winter/orders')).body.orders;
+    assert.deepEqual(unchanged.find((entry) => entry.code === code).customer, CONTACT, 'paying twice changes nothing');
+  });
+
+  test('demo pay needs a name, a valid email and a valid phone; the order stays unpaid until then', async () => {
+    const c = server.client();
+    const { body } = await checkout(c, { slot: '12:15', items: [{ id: 'cookies', qty: 1 }] });
+    const cases = [
+      [{ name: '  ' }, 'name', 'Enter your name.'],
+      [{ name: 'x'.repeat(81) }, 'name', 'Keep your name to 80 characters or fewer.'],
+      [{ email: undefined }, 'email', 'Enter your email.'],
+      [{ email: 'maria@' }, 'email', 'Enter a valid email address.'],
+      [{ phone: '' }, 'phone', 'Enter your phone number.'],
+      [{ phone: '555-01' }, 'phone', 'Enter a valid phone number.'],
+    ];
+    for (const [change, field, message] of cases) {
+      const response = await c.post(`/api/demo/pay/${body.code}`, demoPayment(body.viewToken, { ...CONTACT, ...change }));
+      assert.equal(response.status, 400, field);
+      assert.deepEqual(response.body.error, { code: 'invalid', message, field });
+    }
+    assert.equal((await c.get(`/api/orders/${body.code}?k=${body.viewToken}`)).body.order.status, 'pending');
+
+    const wrongToken = await c.post(`/api/demo/pay/${body.code}`, demoPayment('x'.repeat(43), {}));
+    assert.equal(wrongToken.status, 404, 'a wrong link is not found before any field is checked');
+    await c.post(`/api/orders/${body.code}/cancel`, { k: body.viewToken });
   });
 
   test('order lookups need the exact token; a wrong token looks like a missing order', async () => {
@@ -220,7 +250,7 @@ describe('checkout and payment (demo)', () => {
       assert.equal((await c.get(`/api/orders/${first.body.code}?k=${first.body.viewToken}`)).body.order.status, 'expired');
       assert.equal((await checkout(c, { slot: '12:00' })).status, 200, 'the lapsed holds no longer count');
 
-      const payLapsed = await c.post(`/api/demo/pay/${first.body.code}`, { k: first.body.viewToken });
+      const payLapsed = await c.post(`/api/demo/pay/${first.body.code}`, demoPayment(first.body.viewToken));
       assert.equal(payLapsed.status, 409);
       assert.equal(payLapsed.body.error.code, 'order_closed');
     } finally {
@@ -280,7 +310,7 @@ describe('checkout and payment (demo)', () => {
     const replacement = await checkout(c, { eventId: 'today', slot: '10:30' });
     assert.equal(replacement.status, 200, 'the canceled hold no longer counts');
 
-    await c.post(`/api/demo/pay/${b.body.code}`, { k: b.body.viewToken });
+    await c.post(`/api/demo/pay/${b.body.code}`, demoPayment(b.body.viewToken));
     const paidCancel = await c.post(`/api/orders/${b.body.code}/cancel`, { k: b.body.viewToken });
     assert.equal(paidCancel.status, 409);
     assert.equal(paidCancel.body.error.code, 'already_paid');
@@ -382,7 +412,7 @@ describe('holiday pickup: minimum quantities and the order cutoff', () => {
       assert.equal(late.status, 409);
       assert.equal(late.body.error.code, 'event_closed');
 
-      assert.deepEqual((await c.post(`/api/demo/pay/${held.body.code}`, { k: held.body.viewToken })).body, { ok: true });
+      assert.deepEqual((await c.post(`/api/demo/pay/${held.body.code}`, demoPayment(held.body.viewToken))).body, { ok: true });
       assert.equal((await c.get(`/api/orders/${held.body.code}?k=${held.body.viewToken}`)).body.order.status, 'paid');
     } finally {
       holiday.clock.advance(start - holiday.clock.now());
@@ -398,10 +428,6 @@ describe('checkout validation', () => {
     ['item not on this menu', { items: [{ id: 'atole', qty: 1 }] }, 'items[0].id'],
     ['fractional quantity', { items: [{ id: 'stew', qty: 0.5 }] }, 'items[0].qty'],
     ['too many of one item', { items: [{ id: 'stew', qty: 13 }] }, 'items'],
-    ['missing customer', { customer: undefined }, 'customer'],
-    ['blank name', { customer: { name: '  ', email: 'a@example.com', phone: '5055550142' } }, 'customer.name'],
-    ['bad email', { customer: { name: 'Ana', email: 'ana@', phone: '5055550142' } }, 'customer.email'],
-    ['bad phone', { customer: { name: 'Ana', email: 'ana@example.com', phone: '12' } }, 'customer.phone'],
     ['long notes', { notes: 'x'.repeat(301) }, 'notes'],
     ['tip outside presets', { tipPercent: 18 }, 'tipPercent'],
   ];
@@ -414,6 +440,16 @@ describe('checkout validation', () => {
       assert.equal(typeof body.error.message, 'string');
     });
   }
+
+  test('contact details sent by an older page are ignored, even malformed ones', async () => {
+    const c = server.client();
+    const response = await checkout(c, { slot: '12:30', customer: { name: 42, email: 'not-an-email', phone: '12' } });
+    assert.equal(response.status, 200);
+    await c.post(`/api/demo/pay/${response.body.code}`, demoPayment(response.body.viewToken));
+    const admin = await adminSession();
+    const { orders } = (await admin.get('/api/admin/events/winter/orders')).body;
+    assert.deepEqual(orders.find((entry) => entry.code === response.body.code).customer, CONTACT, 'only the payment page\'s details are kept');
+  });
 
   test('client prices are ignored', async () => {
     const c = server.client();

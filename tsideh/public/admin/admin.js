@@ -617,7 +617,10 @@ function ticket(order) {
   return h('article', { class: ['ticket', `is-${order.status}`], 'aria-labelledby': id },
     h('p', { class: 'ticket-strip' }, h('span', null, status.label)),
     h('h4', { class: 'ticket-code', id }, h('span', { class: 'ticket-code-prefix' }, order.code.slice(0, split)), order.code.slice(split)),
-    h('p', { class: 'ticket-name' }, order.customer.name),
+    // Stripe collects the name with the payment, so an order still being paid has none yet.
+    order.customer.name
+      ? h('p', { class: 'ticket-name' }, order.customer.name)
+      : h('p', { class: 'ticket-name is-unknown' }, order.status === 'pending' ? 'Name comes with the payment' : 'No name given'),
     order.customer.phone && h('a', { class: 'ticket-phone', href: telHref(order.customer.phone) }, order.customer.phone),
     order.oversold && h('p', { class: 'ticket-flag' },
       h('strong', null, 'Oversold. '),

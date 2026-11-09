@@ -3,7 +3,8 @@
 
 const TIMEOUT_MS = 5_000;
 
-const formatCents = (cents) => `$${(cents / 100).toFixed(2)}`;
+/** The owner's style, with no currency sign: whole amounts as "48", others as "65.29". */
+const formatAmount = (cents) => (cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2));
 
 /**
  * Slack reads <!channel>, <!here> and <url|label> in `text` as commands. Alerts carry what
@@ -27,15 +28,17 @@ export function createNotifier({ url, log, fetch: fetchImpl = globalThis.fetch }
   }
 
   return {
+    /** The first name is left out when the payment page gave none. */
     paidOrder(order, eventTitle, slotLabel) {
       const items = order.items.map((line) => `${line.qty}× ${line.name}`).join(', ');
       const firstName = order.customer.name.split(' ')[0];
       const flag = order.oversold ? 'OVERSOLD (over capacity, check the board) · ' : '';
-      send(`${flag}New paid order ${order.code} · ${eventTitle} · pickup ${slotLabel} · ${firstName} · ${items} · ${formatCents(order.totalCents)}`);
+      const parts = [`New paid order ${order.code}`, eventTitle, `pickup ${slotLabel}`, firstName, items, `total ${formatAmount(order.totalCents)}`];
+      send(flag + parts.filter(Boolean).join(' · '));
     },
     paymentMismatch(order, amountCents, currency) {
-      const charged = typeof amountCents === 'number' ? `${formatCents(amountCents)} ${String(currency).toUpperCase()}` : 'an unknown amount';
-      send(`REVIEW: Stripe charged ${charged} for order ${order.code}, which costs ${formatCents(order.totalCents)}. It was not marked paid; check it in the Stripe Dashboard.`);
+      const charged = typeof amountCents === 'number' ? `${formatAmount(amountCents)} ${String(currency).toUpperCase()}` : 'an unknown amount';
+      send(`REVIEW: Stripe charged ${charged} for order ${order.code}, which costs ${formatAmount(order.totalCents)} USD. It was not marked paid; check it in the Stripe Dashboard.`);
     },
     cateringInquiry(inquiry) {
       send(`New catering inquiry · ${inquiry.name} · ${inquiry.eventDate} · ${inquiry.guestCount} guests · ${inquiry.serviceStyle} · ${inquiry.location}`);

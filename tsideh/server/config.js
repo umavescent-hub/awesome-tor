@@ -95,6 +95,10 @@ export function readEnv(env) {
   if (trustText === 'true') trustProxy = 1;
   else if (/^\d+$/.test(trustText)) trustProxy = Number(trustText);
   else if (trustText !== '' && trustText !== 'false') problems.push('TRUST_PROXY must be 0, 1 (one proxy in front, e.g. Render) or the number of proxies.');
+  // The live site always sits behind an HTTPS proxy (this server speaks plain HTTP).
+  if (production && trustProxy === 0) {
+    warnings.push('TRUST_PROXY is not set: every customer looks like the proxy\'s single address (one shared rate limit and unpaid-order limit) and http is not redirected to https. Set TRUST_PROXY=1 (Render) or the number of proxies in front.');
+  }
 
   let now = null;
   if (env.NOW) {
@@ -255,7 +259,7 @@ function validateSite(input, report) {
   f.int(catering.maxGuests, 'catering.maxGuests', { min: minGuests, max: 100_000 });
   f.int(catering.leadTimeDays, 'catering.leadTimeDays', { min: 0, max: 365 });
   const styles = f.array(catering.serviceStyles, 'catering.serviceStyles', { min: 1, max: 12 });
-  styles.forEach((style, i) => f.text(style, `catering.serviceStyles[${i}]`, { min: 1, max: 40 }));
+  styles.forEach((style, i) => f.text(style, `catering.serviceStyles[${i}]`, { min: 1, max: 120 }));
   if (new Set(styles).size !== styles.length) report('catering.serviceStyles', 'must not repeat a style');
 
   // f.int hands back the value it was given only when that value passed.

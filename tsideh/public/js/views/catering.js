@@ -6,6 +6,8 @@ import { addDays, formatLongDate, today } from '../format.js';
 import { choiceGroup, clean, emailError, errorSummary, field, phoneError } from '../forms.js';
 import { errorState, icon, setBusy, skeleton, spinner } from '../ui.js';
 
+const SUBMIT = 'Request a menu and quote';
+
 /** The form's "Not sure yet" choice: offered in the form, not a kind of catering to list. */
 const UNDECIDED = /^not sure/i;
 
@@ -13,8 +15,8 @@ function points(catering) {
   const kinds = catering.serviceStyles.filter((style) => !UNDECIDED.test(style));
   return h('ul', { class: 'catering__points' },
     h('li', null, h('strong', null, `${catering.minGuests} to ${catering.maxGuests} guests`), h('span', null, 'Weddings, offices, family tables and celebrations.')),
-    kinds.length ? h('li', null, h('strong', null, 'Served your way'), h('ul', { class: 'catering__kinds' }, kinds.map((kind) => h('li', null, kind)))) : null,
-    h('li', null, h('strong', null, `${catering.leadTimeDays} days' notice`), h('span', null, 'Most events book a few weeks out. Ask about shorter notice.')));
+    kinds.length ? h('li', null, h('strong', null, 'Choose how it’s served'), h('ul', { class: 'catering__kinds' }, kinds.map((kind) => h('li', null, kind)))) : null,
+    h('li', null, h('strong', null, 'Book ahead'), h('span', null, 'Each style shows how far ahead to book. Short notice? Ask anyway.')));
 }
 
 function buildForm(site, onDone) {
@@ -28,7 +30,7 @@ function buildForm(site, onDone) {
   const phone = field({ name: 'phone', label: 'Phone number', type: 'tel', optional: true, hint: 'For example: 505 555 0142',
     attrs: { autocomplete: 'tel', inputmode: 'tel', maxlength: 20 },
     validate: (v) => phoneError(v, { required: false }) });
-  const date = field({ name: 'eventDate', label: 'Date of your event', type: 'date', hint: `We plan menus at least ${catering.leadTimeDays} days ahead.`,
+  const date = field({ name: 'eventDate', label: 'Date of your event', type: 'date', hint: 'Each style shows how far ahead to book.',
     attrs: { min: minDate, max: addDays(minDate, 730) },
     validate: (v) => {
       if (!v) return 'Choose the date of your event.';
@@ -44,23 +46,24 @@ function buildForm(site, onDone) {
     } });
   const location = field({ name: 'location', label: 'Where is it?', hint: 'Town or venue', attrs: { autocomplete: 'address-level2', maxlength: 120 },
     validate: (v) => (clean(v) ? null : 'Enter where the event is.') });
-  const style = choiceGroup({ name: 'serviceStyle', legend: 'What kind of catering?', options: catering.serviceStyles.map((value) => ({ value, label: value })) });
+  const style = choiceGroup({ name: 'serviceStyle', legend: 'How would you like it served?', options: catering.serviceStyles.map((value) => ({ value, label: value })) });
   const budget = field({ name: 'budget', label: 'Budget', optional: true, hint: 'A rough range is fine.', attrs: { maxlength: 60 } });
   const dietary = field({ name: 'dietary', label: 'Allergies or dietary needs', optional: true, multiline: true, max: 300, hint: 'There’s never an extra charge.' });
-  const message = field({ name: 'message', label: 'Anything else we should know', optional: true, multiline: true, max: 1500 });
+  const message = field({ name: 'message', label: 'Anything else we should know', optional: true, multiline: true, max: 1500,
+    hint: 'The occasion, a dish you’re hoping for, or any questions.' });
   const honeypot = h('div', { class: 'hp', 'aria-hidden': 'true' },
     h('label', { for: 'catering-website' }, 'Website'),
     h('input', { id: 'catering-website', name: 'website', type: 'text', tabindex: '-1', autocomplete: 'off' }));
   const shortNotice = h('p', { class: 'form-note', 'aria-live': 'polite' });
   date.input.addEventListener('change', () => {
     shortNotice.textContent = date.input.value && date.input.value >= minDate && date.input.value < addDays(minDate, catering.leadTimeDays)
-      ? 'That is short notice. Send it anyway and we will tell you quickly whether we can make it work.'
+      ? 'That’s short notice, and it’s still worth asking. We’ll tell you if we can make it work.'
       : '';
   });
   dietary.input.rows = 2;
 
   const summary = errorSummary();
-  const submit = h('button', { class: 'btn btn--primary btn--lg btn--block', type: 'submit' }, 'Send catering request');
+  const submit = h('button', { class: 'btn btn--primary btn--lg btn--block', type: 'submit' }, SUBMIT);
   const fields = { name, email, phone, eventDate: date, guestCount: guests, location, budget, dietary, message };
   const form = h('form', { class: 'form', novalidate: true, 'aria-label': 'Catering request' },
     summary.node,
@@ -73,7 +76,7 @@ function buildForm(site, onDone) {
     message.node,
     honeypot,
     submit,
-    h('p', { class: 'form-note' }, 'Sending this does not book anything or cost anything. We will reply with a menu and a price.'));
+    h('p', { class: 'form-note' }, 'Free to ask. Sending this books nothing and costs nothing. We’ll reply by email with a menu and a quote.'));
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -84,7 +87,7 @@ function buildForm(site, onDone) {
       if (problem) problems.push({ message: problem, target: f.input });
     }
     if (!style.value()) {
-      const problem = 'Choose what kind of catering you would like.';
+      const problem = 'Choose how you’d like it served.';
       style.setError(problem);
       problems.push({ message: problem, target: style.target() });
     }
@@ -112,7 +115,7 @@ function buildForm(site, onDone) {
       onDone({ firstName: clean(name.value()).split(' ')[0], date: date.value() });
     } catch (error) {
       setBusy(submit, false);
-      mount(submit, 'Send catering request');
+      mount(submit, SUBMIT);
       const target = error.field && fields[error.field];
       if (error.code === 'invalid' && target) {
         target.setError(error.message);
@@ -135,7 +138,7 @@ function successNode({ firstName, date }, onAgain) {
   const node = h('div', { class: 'catering__done', role: 'status' },
     h('span', { class: 'done-mark' }, icon('check')),
     title,
-    h('p', null, `We got your catering request for ${formatLongDate(date)}. We will reply by email within 48 hours.`),
+    h('p', null, `We have your request for ${formatLongDate(date)}. We’ll reply by email with a menu and a quote.`),
     h('button', { class: 'btn btn--outline', type: 'button', onclick: onAgain }, 'Send another request'));
   return { node, focus: () => title.focus() };
 }
@@ -170,7 +173,7 @@ export function cateringSection() {
       showForm(site);
     },
     fail(onRetry) {
-      mount(blurb, h('p', null, 'Tell us about your gathering and we will come back with a menu and a price.'));
+      mount(blurb, h('p', null, 'Tell us about your gathering and we’ll reply with a menu and a quote.'));
       mount(formSlot, errorState({ title: 'The catering form did not load', message: 'Check your connection and try again.', onRetry }));
     },
     focusHeading() {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { buildCatalog } from '../server/catalog.js';
 import {
-  addDays, dateTimeToUtc, fixedClock, isDateString, isDateTimeString, isTimeString, isTimeZone, localDate, timeLabel, zonedToUtc,
+  addDays, dateLabel, dateTimeToUtc, fixedClock, isDateString, isDateTimeString, isTimeString, isTimeZone, localDate, timeLabel, zonedToUtc,
 } from '../server/time.js';
 import { fixtureContent } from './helpers.js';
 
@@ -58,6 +58,12 @@ describe('date and time helpers', () => {
     assert.equal(timeLabel('09:05'), '9:05 AM');
     assert.equal(timeLabel('12:00'), '12:00 PM');
     assert.equal(timeLabel('13:45'), '1:45 PM');
+  });
+
+  test('dateLabel names the weekday and month of a calendar date, whatever the server\'s zone', () => {
+    assert.equal(dateLabel('2026-11-25'), 'Wednesday, November 25');
+    assert.equal(dateLabel('2026-12-24'), 'Thursday, December 24');
+    assert.equal(dateLabel('2027-01-01'), 'Friday, January 1');
   });
 
   test('validators reject impossible dates, times and zones', () => {

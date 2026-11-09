@@ -8,6 +8,9 @@ import { ADMIN_PASSWORD, checkoutBody, MINUTE, startTestServer, T0 } from './hel
 const WEBHOOK_SECRET = 'whsec_fake_signing_secret';
 const SECRET_KEY = 'sk_test_fakekey123';
 const PUBLIC_URL = 'https://tsideh.test';
+/** What Stripe Checkout collected from the customer (Apple Pay, Google Pay, Link or the card form). */
+const DETAILS = { email: 'maria@example.com', name: 'Maria Ortiz', phone: '+15055550142', address: { country: 'US', postal_code: '87501' }, tax_exempt: 'none', tax_ids: [] };
+const STORED = { name: 'Maria Ortiz', email: 'maria@example.com', phone: '+15055550142' };
 
 /** A tiny stand-in for api.stripe.com plus a Slack-style alert sink. */
 function startFakeStripe() {
@@ -55,6 +58,7 @@ function startFakeStripe() {
           payment_intent: null,
           amount_total: amountTotal,
           currency: form.get('line_items[0][price_data][currency]'),
+          customer_details: null,
         };
         sessions.set(session.id, session);
         return reply(200, session);
@@ -141,6 +145,9 @@ async function adminOrders(eventId) {
   return (await c.get(`/api/admin/events/${eventId}/orders?all=1`, { headers: { Cookie: cookie } })).body.orders;
 }
 
+/** The name, email and phone the kitchen sees for an order. */
+const contactOf = async (order, eventId = 'winter') => (await adminOrders(eventId)).find((entry) => entry.code === order.code).customer;
+
 /** Alerts are fire-and-forget, so poll briefly for the one we expect. */
 async function waitForAlert(predicate) {
   for (let i = 0; i < 100; i++) {
@@ -153,7 +160,7 @@ async function waitForAlert(predicate) {
 
 describe('Checkout Session creation', () => {
   test('sends exactly the fields Stripe needs and returns the hosted URL', async () => {
-    const order = await placeOrder({ slot: '11:00', items: [{ id: 'tacos', qty: 2 }, { id: 'cookies', qty: 1 }], tipPercent: 15 });
+    const order = await placeOrder({ slot: '11:00', items: [{ id: 'tacos', qty: 2 }, { id: 'cookies', qty: 1 }], tipPercent: 15, notes: 'No onions.' });
     assert.equal(order.url, `https://checkout.stripe.test/c/pay/${order.sessionId}`);
     assert.deepEqual(order.totals, { subtotalCents: 4200, taxCents: 344, tipCents: 630, totalCents: 5174 });
 
@@ -167,6 +174,8 @@ describe('Checkout Session creation', () => {
 
     const expected = {
       mode: 'payment',
+      submit_type: 'pay',
+      locale: 'auto',
       'line_items[0][price_data][currency]': 'usd',
       'line_items[0][price_data][unit_amount]': '1700',
       'line_items[0][price_data][product_data][name]': 'Bison Red Chile Tacos',
@@ -183,7 +192,9 @@ describe('Checkout Session creation', () => {
       'line_items[3][price_data][unit_amount]': '630',
       'line_items[3][price_data][product_data][name]': 'Tip for the crew',
       'line_items[3][quantity]': '1',
-      customer_email: 'maria@example.com',
+      'phone_number_collection[enabled]': 'true',
+      billing_address_collection: 'auto',
+      'custom_text[submit][message]': 'Pickup 11:00 AM, Saturday, November 21 in Santa Fe. Show your pickup code when you arrive.',
       client_reference_id: order.code,
       'metadata[order_code]': order.code,
       'metadata[event_id]': 'winter',
@@ -197,10 +208,26 @@ describe('Checkout Session creation', () => {
       cancel_url: `${PUBLIC_URL}/e/winter?canceled=${order.code}&k=${order.viewToken}`,
     };
     assert.deepEqual(Object.fromEntries(request.form), expected);
-    assert.equal([...request.form.keys()].some((key) => key.startsWith('payment_method_types')), false);
+    assert.equal([...request.form.keys()].some((key) => key.startsWith('payment_method_types')), false, 'Stripe offers every wallet the device supports');
+    assert.equal(request.form.get('custom_text[submit][message]').includes('$'), false);
 
     const { body } = await lookup(order);
     assert.equal(body.order.status, 'pending');
+    assert.deepEqual(await contactOf(order), { name: '', email: '', phone: '' }, 'nothing is known about the customer before they pay');
+  });
+
+  test('contact details sent with the checkout never reach Stripe', async () => {
+    const order = await placeOrder({ slot: '12:30', customer: { name: 'Maria Ortiz', email: 'maria@example.com', phone: '(505) 555-0142' } });
+    const form = stripe.requests[0].form;
+    assert.equal([...form.keys()].some((key) => key.startsWith('customer')), false);
+    assert.equal([...form.values()].some((value) => value.includes('maria@example.com')), false);
+    await order.c.post(`/api/orders/${order.code}/cancel`, { k: order.viewToken });
+  });
+
+  test('the pickup note names the pop-up\'s own date, time and place', async () => {
+    const order = await placeOrder({ eventId: 'harvest', slot: '13:30', items: [{ id: 'pie', qty: 1 }] });
+    assert.equal(stripe.requests[0].form.get('custom_text[submit][message]'), 'Pickup 1:30 PM, Wednesday, November 25 in Santa Fe. Show your pickup code when you arrive.');
+    await order.c.post(`/api/orders/${order.code}/cancel`, { k: order.viewToken });
   });
 
   test('omits the tip line when there is no tip', async () => {
@@ -231,31 +258,62 @@ describe('Checkout Session creation', () => {
 });
 
 describe('webhook', () => {
-  test('checkout.session.completed marks the order paid once, alerting the kitchen once', async () => {
+  test('checkout.session.completed marks the order paid once, with the contact details, alerting the kitchen once', async () => {
     const order = await placeOrder({ slot: '11:30' });
-    const session = { id: order.sessionId, object: 'checkout.session', client_reference_id: order.code, payment_status: 'paid', payment_intent: 'pi_paid_1' };
+    const session = { id: order.sessionId, object: 'checkout.session', client_reference_id: order.code, payment_status: 'paid', payment_intent: 'pi_paid_1', customer_details: DETAILS };
     const first = await deliver('checkout.session.completed', session, { id: 'evt_completed_1' });
     assert.equal(first.status, 200);
     assert.deepEqual(first.body, { received: true });
     const { body } = await lookup(order);
     assert.equal(body.order.status, 'paid');
     assert.ok(body.order.paidAt);
+    assert.equal(body.order.firstName, 'Maria');
+    assert.equal(JSON.stringify(body).includes(DETAILS.email), false, 'the order page never shows the email');
+    assert.deepEqual(await contactOf(order), STORED);
 
     assert.equal((await deliver('checkout.session.completed', session, { id: 'evt_completed_1' })).status, 200);
-    assert.equal((await deliver('checkout.session.completed', session, { id: 'evt_completed_2' })).status, 200);
+    const other = { ...DETAILS, name: 'Someone Else', email: 'else@example.com' };
+    assert.equal((await deliver('checkout.session.completed', { ...session, customer_details: other }, { id: 'evt_completed_2' })).status, 200);
+    assert.deepEqual(await contactOf(order), STORED, 'a repeated event does not overwrite the details');
 
     const { text } = await waitForAlert((alert) => alert.text.includes(order.code));
-    assert.equal(text, `New paid order ${order.code} · Winter Pop-up · pickup 11:30 AM · Maria · 1× Green Chile Stew · $14.06`);
+    assert.equal(text, `New paid order ${order.code} · Winter Pop-up · pickup 11:30 AM · Maria · 1× Green Chile Stew · total 14.06`);
     await sleep(50);
     assert.equal(stripe.alerts.filter((alert) => alert.text.includes(order.code)).length, 1, 'redelivery does not re-alert');
   });
 
   test('completed but unpaid (async method pending) leaves the order pending', async () => {
     const order = await placeOrder({ slot: '11:45' });
-    await deliver('checkout.session.completed', { id: order.sessionId, client_reference_id: order.code, payment_status: 'unpaid' });
+    await deliver('checkout.session.completed', { id: order.sessionId, client_reference_id: order.code, payment_status: 'unpaid', customer_details: DETAILS });
     assert.equal((await lookup(order)).body.order.status, 'pending');
-    await deliver('checkout.session.async_payment_succeeded', { id: order.sessionId, client_reference_id: order.code, payment_status: 'paid', payment_intent: 'pi_async_1' });
+    assert.deepEqual(await contactOf(order), { name: '', email: '', phone: '' }, 'details are stored only once the order is paid');
+    await deliver('checkout.session.async_payment_succeeded', { id: order.sessionId, client_reference_id: order.code, payment_status: 'paid', payment_intent: 'pi_async_1', customer_details: DETAILS });
     assert.equal((await lookup(order)).body.order.status, 'paid');
+    assert.deepEqual(await contactOf(order), STORED);
+  });
+
+  test('missing or unusable details never stop a payment from being recorded', async () => {
+    const order = await placeOrder({ slot: '11:00' });
+    await deliver('checkout.session.completed', { id: order.sessionId, client_reference_id: order.code, payment_status: 'paid', payment_intent: 'pi_bare' });
+    const { body } = await lookup(order);
+    assert.equal(body.order.status, 'paid');
+    assert.equal(body.order.firstName, '');
+    assert.deepEqual(await contactOf(order), { name: '', email: '', phone: '' });
+    const { text } = await waitForAlert((alert) => alert.text.includes(order.code));
+    assert.equal(text, `New paid order ${order.code} · Winter Pop-up · pickup 11:00 AM · 1× Green Chile Stew · total 14.06`, 'no empty name in the alert');
+
+    const odd = await placeOrder({ slot: '11:15' });
+    const details = { name: `  Ana\u200b   ${'Lucero '.repeat(12)}`, email: 'not an email', phone: { number: '5055550142' } };
+    await deliver('checkout.session.completed', { id: odd.sessionId, client_reference_id: odd.code, payment_status: 'paid', payment_intent: 'pi_odd', customer_details: details });
+    assert.equal((await lookup(odd)).body.order.status, 'paid');
+    assert.deepEqual(await contactOf(odd), { name: '', email: '', phone: '' }, 'values that break the length or format rules are left empty');
+
+    const trimmed = await placeOrder({ slot: '12:15' });
+    await deliver('checkout.session.completed', {
+      id: trimmed.sessionId, client_reference_id: trimmed.code, payment_status: 'paid', payment_intent: 'pi_trim',
+      customer_details: { name: ' Ana\u200b  Lucero\u202e ', email: ' ana@example.com ', phone: null },
+    });
+    assert.deepEqual(await contactOf(trimmed), { name: 'Ana Lucero', email: 'ana@example.com', phone: '' }, 'cleaned like typed input');
   });
 
   test('async_payment_failed marks the order failed', async () => {
@@ -298,7 +356,7 @@ describe('webhook', () => {
     assert.equal((await deliver('checkout.session.completed', { ...session, amount_total: 100 })).status, 200);
     assert.equal((await lookup(order)).body.order.status, 'pending');
     const { text } = await waitForAlert((alert) => alert.text.startsWith('REVIEW') && alert.text.includes(order.code));
-    assert.equal(text, `REVIEW: Stripe charged $1.00 USD for order ${order.code}, which costs $14.06. It was not marked paid; check it in the Stripe Dashboard.`);
+    assert.equal(text, `REVIEW: Stripe charged 1 USD for order ${order.code}, which costs 14.06 USD. It was not marked paid; check it in the Stripe Dashboard.`);
     await deliver('checkout.session.completed', { ...session, currency: 'eur' });
     assert.equal((await lookup(order)).body.order.status, 'pending');
     await deliver('checkout.session.completed', session);
@@ -327,8 +385,7 @@ describe('webhook', () => {
 describe('payment confirmation and cancellation', () => {
   test('returning with session_id confirms with Stripe when the webhook has not arrived', async () => {
     const order = await placeOrder({ slot: '12:30' });
-    stripe.sessions.get(order.sessionId).payment_status = 'paid';
-    stripe.sessions.get(order.sessionId).payment_intent = 'pi_return_1';
+    Object.assign(stripe.sessions.get(order.sessionId), { payment_status: 'paid', payment_intent: 'pi_return_1', customer_details: DETAILS });
     stripe.requests.length = 0;
 
     const mismatched = await lookup(order, '&session_id=cs_test_999');
@@ -337,7 +394,11 @@ describe('payment confirmation and cancellation', () => {
 
     const confirmed = await lookup(order, `&session_id=${order.sessionId}`);
     assert.equal(confirmed.body.order.status, 'paid');
+    assert.equal(confirmed.body.order.firstName, 'Maria', 'the thank-you uses the name given to Stripe');
     assert.deepEqual(stripe.requests.map((request) => [request.method, request.url]), [['GET', `/v1/checkout/sessions/${order.sessionId}`]]);
+    assert.deepEqual(await contactOf(order), STORED);
+    const { text } = await waitForAlert((alert) => alert.text.includes(order.code));
+    assert.equal(text, `New paid order ${order.code} · Winter Pop-up · pickup 12:30 PM · Maria · 1× Green Chile Stew · total 14.06`);
 
     stripe.requests.length = 0;
     await lookup(order, `&session_id=${order.sessionId}`);

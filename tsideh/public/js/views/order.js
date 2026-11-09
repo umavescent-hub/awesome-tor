@@ -22,7 +22,8 @@ function directionsUrl(event) {
 const pickupSentence = (order) => `Pick up at ${order.slotLabel} on ${formatLongDate(order.event.date)} in ${order.event.locationName}.`;
 
 const HEADLINES = {
-  paid: (order) => ({ title: 'You’re all set.', text: pickupSentence(order) }),
+  // The name arrives with the payment (Stripe, or the demo page).
+  paid: (order) => ({ title: order.firstName ? `Thank you, ${order.firstName}. You’re all set.` : 'You’re all set.', text: pickupSentence(order) }),
   ready: (order) => ({ title: 'Your food is ready.', text: `Come to the pickup table in ${order.event.locationName} and show your code.` }),
   picked_up: () => ({ title: 'Enjoy your meal.', text: 'This order has been picked up. Thank you for coming.' }),
 };
@@ -43,7 +44,7 @@ function receipt(order, taxLabel) {
         h('span', { class: 'line__total num' }, formatMoney(item.lineCents))),
       h('p', { class: 'line__unit num' }, `${formatMoney(item.unitCents)} each`)))),
     h('dl', { class: 'totals' },
-      h('div', null, h('dt', null, 'Food'), h('dd', { class: 'num' }, formatMoney(order.subtotalCents))),
+      h('div', null, h('dt', null, 'Items'), h('dd', { class: 'num' }, formatMoney(order.subtotalCents))),
       h('div', null, h('dt', null, taxLabel), h('dd', { class: 'num' }, formatMoney(order.taxCents))),
       h('div', null, h('dt', null, 'Tip'), h('dd', { class: 'num' }, formatMoney(order.tipCents))),
       h('div', { class: 'totals__grand' }, h('dt', null, 'Total paid'), h('dd', { class: 'num' }, formatMoney(order.totalCents)))),
@@ -67,9 +68,7 @@ function confirmed(order, site) {
         h('p', { class: 'code-plate__code' }, order.code),
         h('p', { class: 'code-plate__hint' }, 'Show this code when you pick up your food.')),
       site?.payments?.mode === 'stripe' && order.status === 'paid'
-        ? h('p', { class: 'status-note' }, order.emailHint
-          ? `A receipt was sent to ${order.emailHint}.`
-          : 'Stripe is emailing your receipt to the address you gave.')
+        ? h('p', { class: 'status-note' }, 'Stripe is emailing your receipt to the address you gave.')
         : null,
       h('div', { class: 'status-actions' },
         order.status === 'picked_up' ? null

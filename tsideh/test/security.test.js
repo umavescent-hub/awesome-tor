@@ -47,8 +47,8 @@ describe('createHoldLimiter', () => {
   function setup() {
     const status = new Map();
     const holds = createHoldLimiter({ limit: 2, isOpen: (code) => status.get(code) === 'pending' });
-    const place = (key, code, expiresAt = NOW + 60_000) => {
-      const hold = holds.claim(key, NOW, expiresAt);
+    const place = (key, code, expiresAt = NOW + 60_000, browser = 'browser-1') => {
+      const hold = holds.claim(key, NOW, expiresAt, browser);
       if (hold && code) {
         hold.code = code;
         status.set(code, 'pending');
@@ -61,10 +61,10 @@ describe('createHoldLimiter', () => {
   test('a key gets at most `limit` open holds; other keys are unaffected', () => {
     const { holds, place } = setup();
     assert.ok(place('a', 'TS-AAAA'));
-    assert.ok(place('a', 'TS-BBBB'));
+    assert.ok(place('a', 'TS-BBBB', NOW + 60_000, 'browser-2'));
     assert.equal(place('a', 'TS-CCCC'), null);
     assert.ok(place('b', 'TS-DDDD'));
-    assert.deepEqual(holds.open('a', NOW).map((hold) => hold.code), ['TS-AAAA', 'TS-BBBB']);
+    assert.deepEqual(holds.open('a', NOW).map(({ code, browser }) => [code, browser]), [['TS-AAAA', 'browser-1'], ['TS-BBBB', 'browser-2']]);
   });
 
   test('a hold stops counting once paid, canceled or expired', () => {
@@ -79,10 +79,10 @@ describe('createHoldLimiter', () => {
 
   test('a checkout still running counts, and dropping it frees the place', () => {
     const { holds, place } = setup();
-    const running = holds.claim('a', NOW, NOW + 60_000);
+    const running = holds.claim('a', NOW, NOW + 60_000, 'browser-1');
     assert.equal(running.code, null);
     place('a', 'TS-AAAA');
-    assert.equal(holds.claim('a', NOW, NOW + 60_000), null, 'in-flight checkouts cannot race past the limit');
+    assert.equal(holds.claim('a', NOW, NOW + 60_000, 'browser-1'), null, 'in-flight checkouts cannot race past the limit');
     holds.drop('a', running);
     assert.ok(place('a', 'TS-BBBB'));
   });

@@ -5,8 +5,8 @@ import { transaction } from './db.js';
 import { ApiError } from './http.js';
 import { COMMITTED } from './orders.js';
 import { SignatureError, StripeError, verifyWebhook } from './stripe.js';
-import { timeLabel } from './time.js';
-import { isPlainObject } from './validate.js';
+import { dateLabel, timeLabel } from './time.js';
+import { collectedContact, isPlainObject } from './validate.js';
 
 // Stripe requires a Checkout Session to live at least 30 minutes by its own clock. The session
 // outlives the hold by this margin; a payment landing inside it is still recorded (and flagged
@@ -16,7 +16,7 @@ const WEBHOOK_RETENTION_MS = 30 * 86_400_000;
 const TIP_LABEL = 'Tip for the crew';
 
 const idOf = (value) => (typeof value === 'string' ? value : isPlainObject(value) && typeof value.id === 'string' ? value.id : null);
-// Stripe's error text can quote the secret key or the customer's email ("Invalid email address: …").
+// Stripe's error text can quote the secret key or an email address ("Invalid email address: …").
 const redact = (text) => text
   .replace(/\b(sk|rk)_(live|test)_[A-Za-z0-9]+/g, '$1_$2_[redacted]')
   .replace(/[^\s@:]+@[^\s@]+\.[^\s@]+/g, '[email]');
@@ -25,6 +25,9 @@ const CONFIRM_INTERVAL_MS = 5_000;
 const describe = (error) => redact([error.message, error.status && `status ${error.status}`, error.type, error.code].filter(Boolean).join(' · '));
 
 const alreadyPaid = () => new ApiError(409, 'already_paid', 'This order is already paid. Contact us if you need to change it.');
+
+/** Shown next to Stripe's Pay button, so the pickup is confirmed at the moment of paying. */
+const pickupNote = (event, slot) => `Pickup ${timeLabel(slot)}, ${dateLabel(event.date)} in ${event.locationName}. Show your pickup code when you arrive.`;
 
 export function createPayments({ config, catalog, db, orders, stripe, notifier, log, clock }) {
   const site = catalog.site;
@@ -40,7 +43,11 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
     notifier.paidOrder(order, title, timeLabel(order.slot));
   }
 
-  function checkoutSessionParams({ event, slot, lines, customer, totals }, hold) {
+  /**
+   * Stripe's hosted page asks for the email, the mobile number and (for a card) the name, where
+   * Apple Pay, Google Pay and Link fill them in: the customer types nothing on our site.
+   */
+  function checkoutSessionParams({ event, slot, lines, totals }, hold) {
     const lineItem = (name, unitAmount, quantity) => ({
       price_data: { currency: site.currency, unit_amount: unitAmount, product_data: { name } },
       quantity,
@@ -48,12 +55,16 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
     const metadata = { order_code: hold.code, event_id: event.id, slot };
     return {
       mode: 'payment',
+      submit_type: 'pay',
+      locale: 'auto',
       line_items: [
         ...lines.map((line) => lineItem(line.name, line.unitCents, line.qty)),
         ...(totals.taxCents > 0 ? [lineItem(site.taxLabel, totals.taxCents, 1)] : []),
         ...(totals.tipCents > 0 ? [lineItem(TIP_LABEL, totals.tipCents, 1)] : []),
       ],
-      customer_email: customer.email,
+      phone_number_collection: { enabled: true },
+      billing_address_collection: 'auto',
+      custom_text: { submit: { message: pickupNote(event, slot) } },
       client_reference_id: hold.code,
       metadata,
       payment_intent_data: { metadata, description: `Tsideh pickup ${hold.code}` },
@@ -82,10 +93,16 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
     return false;
   }
 
+  /** Records a paid session, with the contact details the customer gave Stripe. */
+  function markSessionPaid(order, session, now) {
+    const payment = { paymentIntent: idOf(session.payment_intent), contact: collectedContact(session.customer_details) };
+    return orders.markPaid(order.code, payment, now);
+  }
+
   function paySession(session, now) {
     const order = orderForSession(session);
     if (!order || !amountMatches(order, session)) return [];
-    const { order: paid, changed } = orders.markPaid(order.code, { paymentIntent: idOf(session.payment_intent) }, now);
+    const { order: paid, changed } = markSessionPaid(order, session, now);
     return changed ? [paid] : [];
   }
 
@@ -166,7 +183,7 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
         return order;
       }
       if (session.client_reference_id !== order.code || session.payment_status !== 'paid' || !amountMatches(order, session)) return order;
-      const { order: paid, changed } = orders.markPaid(order.code, { paymentIntent: idOf(session.payment_intent) }, clock.now());
+      const { order: paid, changed } = markSessionPaid(order, session, clock.now());
       if (changed) announcePaid(paid);
       return paid;
     },
@@ -211,13 +228,16 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
       return { ok: true, status: current.status };
     },
 
-    /** Demo mode only (the route exists only then): stands in for a completed Stripe payment. */
-    demoPay(order) {
+    /**
+     * Demo mode only (the route exists only then): stands in for a completed Stripe payment, with
+     * the name, email and phone the demo page collected in Stripe's place.
+     */
+    demoPay(order, contact) {
       if (COMMITTED.includes(order.status)) return { ok: true };
       if (order.status !== 'pending') {
         throw new ApiError(409, 'order_closed', 'This order can no longer be paid. Please start a new one.');
       }
-      const { order: paid, changed } = orders.markPaid(order.code, {}, clock.now());
+      const { order: paid, changed } = orders.markPaid(order.code, { contact }, clock.now());
       if (changed) announcePaid(paid);
       return { ok: true };
     },

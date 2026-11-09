@@ -79,7 +79,8 @@ export function rateKey(ip) {
 /**
  * Unpaid holds per client: at most `limit` open at once, so one visitor cannot tie up a pop-up's
  * limited dishes and pickup times without paying. A hold stops counting when it expires or
- * `isOpen(code)` says it is no longer waiting for payment (paid, canceled, failed).
+ * `isOpen(code)` says it is no longer waiting for payment (paid, canceled, failed). Each hold also
+ * records the browser that made it, so a client's holds can be told apart.
  */
 export function createHoldLimiter({ limit, isOpen }) {
   const holds = new Map();
@@ -94,11 +95,11 @@ export function createHoldLimiter({ limit, isOpen }) {
 
   return {
     open,
-    /** Starts counting one more hold, or returns null when the key already has `limit` open. Set `.code` once known. */
-    claim(key, now, expiresAt) {
+    /** Starts counting one more hold made by `browser`, or returns null when the key already has `limit` open. Set `.code` once known. */
+    claim(key, now, expiresAt, browser) {
       const live = open(key, now);
       if (live.length >= limit) return null;
-      const hold = { code: null, expiresAt };
+      const hold = { code: null, browser, expiresAt };
       holds.set(key, [...live, hold]);
       return hold;
     },

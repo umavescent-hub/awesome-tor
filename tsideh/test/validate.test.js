@@ -56,16 +56,29 @@ describe('field validators', () => {
     for (const bad of [9, 501, 40.5, '4e1', '', null, true]) rejects(() => validate.integer(bad, 'guestCount', range), 'guestCount');
   });
 
-  test('customer requires name, email and phone', () => {
-    assert.deepEqual(validate.customer({ name: ' Ana Lucero ', email: 'ana@example.com', phone: '5055550142' }), {
+  test('contact (typed on the demo payment page) requires name, email and phone', () => {
+    assert.deepEqual(validate.contact({ name: ' Ana Lucero ', email: 'ana@example.com', phone: '5055550142' }), {
       name: 'Ana Lucero',
       email: 'ana@example.com',
       phone: '5055550142',
     });
-    rejects(() => validate.customer(null), 'customer');
-    rejects(() => validate.customer({ email: 'ana@example.com', phone: '5055550142' }), 'customer.name');
-    rejects(() => validate.customer({ name: 'Ana', phone: '5055550142' }), 'customer.email');
-    rejects(() => validate.customer({ name: 'Ana', email: 'ana@example.com' }), 'customer.phone');
+    rejects(() => validate.contact({ email: 'ana@example.com', phone: '5055550142' }), 'name');
+    rejects(() => validate.contact({ name: 'Ana', phone: '5055550142' }), 'email');
+    rejects(() => validate.contact({ name: 'Ana', email: 'ana@example.com' }), 'phone');
+  });
+
+  test('collectedContact (from Stripe) cleans by the same rules and never throws', () => {
+    assert.deepEqual(validate.collectedContact({ name: ' Ana\u200b Lucero ', email: ' ana@example.com ', phone: '+15055550142', address: { country: 'US' } }), {
+      name: 'Ana Lucero',
+      email: 'ana@example.com',
+      phone: '+15055550142',
+    });
+    const empty = { name: '', email: '', phone: '' };
+    for (const missing of [null, undefined, 'details', [], {}, { name: null, email: null, phone: null }]) {
+      assert.deepEqual(validate.collectedContact(missing), empty, JSON.stringify(missing));
+    }
+    assert.deepEqual(validate.collectedContact({ name: 'x'.repeat(81), email: 'ana@', phone: 5055550142 }), empty);
+    assert.deepEqual(validate.collectedContact({ name: 'Ana', email: 42, phone: '505' }), { name: 'Ana', email: '', phone: '' });
   });
 
   test('date and oneOf', () => {

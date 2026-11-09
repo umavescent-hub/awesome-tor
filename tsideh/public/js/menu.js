@@ -22,19 +22,21 @@ function marks(tags) {
   return h('ul', { class: 'marks', 'aria-label': 'Dietary notes' }, known.map((tag) => h('li', { class: 'mark' }, TAGS[tag])));
 }
 
-/** "Sold out", "Only 4 left", or null. */
-export function stockNote(item) {
+/** From the live count: "Sold out", "Only 4 left" (on a holiday menu, "4 left — then it’s gone
+ *  until next year"), or null. */
+function stockNote(item, seasonal) {
   if (item.soldOut) return 'Sold out';
-  if (item.remaining !== null && item.remaining <= LOW_STOCK) return `Only ${item.remaining} left`;
-  return null;
+  if (item.remaining === null || item.remaining > LOW_STOCK) return null;
+  return seasonal ? `${item.remaining} left — then it’s gone until next year` : `Only ${item.remaining} left`;
 }
 
 /**
  * One dish. control: an element for the Add button / amount controls, or null on a menu that is
- * not taking orders. Returns the <li>.
+ * not taking orders. seasonal: a holiday menu taking orders, which comes back only next year.
+ * Returns the <li>.
  */
-export function dishNode(item, { level = 3, control = null } = {}) {
-  const note = stockNote(item);
+export function dishNode(item, { level = 3, control = null, seasonal = false } = {}) {
+  const note = stockNote(item, seasonal);
   const min = minQtyOf(item);
   return h('li', { class: ['dish', item.soldOut ? 'dish--soldout' : ''], dataset: { item: item.id } },
     item.image ? h('img', { class: 'dish__media', src: item.image, alt: '', loading: 'lazy', decoding: 'async', width: 600, height: 400 }) : null,

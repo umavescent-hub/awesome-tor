@@ -125,7 +125,7 @@ function popupsSection() {
     h('div', { class: 'wrap' },
       h('header', { class: 'section-head' },
         heading,
-        h('p', null, 'Order ahead online, choose a pickup time, then come and get your food.')),
+        h('p', null, 'Order ahead and your food is set aside for you. Choose a pickup time, pay online, then come and get it.')),
       list));
 
   function fill(events, { onRetry } = {}) {
@@ -136,7 +136,7 @@ function popupsSection() {
     if (!events.length) {
       mount(list, h('div', { class: 'empty' },
         h('h3', null, 'No pop-ups on the calendar right now'),
-        h('p', null, 'New dates are posted here first. Planning a gathering? ',
+        h('p', null, 'New dates are posted on this page. Planning a gathering? ',
           h('a', { href: '/catering', 'data-link': '' }, 'Ask about catering'), '.')));
       return;
     }

@@ -1,7 +1,7 @@
 // Input cleaning and validation for everything customers type. All strings are trimmed and have
 // control, zero-width and bidi-override characters removed before length checks.
 
-import { invalid } from './http.js';
+import { ApiError, invalid } from './http.js';
 import { isDateString } from './time.js';
 
 const INVISIBLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F​-‏‪-‮⁠-⁤⁦-⁩﻿]/g;
@@ -64,11 +64,31 @@ export function oneOf(value, field, choices, message) {
   return value;
 }
 
-export function customer(value) {
-  if (!isPlainObject(value)) throw invalid('customer', 'Enter your name, email and phone number.');
-  return {
-    name: text(value.name, { field: 'customer.name', label: 'your name', min: 1, max: 80 }),
-    email: email(value.email, 'customer.email'),
-    phone: phone(value.phone, 'customer.phone', { required: true }),
+const CONTACT = {
+  name: (value) => text(value, { field: 'name', label: 'your name', min: 1, max: 80 }),
+  email: (value) => email(value, 'email'),
+  phone: (value) => phone(value, 'phone', { required: true }),
+};
+
+/** Name, email and phone typed into a payment form: all three are needed. */
+export function contact(value) {
+  return { name: CONTACT.name(value.name), email: CONTACT.email(value.email), phone: CONTACT.phone(value.phone) };
+}
+
+/**
+ * Name, email and phone a payment page collected (Stripe's customer_details), cleaned by the same
+ * rules. It never throws: the payment already happened, so a value that is missing or breaks a
+ * rule is stored as '' instead.
+ */
+export function collectedContact(value) {
+  const details = isPlainObject(value) ? value : {};
+  const kept = (field) => {
+    try {
+      return CONTACT[field](details[field]);
+    } catch (error) {
+      if (error instanceof ApiError) return '';
+      throw error;
+    }
   };
+  return { name: kept('name'), email: kept('email'), phone: kept('phone') };
 }

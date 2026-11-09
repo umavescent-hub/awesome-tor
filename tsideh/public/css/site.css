@@ -70,7 +70,7 @@ legend { padding: 0; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
   min-height: var(--tap); padding: 0.625rem 1.25rem; border: 2px solid transparent; border-radius: var(--radius);
-  font: 700 var(--fs-body)/1.25 var(--font-body); text-align: center; text-decoration: none;
+  font: 700 var(--fs-body)/1.25 var(--font-body); text-align: center; text-decoration: none; text-wrap: balance;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
@@ -229,7 +229,18 @@ legend { padding: 0; }
 
 .form { display: grid; gap: 1.5rem; }
 .form__row { display: grid; gap: 1.5rem; }
-@media (min-width: 40em) { .form__row--2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+/* Side by side, two fields share their rows (label, hint, input, message), so the inputs line up
+   however long the lines above them are. A field without a hint keeps its label on the input. */
+@media (min-width: 40em) {
+  .form__row--2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 0; }
+  .form__row--2 > div:not(.field) { display: contents; }     /* the date with its short-notice note */
+  .form__row--2 .field { grid-row: span 4; grid-template-rows: subgrid; }
+  .form__row--2 .field__hint { grid-row: 2; }
+  .form__row--2 .field__label:has(+ .input) { grid-row: 2; align-self: end; }
+  .form__row--2 .input { grid-row: 3; }
+  .form__row--2 .field__foot { grid-row: 4; }
+  .form__row--2 .form-note { grid-area: 5 / 1; }
+}
 .field { display: grid; gap: 0.375rem; align-content: start; min-width: 0; }
 .field__label { font-weight: 800; }
 .field__label .optional { font-weight: 500; color: var(--muted); }
@@ -375,8 +386,10 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 /* The order checklist: beside the menu on desktop, in the sheet on phones */
 .panel-slot { display: none; }
 @media (min-width: 64em) {
+  /* Fits whole below the header (4rem) and its own 1rem margin before the page scrolls, so Pay and
+     the lines under it are never cut off at the bottom of the window. */
   .panel-slot {
-    display: flex; flex-direction: column; position: sticky; top: 1rem; max-height: calc(100svh - 2rem); overflow: hidden;
+    display: flex; flex-direction: column; position: sticky; top: 1rem; max-height: calc(100svh - 6rem - var(--safe-top)); overflow: hidden;
     border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong);
   }
   /* The steps scroll; Pay, its amount and what is still missing stay in view below them. */
@@ -408,6 +421,7 @@ input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
 .step__title { font-weight: 800; font-size: 1.25rem; line-height: 1.3; }
 .step__help { color: var(--muted); font-size: var(--fs-help); line-height: 1.5; }
 .step .field__error { margin-top: 0.625rem; }
+.step > .field { margin-top: 1.25rem; }      /* the kitchen note, under the dishes */
 /* A fieldset draws its <legend> on its top border. Floated, the legend sits inside like any other
    heading: the divider above the step shows in full and no extra gap opens under the heading. */
 fieldset.step > legend, fieldset.tip > legend { float: left; width: 100%; }
@@ -440,7 +454,7 @@ fieldset.step > legend ~ *, fieldset.tip > legend ~ * { clear: both; }
 .pay { display: grid; gap: 0.75rem; margin-top: 1.5rem; padding-bottom: 1.5rem; }
 .pay__missing { padding: 0.75rem 1rem; border-radius: var(--radius); background: var(--cream-200); font-weight: 700; }
 .pay__missing[hidden] { display: none; }
-.pay__next { color: var(--black-700); font-size: var(--fs-help); line-height: 1.5; text-align: center; }
+.pay__next { display: grid; gap: 0.25rem; color: var(--black-700); font-size: var(--fs-help); line-height: 1.5; text-align: center; }
 .pay__next .icon, .footer-trust .icon { display: inline-block; margin-right: 0.35em; vertical-align: -0.2em; }
 
 /* Phones: the "View order" bar rests at the bottom of the screen while the menu scrolls. */
@@ -521,12 +535,15 @@ fieldset.step > legend ~ *, fieldset.tip > legend ~ * { clear: both; }
 .demo-pay { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding-block: 2rem var(--section); }
 .demo-card { width: 100%; max-width: 30rem; padding: clamp(var(--pad), 4vw, 2rem); border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .demo-card .demo-flag { margin: 0 0 1.25rem; }
-.demo-card h1 { font-size: min(1.75rem, 9vw); }
+.demo-card h1 { font-size: min(1.75rem, 9vw); font-weight: 700; }   /* as the pop-up's own title: "Thanksgiving" fits a small phone at large text */
 .demo-card__code { margin-top: 0.25rem; color: var(--muted); font-weight: 700; }
-.demo-card__amount { margin-top: 1rem; font: 800 2.5rem/1.1 var(--font-body); }
+.demo-card__amount { margin-top: 1rem; font: 800 min(2.5rem, 12vw)/1.1 var(--font-body); }
+.demo-card__label { display: block; color: var(--muted); font-size: var(--fs-help); font-weight: 700; }
 .demo-card .lines { margin-top: 1rem; padding-top: 0.875rem; border-top: 1px solid var(--line); }
 .demo-card__note { margin-top: 1rem; color: var(--muted); font-size: var(--fs-help); }
-.demo-card__actions { display: grid; gap: 0.75rem; margin-top: 1.5rem; }
+/* Name, mobile number and email: asked here in Stripe's place, then the two buttons. */
+.demo-card__form { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.demo-card__actions { display: grid; gap: 0.75rem; }
 .demo-card > .field__error { margin-top: 1rem; }
 
 /* ---------------------------------------------------------------- footer */
@@ -552,7 +569,7 @@ fieldset.step > legend ~ *, fieldset.tip > legend ~ * { clear: both; }
 /* ---------------------------------------------------------------- states */
 
 .state { display: grid; justify-items: center; gap: 0.75rem; padding: clamp(3rem, 8vw, 6rem) 0; text-align: center; }
-.state__title { font-size: clamp(1.75rem, 1.5rem + 1vw, 2.25rem); }
+.state__title { font-size: min(clamp(1.75rem, 1.5rem + 1vw, 2.25rem), 10.5vw); }
 .state__text { max-width: 34rem; color: var(--black-700); }
 .state__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: 0.5rem; }
 .empty { padding: 2rem var(--pad); border-radius: var(--radius-lg); background: var(--cream-50); text-align: center; }

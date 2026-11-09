@@ -1,5 +1,5 @@
 // Static files from public/: safe path resolution, explicit MIME types, in-memory cache of file
-// bodies and their gzip/brotli variants, cache headers, ETags, HEAD, and the SPA fallback.
+// bodies and their gzip/brotli variants, cache headers, ETags, HEAD, and the app's pages.
 
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
@@ -24,7 +24,8 @@ const TYPES = {
 };
 const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.json', '.webmanifest', '.svg', '.txt']);
 const COMPRESS_MIN_BYTES = 1024;
-const SPA_ROUTES = /^\/(?:e\/[^/]+|order\/[^/]+|pay\/demo\/[^/]+|catering)?\/?$/;
+const APP_ROUTES = /^\/(?:e\/[^/]+|order\/[^/]+|catering)?\/?$/;
+const DEMO_PAY_ROUTE = /^\/pay\/demo\/[^/]+\/?$/;
 
 const NOT_FOUND_PAGE = Buffer.from(`<!doctype html>
 <html lang="en">
@@ -50,9 +51,29 @@ function cacheControl(pathname, extension) {
   return 'public, max-age=300';
 }
 
-export function createStaticHandler(publicDir) {
+const entryOf = (body) => ({
+  size: body.length,
+  body,
+  etag: `W/"${createHash('sha256').update(body).digest('base64url').slice(0, 22)}"`,
+  variants: new Map(),
+});
+
+/**
+ * index.html is the shell of every app page. Link previews and search engines need absolute
+ * addresses, so it carries two placeholders filled in here: %PUBLIC_URL% (the site, e.g.
+ * https://tsideh.com) and %PAGE_URL% (the page's own address). The home page, /catering and
+ * each pop-up in `eventIds` are rendered once per version of index.html and then served like any
+ * cached file; every other app route (an order, a payment, an unknown pop-up) presents itself as
+ * the home page. Both values are plain addresses (an origin and slug paths), so nothing needs
+ * escaping. The demo payment page exists only when `demoPay` is on.
+ */
+export function createStaticHandler(publicDir, { publicUrl, eventIds, demoPay }) {
   const root = path.resolve(publicDir);
+  const shellFile = path.join(root, 'index.html');
+  const pages = ['/', '/catering', ...eventIds.map((id) => `/e/${id}`)];
+  const pageUrls = new Map(pages.map((page) => [page, `${publicUrl}${page}`]));
   const cache = new Map();
+  const rendered = new Map();
 
   /** Maps a URL path to a file inside public/, or null when it could escape or is hidden. */
   function resolve(pathname) {
@@ -79,15 +100,23 @@ export function createStaticHandler(publicDir) {
     if (!info.isFile()) return null;
     const cached = cache.get(file);
     if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) return cached;
-    const body = await readFile(file);
-    const entry = {
-      mtimeMs: info.mtimeMs,
-      size: info.size,
-      body,
-      etag: `W/"${createHash('sha256').update(body).digest('base64url').slice(0, 22)}"`,
-      variants: new Map(),
-    };
+    const entry = { ...entryOf(await readFile(file)), mtimeMs: info.mtimeMs };
     cache.set(file, entry);
+    return entry;
+  }
+
+  /** The app shell for one route, with its addresses filled in. */
+  async function renderPage(pathname) {
+    const shell = await load(shellFile);
+    if (!shell) return null;
+    const trimmed = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+    const page = pageUrls.has(trimmed) ? trimmed : '/';
+    let entry = rendered.get(page);
+    if (entry?.source !== shell) {
+      const html = shell.body.toString('utf8').replaceAll('%PAGE_URL%', pageUrls.get(page)).replaceAll('%PUBLIC_URL%', publicUrl);
+      entry = { ...entryOf(Buffer.from(html)), source: shell };
+      rendered.set(page, entry);
+    }
     return entry;
   }
 
@@ -142,9 +171,16 @@ export function createStaticHandler(publicDir) {
       if (await serveFile(req, res, path.join(root, 'admin', 'index.html'), '/admin/index.html')) return;
     } else if (!pathname.endsWith('/')) {
       const file = resolve(pathname);
-      if (file && await serveFile(req, res, file, pathname)) return;
+      // index.html itself is a template: it is only ever served rendered, as an app page.
+      if (file && file !== shellFile && await serveFile(req, res, file, pathname)) return;
     }
-    if (SPA_ROUTES.test(pathname) && await serveFile(req, res, path.join(root, 'index.html'), '/index.html')) return;
+    if (APP_ROUTES.test(pathname) || (demoPay && DEMO_PAY_ROUTE.test(pathname))) {
+      const entry = await renderPage(pathname);
+      if (entry) {
+        send(req, res, entry, '.html', 'no-cache');
+        return;
+      }
+    }
 
     res.writeHead(404, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-cache', 'Content-Length': NOT_FOUND_PAGE.length });
     res.end(req.method === 'HEAD' ? undefined : NOT_FOUND_PAGE);

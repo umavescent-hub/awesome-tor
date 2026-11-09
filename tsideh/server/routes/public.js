@@ -1,6 +1,8 @@
 // Customer-facing API: site info, events and menus, checkout, order status, catering, and the
 // Stripe webhook.
 
+import { randomBytes } from 'node:crypto';
+import { parseCookies } from '../auth.js';
 import { eventSummary, isListed, menuView } from '../catalog.js';
 import { ApiError, invalid, notFound, sendJson } from '../http.js';
 import { CODE_PATTERN, TOKEN_PATTERN } from '../orders.js';
@@ -13,12 +15,12 @@ const EVENT_ID = /^[a-z0-9-]{1,64}$/;
 const SESSION_ID = /^cs_[A-Za-z0-9_]{1,250}$/;
 const CATERING_HORIZON_DAYS = 730;
 
-const digits = (value) => value.replace(/\D/g, '');
-const samePerson = (a, b) => a.email.toLowerCase() === b.email.toLowerCase() || digits(a.phone) === digits(b.phone);
-
-export function publicRoutes({ catalog, orders, payments, catering, notifier, clock, holds }) {
+export function publicRoutes({ config, catalog, orders, payments, catering, notifier, clock, holds }) {
   const site = catalog.site;
   const holdMs = site.order.holdMinutes * 60_000;
+  // Which browser a checkout comes from: a random id in a cookie that is sent only to
+  // /api/checkout and lasts as long as a hold. Nothing else is linked to it.
+  const browserCookie = config.production ? '__Secure-tsideh_checkout' : 'tsideh_checkout';
 
   const siteView = {
     name: site.name,
@@ -95,18 +97,29 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
     };
   }
 
+  function browserOf(req) {
+    const id = parseCookies(req.headers.cookie).get(browserCookie);
+    return id && TOKEN_PATTERN.test(id) ? id : randomBytes(32).toString('base64url');
+  }
+
+  const browserCookieFor = (id, client) => [
+    `${browserCookie}=${id}`, 'HttpOnly', 'SameSite=Strict', 'Path=/api/checkout', `Max-Age=${holdMs / 1000}`,
+    ...(client.https || config.production ? ['Secure'] : []),
+  ].join('; ');
+
   /**
    * Counts a checkout against the client's open holds (see createHoldLimiter). Someone starting a
-   * pop-up's order again, for example after pressing Back on the payment page, replaces their own
-   * earlier unpaid attempts for it instead of being turned away.
+   * pop-up's order again in the same browser, for example after pressing Back on the payment page,
+   * replaces their own earlier unpaid attempts for it instead of being turned away. Unpaid orders
+   * from other browsers on the same internet connection are never touched.
    */
-  async function claimHold(key, event, customer) {
-    const claim = () => holds.claim(key, clock.now(), clock.now() + holdMs);
+  async function claimHold(key, event, browser) {
+    const claim = () => holds.claim(key, clock.now(), clock.now() + holdMs, browser);
     const first = claim();
     if (first) return first;
-    for (const { code } of holds.open(key, clock.now())) {
-      const earlier = code && orders.find(code);
-      if (earlier?.status !== 'pending' || earlier.eventId !== event.id || !samePerson(earlier.customer, customer)) continue;
+    for (const { code, browser: owner } of holds.open(key, clock.now())) {
+      const earlier = code && owner === browser ? orders.find(code) : null;
+      if (earlier?.status !== 'pending' || earlier.eventId !== event.id) continue;
       try {
         await payments.cancel(earlier);
       } catch (error) {
@@ -172,21 +185,23 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
         const event = listedEvent(body.eventId, clock.now());
         if (typeof body.slot !== 'string' || !event.slotsByTime.has(body.slot)) throw invalid('slot', 'Choose a pickup time.');
         const lines = priceCart(event, body.items, site.order);
-        const customer = validate.customer(body.customer);
+        // Name, email and phone are given on the payment page; a `customer` sent by an older page is ignored.
         const notes = validate.text(body.notes, { field: 'notes', label: 'your notes', max: 300, multiline: true });
         const tipPercent = tipPercentFrom(body.tipPercent, site.tipPresetsPercent);
         const totals = computeTotals(lines, { taxRatePercent: site.taxRatePercent, tipPercent });
         const key = rateKey(client.ip);
-        const hold = await claimHold(key, event, customer);
+        const browser = browserOf(req);
+        const hold = await claimHold(key, event, browser);
         let result;
         try {
-          result = await payments.checkout({ event, slot: body.slot, lines, customer, notes, tipPercent, totals });
+          result = await payments.checkout({ event, slot: body.slot, lines, notes, tipPercent, totals });
         } catch (error) {
           holds.drop(key, hold);
           throw error;
         }
         hold.code = result.code;
-        sendJson(res, 200, { code: result.code, viewToken: result.viewToken, url: result.url, totals: result.totals });
+        const cookie = { 'Set-Cookie': browserCookieFor(browser, client) };
+        sendJson(res, 200, { code: result.code, viewToken: result.viewToken, url: result.url, totals: result.totals }, cookie);
       },
     },
     {
@@ -259,7 +274,8 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
       path: '/api/demo/pay/:code',
       handler: async (req, res, { params }) => {
         const body = await readJson(req);
-        sendJson(res, 200, payments.demoPay(orderFor(params.code, body.k, clock.now())));
+        const order = orderFor(params.code, body.k, clock.now());
+        sendJson(res, 200, payments.demoPay(order, validate.contact(body)));
       },
     });
   }

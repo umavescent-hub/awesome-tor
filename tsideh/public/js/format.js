@@ -1,15 +1,17 @@
-// Money, dates and times. Every date and time is shown in the kitchen's zone (America/Denver),
-// whatever zone the visitor's device is set to.
+// Money, dates and times. Every amount on the site goes through formatMoney. Every date and time
+// is shown in the kitchen's zone (America/Denver), whatever zone the visitor's device is set to.
 
 const TIME_ZONE = 'America/Denver';
 
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const wholeAmount = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const centsAmount = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const shortDate = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 const longDate = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 const zonedDay = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TIME_ZONE });
 const zonedTime = new Intl.DateTimeFormat('en-CA', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: TIME_ZONE });
 
-export const formatMoney = (cents) => money.format(cents / 100);
+/** Money the owner's way, with no currency sign: whole amounts as "48" or "495", others as "65.29". */
+export const formatMoney = (cents) => (cents % 100 === 0 ? wholeAmount : centsAmount).format(cents / 100);
 
 /** 'YYYY-MM-DD' (a local calendar date) to a UTC-noon Date, so formatting never shifts the day. */
 function calendarDate(date) {

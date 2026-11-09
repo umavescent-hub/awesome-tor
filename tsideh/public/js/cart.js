@@ -108,8 +108,9 @@ export function subscribe(listener) {
   return () => events.removeEventListener('change', listener);
 }
 
-/* Checkout details typed on this device live only for this tab (sessionStorage), so a canceled
-   Stripe checkout comes back to a filled-in form without keeping personal data around. */
+/* The checkout draft (pickup times, tip and the note for the kitchen) lives only for this tab
+   (sessionStorage), so a canceled Stripe checkout comes back to the same choices without keeping
+   the note around. */
 const DRAFT_KEY = 'tsideh.checkout.v1';
 
 export function getDraft() {

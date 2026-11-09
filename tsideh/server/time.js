@@ -124,6 +124,14 @@ export function timeLabel(time) {
   return `${hour % 12 || 12}:${pad(minute)} ${suffix}`;
 }
 
+const DAY_LABEL = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+
+/** "2026-11-25" -> "Wednesday, November 25" */
+export function dateLabel(date) {
+  const [year, month, day] = date.split('-').map(Number);
+  return DAY_LABEL.format(Date.UTC(year, month - 1, day));
+}
+
 export function toIso(ms) {
   return ms === null || ms === undefined ? null : new Date(ms).toISOString();
 }

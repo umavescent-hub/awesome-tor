@@ -23,16 +23,26 @@ const SECURITY_HEADERS = {
 };
 
 const SITE_CSS = `:root { --clay: #c16742; }\n${'.tile { border: 2px solid var(--ink); }\n'.repeat(80)}`;
+const PUBLIC_URL = 'https://tsideh.test';
+
+/** The app shell with its address placeholders, or as rendered for one page. Large enough to compress. */
+const shell = (pageUrl = '%PAGE_URL%', siteUrl = '%PUBLIC_URL%') => `<!doctype html><title>Tsideh</title>
+<link rel="canonical" href="${pageUrl}">
+<meta property="og:url" content="${pageUrl}">
+<meta property="og:image" content="${siteUrl}/assets/og.jpg">
+<main id="app"></main>
+${'<!-- shell -->\n'.repeat(80)}`;
 
 let server;
 let port;
 let root;
+let publicDir;
 
 before(async () => {
   root = tempDir();
-  const publicDir = path.join(root, 'public');
+  publicDir = path.join(root, 'public');
   const files = {
-    'index.html': '<!doctype html><title>Tsideh</title><main id="app"></main>',
+    'index.html': shell(),
     'admin/index.html': '<!doctype html><title>Tsideh Kitchen</title>',
     'css/site.css': SITE_CSS,
     'js/app.js': `export const ready = true;\n${'// tile\n'.repeat(300)}`,
@@ -55,7 +65,7 @@ before(async () => {
     writeFileSync(path.join(publicDir, name), content);
   }
   writeFileSync(path.join(root, 'secret.txt'), 'outside public');
-  server = await startTestServer({ publicDir });
+  server = await startTestServer({ publicDir, env: { PUBLIC_URL } });
   port = server.port;
 });
 after(async () => {
@@ -186,6 +196,16 @@ describe('routing', () => {
     }
   });
 
+  test('the demo payment page exists only in demo mode', async () => {
+    const stripeMode = await startTestServer({ publicDir, env: { PUBLIC_URL, STRIPE_SECRET_KEY: 'sk_test_fakekey123', STRIPE_WEBHOOK_SECRET: 'whsec_fake' } });
+    try {
+      assert.equal((await rawRequest(stripeMode.port, '/pay/demo/TS-AB23?k=abc')).status, 404);
+      assert.equal((await rawRequest(stripeMode.port, '/order/TS-AB23?k=abc')).status, 200);
+    } finally {
+      await stripeMode.close();
+    }
+  });
+
   test('/admin and /admin/ serve the kitchen app', async () => {
     for (const requestPath of ['/admin', '/admin/']) {
       const { status, body } = await get(requestPath);
@@ -203,6 +223,55 @@ describe('routing', () => {
     assert.equal(api.status, 404);
     assert.deepEqual(JSON.parse(api.body), { error: { code: 'not_found', message: 'Not found.' } });
     assert.equal((await get('/css/')).status, 404, 'no directory listings');
+  });
+});
+
+describe('link previews: index.html gets absolute addresses', () => {
+  test('each public page names itself; private and unknown routes present the home page', async () => {
+    const pages = [
+      ['/', `${PUBLIC_URL}/`],
+      ['/catering', `${PUBLIC_URL}/catering`],
+      ['/catering/', `${PUBLIC_URL}/catering`],
+      ['/e/winter', `${PUBLIC_URL}/e/winter`],
+      ['/e/harvest/?canceled=TS-AB23&k=abc', `${PUBLIC_URL}/e/harvest`],
+      ['/e/no-such-pop-up', `${PUBLIC_URL}/`],
+      ['/order/TS-AB23?k=abc', `${PUBLIC_URL}/`],
+      ['/pay/demo/TS-AB23?k=abc', `${PUBLIC_URL}/`],
+    ];
+    for (const [requestPath, pageUrl] of pages) {
+      const { status, body } = await get(requestPath);
+      assert.equal(status, 200, requestPath);
+      assert.equal(body.toString(), shell(pageUrl, PUBLIC_URL), requestPath);
+    }
+  });
+
+  test('a rendered page has one ETag across 304s, HEAD and compression', async () => {
+    const page = await get('/e/winter');
+    assert.match(page.headers.etag, /^W\/"[A-Za-z0-9_-]+"$/);
+    assert.equal(page.headers['cache-control'], 'no-cache');
+    assert.equal((await get('/e/winter/')).headers.etag, page.headers.etag, 'rendered once, served from cache');
+    assert.notEqual((await get('/')).headers.etag, page.headers.etag, 'each page is its own document');
+
+    const again = await get('/e/winter', { 'If-None-Match': page.headers.etag });
+    assert.equal(again.status, 304);
+    assert.equal(again.headers.etag, page.headers.etag);
+
+    const br = await get('/e/winter', { 'Accept-Encoding': 'br' });
+    assert.equal(br.headers['content-encoding'], 'br');
+    assert.equal(br.headers.etag, page.headers.etag);
+    assert.equal(brotliDecompressSync(br.body).toString(), page.body.toString());
+
+    const head = await rawRequest(port, '/e/winter', { method: 'HEAD' });
+    assert.equal(Number(head.headers['content-length']), page.body.length);
+    assert.equal(head.headers.etag, page.headers.etag);
+  });
+
+  test('the template itself, placeholders and all, is never served', async () => {
+    for (const requestPath of ['/index.html', '/%69ndex.html']) {
+      const { status, body } = await get(requestPath);
+      assert.equal(status, 404, requestPath);
+      assert.equal(body.toString().includes('%PAGE_URL%'), false);
+    }
   });
 });
 
