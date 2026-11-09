@@ -351,8 +351,12 @@ function buildPage(site, detail, ctx, pageNotices) {
     const wrap = h('div', { class: 'order-bar', hidden: true }, statusNode('action-status--bar'), button);
     // Keep focused and scrolled-to content clear of the bar: the page's scroll padding follows its height.
     const root = document.documentElement;
-    const sizer = new ResizeObserver(() => root.style.setProperty('--order-bar-h', `${wrap.offsetHeight}px`));
+    const sizer = new ResizeObserver(() => {
+      wrap.classList.toggle('is-compact', button.offsetHeight > innerHeight * 0.2);
+      root.style.setProperty('--order-bar-h', `${wrap.offsetHeight}px`);
+    });
     sizer.observe(wrap);
+    sizer.observe(button);
     cleanup.push(() => {
       sizer.disconnect();
       root.style.removeProperty('--order-bar-h');

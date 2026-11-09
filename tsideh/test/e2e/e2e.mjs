@@ -155,6 +155,22 @@ async function expectPageBasics(page, run, where) {
 
 /* ------------------------------------------------------------------------------- customer */
 
+/**
+ * After "Add": screen readers hear "Added: <dish>" and it is on screen: in the order panel on
+ * desktop, above the "View order" bar on phones. With very large text the bar keeps only its button,
+ * and the dish row's "In your order" is the visible confirmation.
+ */
+async function expectAdded(page, run, dish, name) {
+  await page.locator('[aria-live="polite"]', { hasText: `Added: ${name}` }).waitFor({ state: 'attached' });
+  await dish.locator('.amount__note', { hasText: 'In your order' }).waitFor();
+  if (!run.phone) {
+    await page.locator('.panel-slot .action-status', { hasText: `Added: ${name}` }).waitFor();
+  } else if (await page.locator('.order-bar.is-compact').count() === 0) {
+    assert.equal(run.bigText ?? false, false, 'the bar keeps only its button with very large text on a short screen');
+    await page.locator('.order-bar .action-status', { hasText: `Added: ${name}` }).waitFor();
+  }
+}
+
 async function orderAndPay(page, run, base) {
   await page.goto(`${base}/`);
   const viewport = await page.locator('meta[name="viewport"]').getAttribute('content');
@@ -189,13 +205,12 @@ async function orderAndPay(page, run, base) {
   const second = dishes.nth(1);
   const picked = [await first.locator('.dish__name').innerText(), await second.locator('.dish__name').innerText()];
   await first.getByRole('button', { name: `Add ${picked[0]}` }).click();
-  const confirmation = run.phone ? page.locator('.order-bar .action-status') : page.locator('.panel-slot .action-status');
-  await confirmation.filter({ hasText: `Added: ${picked[0]}` }).waitFor();
-  await page.locator('[aria-live="polite"]', { hasText: `Added: ${picked[0]}` }).waitFor({ state: 'attached' });
+  await expectAdded(page, run, first, picked[0]);
   await second.getByRole('button', { name: `Add ${picked[1]}` }).click();
+  await expectAdded(page, run, second, picked[1]);
   await first.getByRole('button', { name: `One more ${picked[0]}` }).click();
   await first.locator('.stepper__qty', { hasText: '2' }).waitFor();
-  await confirmation.filter({ hasText: `Added: ${picked[0]}` }).waitFor();
+  await expectAdded(page, run, first, picked[0]);
 
   const form = page.locator('form.order-form');
   const sheet = page.locator('dialog.order-sheet');
