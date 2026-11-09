@@ -1,0 +1,12 @@
+.git
+.gitignore
+.dockerignore
+.env
+.env.*
+node_modules
+data
+test
+Dockerfile
+render.yaml
+README.md
+*.log

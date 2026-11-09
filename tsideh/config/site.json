@@ -1,0 +1,70 @@
+{
+  "name": "Tsideh",
+  "tagline": "Pop-up kitchen in Northern New Mexico",
+  "heroHeadline": "A pop-up kitchen of the Northern Rio Grande.",
+  "description": "Pre-order pickup from Tsideh, a pop-up kitchen by Chef Rainbird Taylor, Ohkay Owingeh, or request catering for your gathering.",
+  "chef": {
+    "name": "Chef Rainbird Taylor",
+    "from": "Ohkay Owingeh"
+  },
+  "timezone": "America/Denver",
+  "currency": "usd",
+  "taxRatePercent": 8.1875,
+  "taxLabel": "New Mexico gross receipts tax",
+  "tipPresetsPercent": [
+    0,
+    10,
+    15,
+    20
+  ],
+  "order": {
+    "leadTimeMinutes": 30,
+    "holdMinutes": 30,
+    "maxQtyPerItem": 12,
+    "maxItemsPerOrder": 30
+  },
+  "contact": {
+    "email": "",
+    "phone": "",
+    "instagram": ""
+  },
+  "press": [
+    {
+      "name": "Food & Wine",
+      "kind": "featured",
+      "url": "",
+      "quote": ""
+    },
+    {
+      "name": "The Guardian",
+      "kind": "featured",
+      "url": "",
+      "quote": ""
+    },
+    {
+      "name": "New Mexico Magazine",
+      "kind": "featured",
+      "url": "",
+      "quote": ""
+    },
+    {
+      "name": "James Beard Legacy Network",
+      "kind": "recognition",
+      "url": "",
+      "quote": ""
+    }
+  ],
+  "catering": {
+    "blurb": "From a five-course plated tasting with the chef to boxed lunches for your team, we bring the kitchen to you. Tell us about your event and we'll reply with a menu and a quote. Most of our menu is naturally gluten-free and plant-forward. Tell us about allergies or dietary needs — there's never an extra charge.",
+    "minGuests": 10,
+    "maxGuests": 500,
+    "leadTimeDays": 7,
+    "serviceStyles": [
+      "Chef's Table — five-course plated tasting with the chef, parties up to 30 (book 3 weeks ahead)",
+      "Family Table — family-style or elevated buffet, 25 guests or more (book 2 weeks ahead)",
+      "Harvest Drop-Off — delivered and styled, no staff, 25 guests or more (72 hours ahead)",
+      "Boxed lunches — 10 boxes or more (order by noon, two business days ahead)",
+      "Not sure yet"
+    ]
+  }
+}

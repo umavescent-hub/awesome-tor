@@ -1,0 +1,126 @@
+{
+  "events": [
+    {
+      "id": "2026-11-21-santa-fe",
+      "title": "Santa Fe pop-up",
+      "date": "2026-11-21",
+      "start": "11:00",
+      "end": "14:00",
+      "locationName": "Santa Fe",
+      "address": "Exact spot posted here 48 hours before pickup",
+      "mapUrl": "",
+      "status": "open",
+      "slotMinutes": 15,
+      "ordersPerSlot": 8,
+      "preorderOpensDaysBefore": 21,
+      "menu": [
+        "bison-red-chile-tacos",
+        "green-chile-lamb-plate",
+        "three-sisters-plate",
+        "red-chile-posole",
+        "green-chile-stew",
+        "blue-corn-fry-bread",
+        "horno-bread",
+        "biscochitos",
+        "chokecherry-crumble",
+        "blue-corn-atole",
+        "prickly-pear-agua-fresca"
+      ],
+      "itemLimits": {
+        "bison-red-chile-tacos": 60,
+        "green-chile-lamb-plate": 40,
+        "red-chile-posole": 50,
+        "blue-corn-fry-bread": 90,
+        "chokecherry-crumble": 30
+      },
+      "note": "Pre-order and your food is set aside for you. Walk-ups are welcome while it lasts."
+    },
+    {
+      "id": "2026-11-25-thanksgiving",
+      "title": "Thanksgiving Harvest Table",
+      "date": "2026-11-25",
+      "start": "12:00",
+      "end": "18:00",
+      "locationName": "Santa Fe",
+      "address": "Exact spot posted here 48 hours before pickup",
+      "mapUrl": "",
+      "status": "open",
+      "slotMinutes": 30,
+      "ordersPerSlot": 4,
+      "preorderOpensDaysBefore": 30,
+      "ordersCloseAt": "2026-11-20T20:00",
+      "menu": [
+        "harvest-table-for-six",
+        "harvest-table-for-two",
+        "pie-pumpkin-blue-corn",
+        "pie-pinon-honey",
+        "pie-nm-cherry",
+        "host-upgrade"
+      ],
+      "itemLimits": {
+        "harvest-table-for-six": 20,
+        "harvest-table-for-two": 20,
+        "pie-pumpkin-blue-corn": 15,
+        "pie-pinon-honey": 15,
+        "pie-nm-cherry": 15
+      },
+      "note": "Pickup is the day before Thanksgiving. Each order carries a finishing card: oven temperatures, garnish, and where every ingredient came from. Every drop is capped. When it sells out, it's gone until next year."
+    },
+    {
+      "id": "2026-12-05-espanola",
+      "title": "Española pop-up",
+      "date": "2026-12-05",
+      "start": "10:30",
+      "end": "13:30",
+      "locationName": "Española",
+      "address": "Exact spot posted here 48 hours before pickup",
+      "mapUrl": "",
+      "status": "open",
+      "slotMinutes": 15,
+      "ordersPerSlot": 6,
+      "preorderOpensDaysBefore": 30,
+      "menu": [
+        "bison-red-chile-tacos",
+        "three-sisters-plate",
+        "red-chile-posole",
+        "green-chile-stew",
+        "blue-corn-fry-bread",
+        "biscochitos",
+        "blue-corn-atole"
+      ],
+      "itemLimits": {
+        "bison-red-chile-tacos": 48,
+        "red-chile-posole": 40,
+        "blue-corn-fry-bread": 70
+      },
+      "note": "Pickup only. Pre-order and your food is set aside for you."
+    },
+    {
+      "id": "2026-12-24-winter-feast",
+      "title": "Winter Feast Table",
+      "date": "2026-12-24",
+      "start": "10:00",
+      "end": "14:00",
+      "locationName": "Santa Fe",
+      "address": "Exact spot posted here 48 hours before pickup",
+      "mapUrl": "",
+      "status": "hidden",
+      "slotMinutes": 20,
+      "ordersPerSlot": 10,
+      "preorderOpensDaysBefore": 28,
+      "ordersCloseAt": "2026-12-18T20:00",
+      "menu": [
+        "winter-feast-table-for-six",
+        "winter-feast-table-per-person",
+        "blue-corn-tamales-dozen",
+        "host-upgrade"
+      ],
+      "itemLimits": {
+        "winter-feast-table-for-six": 20,
+        "winter-feast-table-per-person": 40,
+        "blue-corn-tamales-dozen": 30
+      },
+      "note": "Pickup is on Christmas Eve. Each order carries a finishing card: oven temperatures, garnish, and where every ingredient came from. Every drop is capped. When it sells out, it's gone until next year."
+    }
+  ]
+}

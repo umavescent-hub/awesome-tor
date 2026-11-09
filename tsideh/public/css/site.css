@@ -1,0 +1,591 @@
+/* Tsideh — public site.
+   Calm and plain: one adobe field (the hero), cream pages, black type. Syne only for the TSIDEH
+   wordmark and big headings; Manrope for everything read, typed or pressed. Every size is in rem,
+   so browser zoom and the phone's text size setting scale the whole page. Colors come only from
+   tokens.css. */
+
+:root {
+  --tap: 3rem;                         /* 48px at the default text size */
+  --tap-lg: 3.5rem;
+  --radius: 0.75rem;
+  --radius-lg: 1.25rem;
+  --gutter: min(1.25rem, 5vw);         /* page edges follow the screen, not the text size */
+  --pad: min(1.25rem, 4vw);            /* inner padding of cards and panels, same idea */
+  --maxw: 75rem;
+  --panel-w: 27rem;
+  --section: clamp(3.5rem, 2rem + 6vw, 7rem);
+  --fs-body: 1.0625rem;                /* 17px: body, buttons, labels, dish names */
+  --fs-help: 1rem;                     /* 16px: helper lines */
+  --fs-tiny: 0.875rem;                 /* 14px: the floor, for tertiary notes only */
+  --control-line: rgb(10 8 6 / 0.55);  /* local tint of --black: control borders on cream */
+  --scrim: rgb(10 8 6 / 0.5);          /* local tint of --black: sheet backdrop */
+}
+@media (min-width: 45em) { :root { --gutter: 2.5rem; } }
+@media (min-width: 80em) { :root { --gutter: 4rem; } }
+
+html { scroll-padding-top: 1rem; scroll-padding-bottom: calc(var(--order-bar-h, 0px) + 1rem); }
+html.is-locked body { position: fixed; inset-inline: 0; overflow: hidden; }
+body { min-height: 100svh; display: flex; flex-direction: column; font-size: var(--fs-body); line-height: 1.6; overflow-wrap: break-word; }
+/* Long unbroken strings (email examples, addresses) may break anywhere rather than widen the page. */
+.field__hint, .step__help, .notice__text, .facts dd, .status-details dd, .popup__address, .action-status { overflow-wrap: anywhere; }
+main { flex: 1 0 auto; outline: none; }
+a { color: inherit; text-underline-offset: 0.2em; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.15; text-wrap: balance; }
+h1, h2 { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.01em; }
+h3, h4 { font-family: var(--font-body); font-weight: 800; }
+p { margin: 0; text-wrap: pretty; }
+ul, ol, dl, dd { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+legend { padding: 0; }
+::selection { background: var(--kelly); color: var(--black); }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.icon { width: 1.25em; height: 1.25em; flex: none; }
+
+/* Focus: a solid ring outside the control, visible on cream, adobe and black alike. */
+:focus-visible { outline: 3px solid var(--black); outline-offset: 3px; box-shadow: none; border-radius: 0.25rem; }
+:is(h1, h2, h3, main, [tabindex="-1"]):focus-visible { outline: none; }
+
+.skip-link {
+  position: fixed; left: 0.75rem; top: calc(var(--safe-top) + 0.5rem); z-index: 100;
+  max-width: calc(100vw - 1.5rem); padding: 0.75rem 1.125rem; border-radius: var(--radius); background: var(--black); color: var(--cream);
+  font-weight: 700; text-decoration: none; transform: translateY(-200%);
+}
+.skip-link:focus-visible { transform: none; outline-color: var(--black); }
+
+.wrap {
+  width: 100%; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto;
+  padding-inline: max(var(--gutter), env(safe-area-inset-left)) max(var(--gutter), env(safe-area-inset-right));
+}
+.wrap--narrow { max-width: calc(42rem + 2 * var(--gutter)); }
+.section { padding-block: var(--section); }
+.section-head { max-width: 46rem; margin: 0 auto 2.5rem; text-align: center; }
+/* Big headings never outgrow a narrow screen at large text sizes (no words split, no sideways scroll). */
+.section-head h2 { font-size: min(clamp(2rem, 1.6rem + 1.8vw, 3rem), 10.5vw); }
+.section-head p { margin-top: 0.75rem; color: var(--muted); font-size: 1.125rem; }
+
+/* ---------------------------------------------------------------- buttons & links */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  min-height: var(--tap); padding: 0.625rem 1.25rem; border: 2px solid transparent; border-radius: var(--radius);
+  font: 700 var(--fs-body)/1.25 var(--font-body); text-align: center; text-decoration: none; text-wrap: balance;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn--primary { background: var(--black); color: var(--cream); }
+.btn--outline { background: transparent; color: var(--black); border-color: var(--black); }
+.btn--lg { min-height: var(--tap-lg); padding-inline: min(1.5rem, 4vw); font-size: 1.125rem; }
+.btn--small { padding-inline: 1rem; }
+.btn--block { width: 100%; }
+.btn--text {
+  min-height: var(--tap); padding: 0.5rem 0.75rem; border: 0; background: none; color: var(--black);
+  text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.25em;
+}
+.btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.btn.is-busy { opacity: 1; cursor: progress; }
+@media (hover: hover) {
+  .btn--primary:hover:not(:disabled) { background: var(--black-700); }
+  .btn--outline:hover:not(:disabled) { background: rgb(10 8 6 / 0.08); }
+}
+
+.link {
+  display: inline-flex; align-items: center; gap: 0.375rem; min-height: var(--tap);
+  font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.25em;
+}
+
+.spinner {
+  display: inline-block; width: 1.125rem; height: 1.125rem; border-radius: 50%; flex: none;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(1turn); } }
+
+/* Pop-up status, always in words, with a dot that only repeats them */
+.status { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; }
+.status::before { content: ""; width: 0.75rem; height: 0.75rem; border-radius: 50%; flex: none; background: var(--muted); }
+.status--open::before { background: var(--kelly); box-shadow: 0 0 0 2px var(--kelly-700); }
+.status--upcoming::before { background: var(--adobe); box-shadow: 0 0 0 2px var(--adobe-700); }
+.status--soldout::before, .status--closed::before { background: transparent; box-shadow: inset 0 0 0 2px var(--black); }
+.status--paused::before { background: var(--black); }
+/* "Order by Friday, November 20 at 8:00 PM": the last time to order, on cards and the pop-up page. */
+.deadline { font-weight: 800; }
+
+/* ---------------------------------------------------------------- header */
+
+.site-header { padding-top: var(--safe-top); background: var(--cream); box-shadow: inset 0 -1px 0 var(--line); }
+.is-home .site-header { background: var(--adobe); box-shadow: none; }
+.site-header__inner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 1rem;
+  max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto; padding-block: 0.5rem;
+  padding-inline: max(var(--gutter), env(safe-area-inset-left)) max(var(--gutter), env(safe-area-inset-right));
+}
+.brand { display: inline-flex; align-items: center; justify-content: center; gap: 0.75rem; min-width: var(--tap); min-height: var(--tap); text-decoration: none; }
+.brand__mark { width: 2.5rem; height: 2.5rem; border-radius: 0.5rem; box-shadow: 0 0 0 2px var(--black); }
+.brand__word {
+  font: 800 1rem/1 var(--font-display); letter-spacing: var(--tracking-wordmark); text-transform: uppercase;
+  margin-right: calc(-1 * var(--tracking-wordmark));
+}
+@media (max-width: 29.99em) { .brand__word { display: none; } }
+.site-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; margin-left: auto; margin-right: calc(-1 * min(0.75rem, 3vw)); }
+/* On the home page the hero's own logo and wordmark sit right below, so the header shows only the links. */
+.is-home .site-header .brand { display: none; }
+.site-nav__link {
+  display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 min(0.75rem, 3vw); border-radius: var(--radius);
+  font-weight: 700; text-decoration: none; white-space: nowrap;
+}
+.site-nav__link[aria-current="true"] { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.3em; }
+@media (hover: hover) { .site-nav__link:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.3em; } }
+
+/* ---------------------------------------------------------------- hero */
+
+.hero { background: var(--adobe); color: var(--black); }
+.hero__inner { display: grid; gap: 1rem; padding-block: 0.25rem 3rem; }
+.hero__logo { width: 5rem; height: auto; aspect-ratio: 1; border-radius: 1rem; box-shadow: 0 0 0 3px var(--black); }
+.hero__copy { container-type: inline-size; min-width: 0; }
+.hero__word {
+  /* TSIDEH at 0.3em tracking is about 7.8em wide: sized to fill its column, never wider. */
+  display: block; margin: 0 calc(-1 * var(--tracking-wordmark)) 0 0;
+  font: 800 min(calc(100cqi / 7.8), 7rem)/1 var(--font-display);
+  letter-spacing: var(--tracking-wordmark); text-transform: uppercase; white-space: nowrap;
+}
+.hero__headline { margin-top: 1rem; max-width: 20ch; font: 700 clamp(1.5rem, 1.15rem + 1.6vw, 2.5rem)/1.15 var(--font-display); letter-spacing: -0.01em; }
+.hero__chef { margin-top: 0.75rem; font-weight: 700; font-size: 1.125rem; line-height: 1.4; }
+.hero__next {
+  display: grid; gap: 0.125rem; max-width: 28rem; margin-top: 1.5rem; padding: 1rem var(--pad);
+  border-radius: var(--radius-lg); background: var(--cream-50); font-weight: 600;
+}
+.hero__next-label { color: var(--muted); font-weight: 700; font-size: var(--fs-help); }
+.hero__next-date { font-weight: 800; font-size: 1.25rem; line-height: 1.3; }
+.hero__next .status, .hero__next .deadline { margin-top: 0.375rem; }
+.hero__next .skeleton { padding: 0; }
+.hero__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
+.hero__actions .btn { flex: 1 1 16rem; }
+/* Phones: a smaller logo, so "Order food for pickup" is on the first screen even with larger text. */
+@media (max-width: 63.99em) {
+  .hero__logo { width: 3.5rem; border-radius: 0.75rem; box-shadow: 0 0 0 2px var(--black); }
+}
+@media (min-width: 64em) {
+  .hero__inner { grid-template-columns: minmax(0, 1fr) minmax(0, 26rem); align-items: center; column-gap: 4rem; padding-block: 3rem 4.5rem; }
+  .hero__logo { grid-column: 2; grid-row: 1; width: 100%; border-radius: 2rem; box-shadow: 0 0 0 4px var(--black); }
+  .hero__copy { grid-column: 1; grid-row: 1; }
+  .hero__actions .btn { flex: 0 1 auto; }
+}
+
+/* ---------------------------------------------------------------- press */
+
+.press { padding-block: 2rem; box-shadow: inset 0 -1px 0 var(--line); text-align: center; }
+.press__rows { display: grid; justify-content: center; gap: 1rem; }
+.press__row { display: grid; gap: 0.25rem; justify-items: center; }
+.press__label { color: var(--muted); font-weight: 700; font-size: var(--fs-help); }
+.press__names { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem 1.5rem; }
+.press__name { font-weight: 800; font-size: 1.125rem; }
+.press__quote { max-width: 40rem; margin: 1.5rem auto 0; font-size: 1.125rem; }
+.press__quote cite { display: block; margin-top: 0.375rem; font-style: normal; color: var(--muted); font-size: var(--fs-help); }
+
+/* ---------------------------------------------------------------- pop-ups */
+
+.popups__list { max-width: 52rem; margin-inline: auto; }
+.popup-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.popup {
+  display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; padding: var(--pad);
+  border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.popup__date { flex: 0 0 auto; min-width: min(6.5rem, 100%); display: grid; align-content: start; justify-items: start; line-height: 1.25; }
+.popup__day { font: 800 3rem/1 var(--font-display); letter-spacing: -0.02em; }
+.popup__month { margin-top: 0.25rem; font-weight: 800; font-size: 1.125rem; }
+.popup__weekday { color: var(--muted); font-weight: 600; }
+.popup__body { flex: 1 1 17rem; min-width: 0; display: grid; gap: 0.125rem; justify-items: start; }
+.popup__title { font-size: min(1.375rem, 11.5vw); line-height: 1.25; }   /* "Thanksgiving" fits a small phone at large text */
+.popup__time, .popup__place { font-weight: 700; }
+.popup__address { color: var(--muted); font-size: var(--fs-help); }
+.popup .status { margin-top: 0.5rem; }
+.popup .deadline { margin-top: 0.25rem; }
+.popup .btn { margin-top: 1rem; }
+@media (min-width: 40em) { .popup .btn { width: auto; min-width: 14rem; } }
+
+/* ---------------------------------------------------------------- catering */
+
+.catering__panel {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; padding: clamp(var(--pad), 4vw, 4rem);
+  border-radius: var(--radius-lg); background: var(--adobe); color: var(--black);
+}
+.catering__intro h2 { font-size: min(clamp(2rem, 1.6rem + 1.8vw, 3rem), 10.5vw); }
+.catering__blurb { margin-top: 1rem; max-width: 40rem; font-size: 1.125rem; font-weight: 600; }
+.catering__points { display: grid; margin-top: 1.5rem; border-top: 2px solid var(--black); }
+.catering__points > li { display: grid; padding-block: 0.75rem; border-bottom: 1px solid rgb(10 8 6 / 0.3); font-weight: 600; }
+.catering__kinds { display: grid; gap: 0.125rem; margin-top: 0.125rem; padding-left: 1.25rem; list-style: disc; }
+.catering__points strong { font-weight: 800; font-size: 1.125rem; }
+.catering__form { padding: clamp(var(--pad), 3vw, 2.25rem); border-radius: var(--radius-lg); background: var(--cream-50); }
+@media (min-width: 64em) { .catering__panel { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; } }
+.catering__done { display: grid; justify-items: center; gap: 1rem; padding-block: 1.5rem; text-align: center; }
+.catering__done h3 { font-size: 1.5rem; }
+.done-mark { display: grid; place-items: center; width: 4rem; height: 4rem; border-radius: 50%; background: var(--kelly); color: var(--black); }
+.done-mark .icon { width: 2rem; height: 2rem; }
+
+/* ---------------------------------------------------------------- forms */
+
+.form { display: grid; gap: 1.5rem; }
+.form__row { display: grid; gap: 1.5rem; }
+/* Side by side, two fields share their rows (label, hint, input, message), so the inputs line up
+   however long the lines above them are. A field without a hint keeps its label on the input. */
+@media (min-width: 40em) {
+  .form__row--2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 0; }
+  .form__row--2 > div:not(.field) { display: contents; }     /* the date with its short-notice note */
+  .form__row--2 .field { grid-row: span 4; grid-template-rows: subgrid; }
+  .form__row--2 .field__hint { grid-row: 2; }
+  .form__row--2 .field__label:has(+ .input) { grid-row: 2; align-self: end; }
+  .form__row--2 .input { grid-row: 3; }
+  .form__row--2 .field__foot { grid-row: 4; }
+  .form__row--2 .form-note { grid-area: 5 / 1; }
+}
+.field { display: grid; gap: 0.375rem; align-content: start; min-width: 0; }
+.field__label { font-weight: 800; }
+.field__label .optional { font-weight: 500; color: var(--muted); }
+.field__hint { color: var(--muted); font-size: var(--fs-help); line-height: 1.5; }
+.field__hint[hidden] { display: none; }
+.field__foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 0.75rem; }
+.field__count { margin-left: auto; color: var(--muted); font-size: var(--fs-tiny); font-variant-numeric: tabular-nums; }
+.input {
+  width: 100%; min-height: 3.25rem; padding: 0.75rem 0.875rem; border: 2px solid var(--control-line); border-radius: var(--radius);
+  background: var(--cream-50); font-size: var(--fs-body); line-height: 1.4; appearance: none; -webkit-appearance: none;
+}
+.input:focus, .input:focus-visible { outline: 3px solid var(--black); outline-offset: 1px; border-color: var(--black); border-radius: var(--radius); }
+textarea.input { resize: vertical; }
+input[type="date"].input { min-width: 0; }
+input[type="date"].input::-webkit-date-and-time-value { text-align: left; }
+.field.is-invalid .input { border-color: var(--danger); }
+.field__error { display: flex; gap: 0.375rem; align-items: flex-start; color: var(--danger); font-size: var(--fs-help); font-weight: 700; }
+.field__error .icon { margin-top: 0.15em; }
+.field__error:empty { display: none; }
+.form-note { color: var(--muted); font-size: var(--fs-help); }
+.hp { position: absolute !important; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+.error-summary { padding: 1rem var(--pad); border: 3px solid var(--danger); border-radius: var(--radius); background: var(--cream-50); }
+.error-summary h3 { font-size: 1.125rem; color: var(--danger); }
+.error-summary ul { display: grid; gap: 0.25rem; margin-top: 0.5rem; padding-left: 1.25rem; list-style: disc; }
+.error-summary a { color: var(--danger); font-weight: 700; }
+
+/* Big buttons on real radio inputs: the chosen one is filled black and carries a check mark. */
+.choices { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.choices--times { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(8.5rem, 100%), 1fr)); }
+/* Tips: two columns (a 2×2 block for four choices); one column when large text leaves no room for two. */
+.choices--tips { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(6.5rem, 50% - 0.5rem)), 1fr)); }
+.choice { position: relative; display: block; }
+.choice__input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.choice__box {
+  display: grid; align-content: center; justify-items: center; gap: 0.125rem; height: 100%; min-height: var(--tap); padding: 0.5rem 0.875rem;
+  border: 2px solid var(--control-line); border-radius: var(--radius); background: var(--cream-50);
+  font-weight: 700; text-align: center; font-variant-numeric: tabular-nums;
+}
+.choice__label { display: inline-flex; align-items: center; gap: 0.375rem; }
+.choice__label .icon { display: none; }
+.choice__sub { color: var(--muted); font-size: var(--fs-help); font-weight: 600; }
+.choice__sub:empty { display: none; }
+.choice__input:checked + .choice__box { background: var(--black); border-color: var(--black); color: var(--cream); }
+.choice__input:checked + .choice__box .icon { display: inline-block; }
+.choice__input:checked + .choice__box .choice__sub { color: var(--cream-200); }
+.choice__input:focus-visible + .choice__box { outline: 3px solid var(--black); outline-offset: 3px; }
+@media (hover: hover) { .choice__input:not(:checked):hover + .choice__box { border-color: var(--black); } }
+.choice-group > .field__hint { margin-bottom: 0.75rem; }
+.choice-group > .field__label { margin-bottom: 0.5rem; }
+.choice-group .field__error { margin-top: 0.625rem; }
+
+/* ---------------------------------------------------------------- notices */
+
+.notice {
+  display: flex; gap: 0.75rem; align-items: flex-start; margin-top: 1.25rem; padding: 1rem var(--pad);
+  border-radius: var(--radius); background: var(--cream-200); box-shadow: inset 4px 0 0 var(--adobe);
+}
+.notice .icon { margin-top: 0.15em; }
+.notice--alert { box-shadow: inset 4px 0 0 var(--danger); }
+.notice__title { font-weight: 800; }
+.notice__text { color: var(--black-700); }
+
+/* ---------------------------------------------------------------- pop-up page */
+
+.event-top { padding-top: 0.75rem; }
+.back-link {
+  display: inline-flex; align-items: center; gap: 0.375rem; min-height: var(--tap); margin-left: -0.25rem; padding-inline: 0.25rem 0.75rem;
+  font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.25em;
+}
+/* Pop-up titles and menu categories come from config and can hold long words ("Thanksgiving"):
+   Syne 700, a third narrower than 800, keeps them whole on a small phone with large text. */
+.event-title { margin-top: 0.75rem; font-weight: 700; font-size: min(clamp(2rem, 1.5rem + 2.4vw, 3.25rem), 10.5vw); }
+.facts { display: grid; gap: 1rem; margin-top: 1.25rem; }
+.facts dt { color: var(--muted); font-weight: 700; font-size: var(--fs-help); }
+.facts dd { font-weight: 700; font-size: 1.125rem; }
+.facts dd .muted { display: block; font-weight: 500; font-size: var(--fs-help); }
+@media (min-width: 45em) { .facts { grid-template-columns: repeat(3, minmax(0, max-content)); column-gap: 3rem; } }
+/* Phones: date and times side by side when the text size leaves room, so the menu starts sooner.
+   The "Menu" heading stays for screen readers; the category headings already label the list. */
+@media (max-width: 44.99em) {
+  .facts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: 0.75rem 1rem; }
+  .facts > div:last-child { grid-column: 1 / -1; }
+  .event-menu { margin-top: 1.5rem; }
+  .event-menu__title { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+.event-top .deadline { max-width: 42rem; margin-top: 1.25rem; font-size: 1.125rem; }
+.event-note { max-width: 42rem; margin-top: 1.25rem; font-size: 1.125rem; }
+.event-howto { max-width: 42rem; margin-top: 1.25rem; padding: 0.875rem var(--pad); border-radius: var(--radius); background: var(--cream-200); font-weight: 700; }
+
+.event-layout { display: grid; gap: 2.5rem; padding-bottom: var(--section); }
+.event-main { min-width: 0; }
+.event-layout--menu-only .event-main { max-width: 52rem; }
+.event-menu { margin-top: 2.5rem; }
+.event-menu__title { font-size: clamp(1.75rem, 1.5rem + 1vw, 2.25rem); }
+.menu-cat { margin-top: 2rem; }
+.menu-cat__title { padding-bottom: 0.5rem; border-bottom: 2px solid var(--black); font: 700 min(1.5rem, 12vw)/1.2 var(--font-display); }
+@media (min-width: 64em) {
+  .event-layout { grid-template-columns: minmax(0, 1fr) var(--panel-w); align-items: start; gap: 3rem; }
+  .event-layout--menu-only { grid-template-columns: minmax(0, 1fr); }
+  .panel-slot { margin-top: 1rem; }
+}
+
+.dish { display: grid; gap: 0.875rem 1.5rem; padding-block: 1.25rem; border-bottom: 1px solid var(--line); }
+.dish__media { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: var(--radius); background: var(--cream-200); }
+.dish__text { display: grid; gap: 0.25rem; justify-items: start; min-width: 0; }
+.dish__name { font: 800 1.1875rem/1.3 var(--font-body); }
+.dish__price { font-weight: 700; font-size: 1.125rem; }
+.dish__min { margin-left: 0.25rem; color: var(--muted); font-size: var(--fs-help); }
+.dish__desc { max-width: 40rem; color: var(--muted); font-size: var(--fs-help); line-height: 1.55; }
+.marks { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.25rem; }
+.mark { padding: 0.125rem 0.5rem; border: 1px solid var(--line-strong); border-radius: 0.375rem; font-size: var(--fs-help); font-weight: 700; }
+.dish__note { color: var(--adobe-700); font-weight: 800; font-size: var(--fs-help); }
+.dish--soldout .dish__name, .dish--soldout .dish__price { color: var(--muted); }
+.dish__soldout { display: inline-flex; align-items: center; min-height: var(--tap); font-weight: 800; color: var(--muted); }
+@media (min-width: 40em) {
+  .dish { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .dish__media { grid-column: 1 / -1; }
+  .dish__control { justify-self: end; }
+}
+
+.btn--add { min-width: 7.5rem; border-color: var(--black); background: var(--cream-50); color: var(--black); }
+@media (hover: hover) { .btn--add:hover { background: var(--black); color: var(--cream); } }
+.amount { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.amount__note { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--kelly-700); font-weight: 800; font-size: var(--fs-help); }
+.amount .btn--text { padding-inline: 0; }     /* lines up with the stepper above it */
+@media (min-width: 40em) { .amount { flex-direction: column; align-items: flex-end; } }
+
+/* Big amount buttons: − amount + */
+.stepper { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem; border-radius: var(--radius); background: var(--black); color: var(--cream); }
+.stepper__btn {
+  /* 48px or more; with very large text on a narrow phone, sized by the screen so the row still fits */
+  display: grid; place-items: center; width: max(48px, min(var(--tap), 20vw)); height: max(48px, min(var(--tap), 20vw)); padding: 0; border: 0; border-radius: 0.5rem;
+  background: transparent; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.stepper__btn .icon { width: 1.5rem; height: 1.5rem; }
+/* At a dish's minimum the − becomes "Remove": as tall as the others, as wide as its word. */
+.stepper__btn--word { width: auto; padding-inline: min(0.875rem, 3vw); font: inherit; font-weight: 800; }
+.stepper__btn:active { background: var(--black-700); }
+.stepper__btn:focus-visible { outline: 3px solid var(--cream); outline-offset: -3px; }
+.stepper__qty { min-width: min(2.5rem, 12vw); text-align: center; font-weight: 800; font-size: 1.25rem; }
+
+/* The order checklist: beside the menu on desktop, in the sheet on phones */
+.panel-slot { display: none; }
+@media (min-width: 64em) {
+  /* Fits whole below the header (4rem) and its own 1rem margin before the page scrolls, so Pay and
+     the lines under it are never cut off at the bottom of the window. */
+  .panel-slot {
+    display: flex; flex-direction: column; position: sticky; top: 1rem; max-height: calc(100svh - 6rem - var(--safe-top)); overflow: hidden;
+    border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong);
+  }
+  /* The steps scroll; Pay, its amount and what is still missing stay in view below them. */
+  .panel-slot .order-form { display: flex; flex-direction: column; min-height: 0; }
+  .panel-slot .order-form__steps { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1.5rem 1.5rem 0; }
+  .panel-slot .pay { flex: none; margin-top: 0; padding: 1rem 1.5rem 1.5rem; box-shadow: 0 -1px 0 var(--line-strong); }
+  .panel-slot .totals { padding-bottom: 1.5rem; }
+}
+.order-form, .order-form__steps { display: grid; }
+.order-form__steps > .error-summary { margin-top: 1rem; }
+.order-form__title { font-size: 1.75rem; }
+.demo-flag { margin-top: 0.75rem; padding: 0.625rem 0.875rem; border-radius: 0.5rem; background: var(--adobe-100); font-weight: 700; font-size: var(--fs-help); }
+.action-status {
+  display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.625rem 0.875rem; border-radius: 0.5rem;
+  background: var(--kelly-100); font-weight: 700; line-height: 1.5;
+}
+.action-status .icon { margin-top: 0.1em; }
+.action-status[data-tone="info"] { background: var(--cream-200); }
+.action-status[hidden] { display: none; }
+.action-status--panel { margin-top: 0.75rem; }
+
+.step { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.step__head { display: flex; gap: 0.75rem; align-items: flex-start; width: 100%; margin-bottom: 1rem; }
+.step__num {
+  display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 50%; flex: none;
+  background: var(--black); color: var(--cream); font-weight: 800; font-size: 1.125rem; line-height: 1;
+}
+.step__text { display: grid; gap: 0.125rem; min-width: 0; }
+.step__title { font-weight: 800; font-size: 1.25rem; line-height: 1.3; }
+.step__help { color: var(--muted); font-size: var(--fs-help); line-height: 1.5; }
+.step .field__error { margin-top: 0.625rem; }
+.step > .field { margin-top: 1.25rem; }      /* the kitchen note, under the dishes */
+/* A fieldset draws its <legend> on its top border. Floated, the legend sits inside like any other
+   heading: the divider above the step shows in full and no extra gap opens under the heading. */
+fieldset.step > legend, fieldset.tip > legend { float: left; width: 100%; }
+fieldset.step > legend ~ *, fieldset.tip > legend ~ * { clear: both; }
+
+.lines { display: grid; }
+.line { padding-block: 0.875rem; border-bottom: 1px solid var(--line); }
+.line:first-child { padding-top: 0; }
+.line:last-child { border-bottom: 0; }   /* the next step or the totals bring their own rule */
+.line__top { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-weight: 700; }
+.line__name { min-width: 0; overflow-wrap: anywhere; }
+.line__total { white-space: nowrap; }
+.line__unit { color: var(--muted); font-size: var(--fs-help); }
+.line__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-top: 0.5rem; }
+.line .stepper { background: transparent; color: var(--black); box-shadow: inset 0 0 0 2px var(--black); }
+.line .stepper__btn:active { background: var(--line); }
+.line .stepper__btn:focus-visible { outline-color: var(--black); }
+.lines-empty { color: var(--muted); }
+
+.tip { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.tip__legend { font-weight: 800; font-size: 1.25rem; line-height: 1.3; }
+.tip > .field__hint { margin-top: 0.125rem; }
+
+.totals { display: grid; gap: 0.375rem; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.totals div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 1rem; }
+.totals dd { font-weight: 700; }
+.totals .totals__grand { margin-top: 0.5rem; padding-top: 0.75rem; border-top: 2px solid var(--black); font-weight: 800; font-size: 1.375rem; }
+.totals__grand dd { font-weight: 800; }
+
+.pay { display: grid; gap: 0.75rem; margin-top: 1.5rem; padding-bottom: 1.5rem; }
+.pay__missing { padding: 0.75rem 1rem; border-radius: var(--radius); background: var(--cream-200); font-weight: 700; }
+.pay__missing[hidden] { display: none; }
+.pay__next { display: grid; gap: 0.25rem; color: var(--black-700); font-size: var(--fs-help); line-height: 1.5; text-align: center; }
+.pay__next .icon, .footer-trust .icon { display: inline-block; margin-right: 0.35em; vertical-align: -0.2em; }
+
+/* Phones: the "View order" bar rests at the bottom of the screen while the menu scrolls. */
+.order-bar {
+  position: sticky; bottom: 0; z-index: 30; display: grid; gap: 0.5rem;
+  padding: 0.625rem max(var(--gutter), env(safe-area-inset-right)) calc(0.75rem + var(--safe-bottom)) max(var(--gutter), env(safe-area-inset-left));
+  background: var(--cream); box-shadow: 0 -1px 0 var(--line-strong), 0 -0.75rem 1.5rem -1rem rgb(10 8 6 / 0.35);
+}
+.order-bar[hidden] { display: none; }
+.order-bar__button {
+  width: 100%; min-height: var(--tap-lg); padding: 0.625rem 0.75rem; border: 0; border-radius: var(--radius);
+  background: var(--black); color: var(--cream); font: 600 var(--fs-body)/1.3 var(--font-body); text-align: center; cursor: pointer;
+}
+.order-bar .action-status { padding: 0.375rem 0.75rem; font-size: var(--fs-help); }
+/* "Added: ..." takes one line, so the bar never hides the dish just added; the dish row says
+   "In your order" and screen readers hear the full sentence. Limit messages are shown in full. */
+.order-bar .action-status[data-tone="done"] > span { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* With large text on a short screen the bar keeps only its button (and any limit message). */
+.order-bar.is-compact .action-status[data-tone="done"] { display: none; }
+.order-bar__button strong { font-weight: 800; }
+@media (min-width: 64em) { .order-bar { display: none !important; } }
+
+/* The order sheet (phones) */
+.sheet {
+  position: fixed; inset: auto 0 0 0; width: 100%; max-width: none; height: calc(100% - var(--safe-top) - 0.75rem); max-height: none;
+  margin: 0; padding: 0; border: 0; background: transparent; color: var(--black); overflow: visible;
+}
+.sheet::backdrop { background: var(--scrim); }
+.sheet__panel {
+  display: flex; flex-direction: column; height: 100%; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--cream-50); box-shadow: 0 -1rem 3rem -1rem rgb(10 8 6 / 0.4);
+  transform: translateY(1.5rem); opacity: 0; transition: transform 240ms var(--ease-out), opacity 240ms var(--ease);
+}
+.sheet.is-open .sheet__panel { transform: none; opacity: 1; }
+/* The fixed head holds only Close, so it stays small with large text; the title scrolls with the body. */
+.sheet__head {
+  flex: none; display: flex; justify-content: flex-end;
+  padding: 0.5rem var(--gutter); box-shadow: inset 0 -1px 0 var(--line);
+}
+.sheet .sheet__close { padding-inline: 0.75rem; }
+.sheet__title { padding-top: 1.25rem; font: 800 1.375rem/1.2 var(--font-body); }
+.sheet__body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--gutter) var(--safe-bottom); -webkit-overflow-scrolling: touch; }
+.sheet .order-form__title { display: none; }
+/* Step 1 lists the dishes, so a repeated "Added: ..." would only push it down. Limit messages stay. */
+.sheet .action-status--panel[data-tone="done"] { display: none; }
+
+/* ---------------------------------------------------------------- order status */
+
+.status-page { padding-block: 2rem var(--section); }
+.status-hero { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 1rem; text-align: center; }
+.status-hero h1 { font-size: min(clamp(2rem, 1.5rem + 2.4vw, 3rem), 10.5vw); }
+.status-when { max-width: 34rem; font-size: 1.25rem; font-weight: 600; line-height: 1.5; }
+.code-plate {
+  container-type: inline-size; display: grid; justify-items: center; gap: 0.25rem; width: 100%; max-width: 30rem;
+  margin-top: 0.5rem; padding: 1.5rem var(--pad); border-radius: var(--radius-lg); background: var(--black); color: var(--cream);
+}
+.code-plate__label { color: var(--cream-200); font-weight: 700; font-size: 1.125rem; }
+/* The widest code (TS-WWWW) is about 6em wide: sized to its card, never wider. */
+.code-plate__code { font: 800 min(calc(100cqi / 6.2), 4.5rem)/1.15 var(--font-body); letter-spacing: 0.06em; margin-right: -0.06em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.code-plate__hint { font-weight: 600; }
+.status-note { color: var(--muted); font-size: var(--fs-help); }
+.status-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: var(--r-pill); background: var(--kelly); font-weight: 800; }
+.status-spinner .spinner { width: 3rem; height: 3rem; border-width: 4px; }
+.status-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; width: 100%; margin-top: 0.5rem; }
+.status-actions .btn { flex: 1 1 14rem; max-width: 22rem; }
+.status-details { margin-top: 2.5rem; border-top: 2px solid var(--black); }
+.status-details > div { display: grid; gap: 0.125rem 1.5rem; padding-block: 1rem; border-bottom: 1px solid var(--line); }
+@media (min-width: 30em) { .status-details > div { grid-template-columns: 8rem minmax(0, 1fr); } }
+.status-details dt { color: var(--muted); font-weight: 700; font-size: var(--fs-help); padding-top: 0.1em; }
+.status-details dd { font-weight: 700; }
+.status-details dd .muted { display: block; font-weight: 500; }
+.receipt { margin-top: 2.5rem; }
+.receipt h2 { margin-bottom: 1rem; font-size: min(1.5rem, 9vw); }
+.receipt__paid { margin-top: 1rem; color: var(--muted); font-size: var(--fs-help); }
+
+/* ---------------------------------------------------------------- demo payment */
+
+.demo-pay { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding-block: 2rem var(--section); }
+.demo-card { width: 100%; max-width: 30rem; padding: clamp(var(--pad), 4vw, 2rem); border-radius: var(--radius-lg); background: var(--cream-50); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.demo-card .demo-flag { margin: 0 0 1.25rem; }
+.demo-card h1 { font-size: min(1.75rem, 9vw); font-weight: 700; }   /* as the pop-up's own title: "Thanksgiving" fits a small phone at large text */
+.demo-card__code { margin-top: 0.25rem; color: var(--muted); font-weight: 700; }
+.demo-card__amount { margin-top: 1rem; font: 800 min(2.5rem, 12vw)/1.1 var(--font-body); }
+.demo-card__label { display: block; color: var(--muted); font-size: var(--fs-help); font-weight: 700; }
+.demo-card .lines { margin-top: 1rem; padding-top: 0.875rem; border-top: 1px solid var(--line); }
+.demo-card__note { margin-top: 1rem; color: var(--muted); font-size: var(--fs-help); }
+/* Name, mobile number and email: asked here in Stripe's place, then the two buttons. */
+.demo-card__form { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.demo-card__actions { display: grid; gap: 0.75rem; }
+.demo-card > .field__error { margin-top: 1rem; }
+
+/* ---------------------------------------------------------------- footer */
+
+.site-footer { padding: 1.5rem max(0.75rem, calc(var(--gutter) / 2)) calc(max(0.75rem, calc(var(--gutter) / 2)) + var(--safe-bottom)); }
+.site-footer__panel {
+  container-type: inline-size; max-width: calc(var(--maxw) + 2 * var(--gutter)); margin-inline: auto;
+  display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 1.5rem; padding: clamp(2.5rem, 6vw, 4.5rem) var(--pad) 1.75rem;
+  border-radius: var(--radius-lg); background: var(--adobe); color: var(--black); text-align: center;
+}
+.footer-brand { display: grid; justify-items: center; gap: 1rem; text-decoration: none; }
+.footer-brand img { width: 4.5rem; height: 4.5rem; border-radius: 1rem; box-shadow: 0 0 0 2px var(--black); }
+.footer-chef { margin-top: -0.75rem; font-weight: 700; }   /* belongs to the wordmark above it */
+.footer-brand span { font: 800 min(clamp(1.5rem, 1.25rem + 1.5vw, 2.25rem), calc(100cqi / 8.6))/1 var(--font-display); letter-spacing: var(--tracking-wordmark); margin-right: calc(-1 * var(--tracking-wordmark)); text-transform: uppercase; }
+.footer-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem 0.5rem; }
+.footer-nav a { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 0.75rem; font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; }
+.footer-contact:empty { display: none; }
+.footer-contact { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 1.25rem; font-weight: 700; }
+.footer-contact a { display: inline-flex; align-items: center; min-height: var(--tap); overflow-wrap: anywhere; }
+.footer-trust { max-width: 34rem; font-weight: 600; }
+.footer-legal { width: 100%; padding-top: 1.25rem; border-top: 1px solid rgb(10 8 6 / 0.3); font-size: var(--fs-help); font-weight: 600; }
+
+/* ---------------------------------------------------------------- states */
+
+.state { display: grid; justify-items: center; gap: 0.75rem; padding: clamp(3rem, 8vw, 6rem) 0; text-align: center; }
+.state__title { font-size: min(clamp(1.75rem, 1.5rem + 1vw, 2.25rem), 10.5vw); }
+.state__text { max-width: 34rem; color: var(--black-700); }
+.state__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: 0.5rem; }
+.empty { padding: 2rem var(--pad); border-radius: var(--radius-lg); background: var(--cream-50); text-align: center; }
+.empty h3 { font-size: 1.375rem; }
+.empty p { margin-top: 0.5rem; color: var(--muted); }
+
+.skeleton { display: grid; gap: 0.875rem; padding-block: 0.75rem; }
+.skeleton__line { display: block; height: 1rem; width: var(--w); border-radius: 0.25rem; background: var(--cream-200); }
+.skeleton--block .skeleton__line:first-child { height: 10rem; width: 100%; border-radius: var(--radius-lg); }
+.skeleton--title .skeleton__line:first-child { height: 2.5rem; width: 60%; }
+.hero .skeleton__line { background: var(--cream-200); }
+
+.noscript { margin: 1.5rem var(--gutter); padding: 1.25rem; border-radius: var(--radius); background: var(--cream-200); font-weight: 700; }
+
+/* ---------------------------------------------------------------- motion */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+}

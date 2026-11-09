@@ -1,0 +1,34 @@
+# Render Blueprint: one web service with a 1 GB persistent disk for the order database.
+# Render > New > Blueprint, pick this repository, then fill in the values marked sync: false.
+services:
+  - type: web
+    name: tsideh
+    runtime: node
+    plan: starter # persistent disks need a paid instance
+    buildCommand: node --version
+    startCommand: node --disable-warning=ExperimentalWarning server/index.js
+    healthCheckPath: /api/site
+    autoDeploy: true
+    disk:
+      name: tsideh-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+      - key: TRUST_PROXY
+        value: "1"
+      - key: PUBLIC_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: NOTIFY_WEBHOOK_URL
+        sync: false
