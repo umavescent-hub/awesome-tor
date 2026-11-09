@@ -63,8 +63,9 @@ function scrollToTarget(hash, { smooth = false } = {}) {
   else scrollTo({ top: 0, behavior });
 }
 
-function context(route, url) {
+function context(route, url, { pop = false } = {}) {
   return {
+    pop,
     params: route.params,
     query: url.searchParams,
     hash: url.hash,
@@ -87,7 +88,7 @@ function replaceUrl(to) {
 function render({ pop = false, initial = false } = {}) {
   const url = new URL(location.href);
   const route = match(url.pathname);
-  const ctx = context(route, url);
+  const ctx = context(route, url, { pop });
 
   // Same view, same parameters (the home page and /catering are one page): update in place.
   if (current && current.route.view === route.view && current.instance.update

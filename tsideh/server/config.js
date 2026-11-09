@@ -10,6 +10,7 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 
 const TAGS = ['vegetarian', 'vegan', 'gluten-free', 'dairy-free', 'spicy', 'contains-nuts'];
 const EVENT_STATUSES = ['open', 'paused', 'closed', 'hidden'];
+const PRESS_KINDS = ['featured', 'recognition'];
 const ADMIN_PASSWORD_MIN = 12;
 
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
@@ -196,6 +197,7 @@ function validateSite(input, report) {
   const site = f.object(input, '');
   f.text(site.name, 'name', { min: 1, max: 60 });
   f.text(site.tagline, 'tagline', { max: 120, optional: true });
+  f.text(site.heroHeadline, 'heroHeadline', { max: 120, optional: true });
   f.text(site.description, 'description', { max: 300, optional: true });
   if (!isTimeZone(site.timezone)) report('timezone', 'must be a time zone name such as "America/Denver"');
   f.oneOf(site.currency, 'currency', ['usd']);
@@ -219,6 +221,17 @@ function validateSite(input, report) {
   if (email && !EMAIL.test(email)) report('contact.email', 'must be empty or a valid email address');
   f.text(contact.phone, 'contact.phone', { max: 30, optional: true });
   f.text(contact.instagram, 'contact.instagram', { max: 80, optional: true });
+
+  f.array(site.press ?? [], 'press', { max: 8 }).forEach((entry, i) => {
+    const at = `press[${i}]`;
+    const press = f.object(entry, at);
+    f.text(press.name, `${at}.name`, { min: 1, max: 80 });
+    f.oneOf(press.kind, `${at}.kind`, PRESS_KINDS);
+    if (press.url !== undefined && press.url !== '' && !(typeof press.url === 'string' && press.url.startsWith('https://') && parseUrl(press.url))) {
+      report(`${at}.url`, 'must be empty or a full https:// link');
+    }
+    f.text(press.quote, `${at}.quote`, { max: 300, optional: true });
+  });
 
   const catering = f.object(site.catering, 'catering');
   f.text(catering.blurb, 'catering.blurb', { max: 600, optional: true });

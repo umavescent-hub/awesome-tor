@@ -27,6 +27,10 @@ export function createNotifier({ url, log, fetch: fetchImpl = globalThis.fetch }
       const flag = order.oversold ? 'OVERSOLD (over capacity, check the board) · ' : '';
       send(`${flag}New paid order ${order.code} · ${eventTitle} · pickup ${slotLabel} · ${firstName} · ${items} · ${formatCents(order.totalCents)}`);
     },
+    paymentMismatch(order, amountCents, currency) {
+      const charged = typeof amountCents === 'number' ? `${formatCents(amountCents)} ${String(currency).toUpperCase()}` : 'an unknown amount';
+      send(`REVIEW: Stripe charged ${charged} for order ${order.code}, which costs ${formatCents(order.totalCents)}. It was not marked paid; check it in the Stripe Dashboard.`);
+    },
     cateringInquiry(inquiry) {
       send(`New catering inquiry · ${inquiry.name} · ${inquiry.eventDate} · ${inquiry.guestCount} guests · ${inquiry.serviceStyle} · ${inquiry.location}`);
     },

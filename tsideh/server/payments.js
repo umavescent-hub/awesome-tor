@@ -65,9 +65,20 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
     return order && order.stripeSessionId === session.id ? order : null;
   }
 
+  /**
+   * Stripe charged exactly what this order costs, in our currency. A mismatch is never recorded as
+   * paid: it is logged and sent to the kitchen alert for a person to review.
+   */
+  function amountMatches(order, session) {
+    if (session.amount_total === order.totalCents && session.currency === site.currency) return true;
+    log.error(`stripe: ${order.code} session ${session.id} charged ${session.amount_total} ${session.currency}, expected ${order.totalCents} ${site.currency}; not marked paid`);
+    notifier.paymentMismatch(order, session.amount_total, session.currency);
+    return false;
+  }
+
   function paySession(session, now) {
     const order = orderForSession(session);
-    if (!order) return [];
+    if (!order || !amountMatches(order, session)) return [];
     const { order: paid, changed } = orders.markPaid(order.code, { paymentIntent: idOf(session.payment_intent) }, now);
     return changed ? [paid] : [];
   }
@@ -144,7 +155,7 @@ export function createPayments({ config, catalog, db, orders, stripe, notifier, 
         log.warn(`stripe: could not confirm ${order.code}: ${describe(error)}`);
         return order;
       }
-      if (session.client_reference_id !== order.code || session.payment_status !== 'paid') return order;
+      if (session.client_reference_id !== order.code || session.payment_status !== 'paid' || !amountMatches(order, session)) return order;
       const { order: paid, changed } = orders.markPaid(order.code, { paymentIntent: idOf(session.payment_intent) }, clock.now());
       if (changed) announcePaid(paid);
       return paid;

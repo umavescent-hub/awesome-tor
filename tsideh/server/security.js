@@ -20,6 +20,8 @@ export function securityHeaders({ production }) {
     "base-uri 'none'",
     "form-action 'self'",
     "object-src 'none'",
+    "require-trusted-types-for 'script'",
+    "trusted-types 'none'",
   ];
   if (production) policy.push('upgrade-insecure-requests');
   return {
@@ -30,8 +32,14 @@ export function securityHeaders({ production }) {
     'X-Frame-Options': 'DENY',
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Cross-Origin-Resource-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+    'Origin-Agent-Cluster': '?1',
+    'X-DNS-Prefetch-Control': 'off',
+    'X-Permitted-Cross-Domain-Policies': 'none',
   };
 }
+
+const PROTOTYPE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 const unmapIpv4 = (ip) => (ip.startsWith('::ffff:') ? ip.slice(7) : ip);
 
@@ -112,11 +120,16 @@ export async function readJson(req) {
   }
   const raw = await readBody(req, JSON_LIMIT_BYTES);
   let body;
+  let pollution = false;
   try {
-    body = JSON.parse(raw.toString('utf8'));
+    body = JSON.parse(raw.toString('utf8'), (key, value) => {
+      if (PROTOTYPE_KEYS.has(key)) pollution = true;
+      return value;
+    });
   } catch {
     throw new ApiError(400, 'invalid', 'The request body is not valid JSON.');
   }
+  if (pollution) throw new ApiError(400, 'invalid', 'The request body contains a reserved key.');
   if (!isPlainObject(body)) throw new ApiError(400, 'invalid', 'The request body must be a JSON object.');
   return body;
 }

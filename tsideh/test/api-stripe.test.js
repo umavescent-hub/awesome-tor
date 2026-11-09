@@ -41,6 +41,10 @@ function startFakeStripe() {
           return reply(500, { error: { type: 'api_error', message: `Internal detail for ${SECRET_KEY}` } });
         }
         const form = new URLSearchParams(body);
+        let amountTotal = 0;
+        for (let i = 0; form.has(`line_items[${i}][quantity]`); i++) {
+          amountTotal += Number(form.get(`line_items[${i}][price_data][unit_amount]`)) * Number(form.get(`line_items[${i}][quantity]`));
+        }
         const session = {
           id: `cs_test_${++sequence}`,
           object: 'checkout.session',
@@ -49,6 +53,8 @@ function startFakeStripe() {
           status: 'open',
           payment_status: 'unpaid',
           payment_intent: null,
+          amount_total: amountTotal,
+          currency: form.get('line_items[0][price_data][currency]'),
         };
         sessions.set(session.id, session);
         return reply(200, session);
@@ -108,8 +114,11 @@ function signedHeader(payload, timestamp = Math.floor(app.clock.now() / 1000)) {
 }
 
 let eventSequence = 0;
+/** Sends a signed event. A session object gets the amount Stripe stored for it unless the test sets one. */
 async function deliver(type, object, { id = `evt_${++eventSequence}`, header } = {}) {
-  const payload = JSON.stringify({ id, object: 'event', type, data: { object } });
+  const stored = stripe.sessions.get(object.id);
+  const amounts = stored ? { amount_total: stored.amount_total, currency: stored.currency } : {};
+  const payload = JSON.stringify({ id, object: 'event', type, data: { object: { ...amounts, ...object } } });
   return app.client().post('/api/stripe/webhook', payload, {
     headers: { 'Content-Type': 'application/json', 'Stripe-Signature': header ?? signedHeader(payload) },
   });
@@ -281,6 +290,19 @@ describe('webhook', () => {
     assert.equal(response.status, 200);
     assert.equal((await lookup(order)).body.order.status, 'pending');
     assert.equal((await deliver('customer.created', { id: 'cus_1' })).status, 200);
+  });
+
+  test('a session whose amount or currency differs from the order is not marked paid and is flagged', async () => {
+    const order = await placeOrder({ slot: '11:30' });
+    const session = { id: order.sessionId, client_reference_id: order.code, payment_status: 'paid', payment_intent: 'pi_short' };
+    assert.equal((await deliver('checkout.session.completed', { ...session, amount_total: 100 })).status, 200);
+    assert.equal((await lookup(order)).body.order.status, 'pending');
+    const { text } = await waitForAlert((alert) => alert.text.startsWith('REVIEW') && alert.text.includes(order.code));
+    assert.equal(text, `REVIEW: Stripe charged $1.00 USD for order ${order.code}, which costs $14.06. It was not marked paid; check it in the Stripe Dashboard.`);
+    await deliver('checkout.session.completed', { ...session, currency: 'eur' });
+    assert.equal((await lookup(order)).body.order.status, 'pending');
+    await deliver('checkout.session.completed', session);
+    assert.equal((await lookup(order)).body.order.status, 'paid');
   });
 
   test('bad, stale or missing signatures are 400', async () => {

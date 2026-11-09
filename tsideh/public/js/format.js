@@ -1,7 +1,7 @@
 // Money, dates and times. Every date and time is shown in the kitchen's zone (America/Denver),
 // whatever zone the visitor's device is set to.
 
-export const TIME_ZONE = 'America/Denver';
+const TIME_ZONE = 'America/Denver';
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const shortDate = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
@@ -22,6 +22,13 @@ export const formatDate = (date) => shortDate.format(calendarDate(date));
 
 /** "Saturday, November 21" */
 export const formatLongDate = (date) => longDate.format(calendarDate(date));
+
+const monthDay = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
+const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' });
+
+/** "November 21" and "Saturday" */
+export const formatMonthDay = (date) => monthDay.format(calendarDate(date));
+export const formatWeekday = (date) => weekday.format(calendarDate(date));
 
 /** { weekday: 'Sat', month: 'Nov', day: '21' } */
 export function dateParts(date) {
@@ -67,4 +74,17 @@ export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many
 export function percentOf(cents, percent) {
   const perMillion = Math.round(percent * 10_000);
   return Math.floor((cents * perMillion + 500_000) / 1_000_000);
+}
+
+const STATUS = {
+  open: 'Open for orders',
+  soldout: 'Sold out',
+  paused: 'Orders paused',
+  closed: 'Orders closed',
+};
+
+/** A pop-up's ordering status in words: "Open for orders", "Orders open Sat, Oct 31", ... */
+export function eventStatusLabel(event) {
+  if (event.status === 'upcoming') return `Orders open ${formatDate(zonedDate(event.opensAt))}`;
+  return STATUS[event.status] ?? STATUS.closed;
 }

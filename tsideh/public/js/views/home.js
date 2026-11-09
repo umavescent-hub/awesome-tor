@@ -5,29 +5,12 @@ import { getEvent, getEvents, getSite } from '../api.js';
 import { drawTile, mountHero, seedFrom } from '../art.js';
 import { h, mount, prefersReducedMotion } from '../dom.js';
 import { drawDotField, mountPopupMap } from '../dots.js';
-import { dateParts, formatLongDate, formatTimeRange } from '../format.js';
+import { dateParts, eventStatusLabel, formatLongDate, formatTimeRange } from '../format.js';
 import { categoryNode, dishNode } from '../menu.js';
 import { errorState, lazyArt, skeleton, token } from '../ui.js';
 import { cateringSection } from './catering.js';
 
 const PREVIEW_PER_CATEGORY = 2;
-
-const STATUS = {
-  open: 'Open for orders',
-  soldout: 'Sold out',
-  paused: 'Orders paused',
-  closed: 'Orders closed',
-};
-
-export function statusLabel(event) {
-  if (event.status === 'upcoming') return `Orders open ${formatLongDate(isoDay(event.opensAt))}`;
-  return STATUS[event.status] ?? 'Orders closed';
-}
-
-/** Kitchen-zone calendar day of an ISO instant. */
-function isoDay(iso) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver' }).format(new Date(iso));
-}
 
 const eventPath = (event) => `/e/${encodeURIComponent(event.id)}`;
 const orderable = (event) => event.status === 'open';
@@ -145,25 +128,34 @@ function popupRow(event, { featured }) {
           h('span', null, h('strong', null, event.locationName)),
           event.address ? h('span', { class: 'muted' }, event.address) : null)),
       h('div', { class: 'popup__foot' },
-        h('span', { class: ['pill', `pill--${event.status}`] }, statusLabel(event)),
+        h('span', { class: ['pill', `pill--${event.status}`] }, eventStatusLabel(event)),
         cta)));
 }
 
 function popupsSection() {
   const list = h('div', { class: 'popups__list' }, skeleton(4, { className: 'skeleton--block' }));
   const mapCol = h('div', { class: 'popups__map-col' });
+  const grid = h('div', { class: 'popups__grid' }, list, mapCol);
   const node = h('section', { class: 'section popups', id: 'popups', 'aria-labelledby': 'popups-title' },
     grain('tsideh-popups', 'spiral'),
     h('div', { class: 'wrap' },
       h('header', { class: 'section-head' },
         h('h2', { id: 'popups-title' }, 'Upcoming pop-ups'),
         h('p', null, 'Order ahead, choose a pickup time and skip the line.')),
-      h('div', { class: 'popups__grid' }, list, mapCol)));
+      grid));
+
+  /** Without a map the list takes the whole width. */
+  function dropMap() {
+    mapCol.remove();
+    grid.classList.add('popups__grid--single');
+  }
 
   function fill(events, { onRetry } = {}) {
+    grid.classList.remove('popups__grid--single');
+    grid.append(mapCol);
     if (!events) {
       mount(list, errorState({ title: 'Pop-ups did not load', message: 'Check your connection and try again.', onRetry }));
-      mapCol.remove();
+      dropMap();
       return;
     }
     if (!events.length) {
@@ -171,7 +163,7 @@ function popupsSection() {
         h('h3', null, 'No pop-ups on the calendar right now'),
         h('p', null, 'New dates are posted here first. Planning a gathering? ',
           h('a', { href: '/catering', 'data-link': '' }, 'Book catering'), '.')));
-      mapCol.remove();
+      dropMap();
       return;
     }
     const rows = events.map((event, i) => popupRow(event, { featured: i === 0 }));
@@ -190,7 +182,7 @@ function popupsSection() {
       },
     });
     if (!map) {
-      mapCol.remove();
+      dropMap();
       return;
     }
     mount(mapCol, h('h3', null, 'Where we pop up'), mapBox);
@@ -300,6 +292,7 @@ export function render(ctx) {
     handlesScroll: true,
     mounted() {
       hero.start();
+      if (ctx.pop) return;
       // Wait for the sections above to settle so the scroll lands where it should.
       if (ctx.route === 'catering' || ctx.hash) ready.then(() => scrollForRoute(ctx, { smooth: false }));
       else scrollTo({ top: 0, behavior: 'instant' });

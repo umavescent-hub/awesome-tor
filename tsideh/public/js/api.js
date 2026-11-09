@@ -2,7 +2,7 @@
 
 const TIMEOUT_MS = 15_000;
 
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor(status, code, message, { field = null, details = null } = {}) {
     super(message);
     this.name = 'ApiError';

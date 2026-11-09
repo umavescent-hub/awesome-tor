@@ -29,7 +29,7 @@ function fold(line) {
  * order: { code, event: { title, locationName, address }, pickupAt (ISO), items: [{ name, qty }] }
  * directions: a URL for the place, or ''.
  */
-export function calendarFile(order, directions) {
+function calendarFile(order, directions) {
   const start = new Date(order.pickupAt);
   const end = new Date(start.getTime() + PICKUP_MINUTES * 60_000);
   const place = [order.event.locationName, order.event.address].filter(Boolean).join(', ');

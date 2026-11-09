@@ -14,7 +14,7 @@ const TAGS = {
   'contains-nuts': ['Nuts', 'Contains nuts'],
 };
 
-export const LOW_STOCK = 10;
+const LOW_STOCK = 10;
 
 function marks(tags) {
   const known = tags.filter((tag) => TAGS[tag]);
@@ -27,7 +27,7 @@ function marks(tags) {
 }
 
 /** "Sold out", "Only 4 left", or null. */
-export function stockNote(item) {
+function stockNote(item) {
   if (item.soldOut) return 'Sold out';
   if (item.remaining !== null && item.remaining <= LOW_STOCK) return `Only ${item.remaining} left`;
   return null;
@@ -40,7 +40,7 @@ export function stockNote(item) {
 export function dishNode(item, { level = 3, control = null } = {}) {
   const note = stockNote(item);
   const meta = [marks(item.tags), note ? h('span', { class: 'dish__note' }, note) : null].filter(Boolean);
-  return h('li', { class: ['dish', item.soldOut ? 'dish--soldout' : ''], dataset: { item: item.id } },
+  return h('li', { class: ['dish', control ? '' : 'dish--static', item.soldOut ? 'dish--soldout' : ''], dataset: { item: item.id } },
     item.image ? h('img', { class: 'dish__media', src: item.image, alt: item.name, loading: 'lazy', decoding: 'async', width: 600, height: 400 }) : null,
     h(`h${level}`, { class: 'dish__name' }, item.name),
     h('span', { class: 'dish__price' }, formatMoney(item.priceCents)),

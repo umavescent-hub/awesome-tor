@@ -5,7 +5,7 @@
 
 import { seedFrom } from './art.js';
 import { h } from './dom.js';
-import { lazyArt } from './ui.js';
+import { lazyArt, token } from './ui.js';
 
 const TAU = Math.PI * 2;
 const MAX_PIXELS = 5_000_000;
@@ -178,14 +178,14 @@ function drawMap(canvas, colors) {
   const water = new Path2D();
   lattice(w, height, S, (x, y) => {
     const d = distanceToRiver(x, y, river) / S;
-    if (d < 1.6) {
-      const r = S * (0.42 - d * 0.12);
+    if (d < 1.1) {
+      const r = S * (0.4 - d * 0.14);
       water.moveTo(x + r, y);
       water.arc(x, y, r, 0, TAU);
       return;
     }
     // Higher ground reads as slightly larger dots; the valley floor stays fine.
-    const lift = noise(x / (S * 9), y / (S * 9)) * smoothstep(1.6, 9, d);
+    const lift = noise(x / (S * 9), y / (S * 9)) * smoothstep(1.1, 9, d);
     const r = S * (0.08 + Math.round(lift * 4) * 0.035);
     ground.moveTo(x + r, y);
     ground.arc(x, y, r, 0, TAU);
@@ -215,10 +215,9 @@ export function mountPopupMap(container, { events, onSelect }) {
   }
   if (places.size === 0) return null;
 
-  const styles = getComputedStyle(container);
-  const colors = { ink: styles.getPropertyValue('--black').trim(), river: styles.getPropertyValue('--adobe').trim() };
+  const colors = { ink: token('--black'), river: token('--adobe') };
   const canvas = lazyArt(h('canvas', { class: 'map__canvas' }), (c) => drawMap(c, colors));
-  const label = project([35.64, -106.29]);
+  const label = project([35.56, -106.33]);
   const markers = [];
   const layer = h('div', { class: 'map__layer' },
     h('span', { class: 'map__river', style: { left: `${label.x * 100}%`, top: `${label.y * 100}%` } }, 'Rio Grande'));

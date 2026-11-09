@@ -62,7 +62,7 @@ export function skeleton(lines = 3, { className = '' } = {}) {
 
 /** A calm, actionable failure: what happened and one way forward. */
 export function errorState({ title = 'This did not load', message, onRetry, action }) {
-  return h('div', { class: 'state state--error', role: 'alert' },
+  return h('div', { class: 'state', role: 'alert' },
     h('h2', { class: 'state__title' }, title),
     h('p', { class: 'state__text' }, message),
     h('div', { class: 'state__actions' },

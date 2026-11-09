@@ -1,5 +1,6 @@
 // The cart: item quantities per pop-up, kept in this browser so a reload or a canceled checkout
-// never loses an order in progress. Prices are never stored; the server prices every order.
+// never loses an order in progress, plus the checkout draft for this tab. Prices are never stored;
+// the server prices every order.
 
 const KEY = 'tsideh.cart.v1';
 const events = new EventTarget();
@@ -46,7 +47,7 @@ export function setQty(eventId, itemId, qty) {
   write(all);
 }
 
-export function replaceItems(eventId, items) {
+function replaceItems(eventId, items) {
   const all = { ...memory };
   if (Object.keys(items).length) all[eventId] = { items, updatedAt: all[eventId]?.updatedAt ?? Date.now() };
   else delete all[eventId];
@@ -95,6 +96,27 @@ export function reconcile(eventId, menuItems, maxQtyPerItem) {
 export function subscribe(listener) {
   events.addEventListener('change', listener);
   return () => events.removeEventListener('change', listener);
+}
+
+/* Checkout details typed on this device live only for this tab (sessionStorage), so a canceled
+   Stripe checkout comes back to a filled-in form without keeping personal data around. */
+const DRAFT_KEY = 'tsideh.checkout.v1';
+
+export function getDraft() {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? '{}');
+    return draft && typeof draft === 'object' ? draft : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveDraft(patch) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...getDraft(), ...patch }));
+  } catch {
+    // Storage blocked: the form still works, it just will not be refilled after a reload.
+  }
 }
 
 // Keep tabs in step: another tab's change arrives as a storage event.

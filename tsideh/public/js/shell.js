@@ -69,6 +69,7 @@ export function createShell({ navigate }) {
     const onEvent = route.name === 'event';
     const label = n === 1 ? 'Your order, 1 item' : `Your order, ${n} items`;
     cartCount.textContent = String(n);
+    cartButton.classList.toggle('is-empty', n === 0);
     cartButton.hidden = !(n > 0 || (onEvent && cartAction));
     cartButton.setAttribute('aria-label', label);
     fabCount.textContent = String(n);
@@ -87,7 +88,7 @@ export function createShell({ navigate }) {
 
   /* Phone menu overlay */
   const menu = (() => {
-    const close = h('button', { class: 'menu-toggle', type: 'button', 'aria-expanded': 'true', 'data-close': '' },
+    const close = h('button', { class: 'menu-toggle menu-toggle--close', type: 'button', 'data-close': '' },
       h('span', null, 'Close'), h('span', { class: 'menu-toggle__icon', 'aria-hidden': 'true' }));
     const head = h('div', { class: 'overlay__head' },
       h('a', { class: 'brand', href: '/', 'data-link': '' },
@@ -163,6 +164,7 @@ export function createShell({ navigate }) {
     setRoute(next) {
       route = next;
       cartAction = null;
+      menu.close();
       root.classList.toggle('is-home', next.name === 'home' || next.name === 'catering');
       const section = next.name === 'catering' ? 'catering' : null;
       for (const link of navLinks) {

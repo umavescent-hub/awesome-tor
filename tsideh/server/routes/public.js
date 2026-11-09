@@ -19,6 +19,7 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
   const siteView = {
     name: site.name,
     tagline: site.tagline ?? '',
+    heroHeadline: site.heroHeadline ?? '',
     description: site.description ?? '',
     timezone: site.timezone,
     currency: site.currency,
@@ -26,6 +27,7 @@ export function publicRoutes({ catalog, orders, payments, catering, notifier, cl
     taxLabel: site.taxLabel,
     tipPresetsPercent: site.tipPresetsPercent,
     contact: { email: site.contact.email ?? '', phone: site.contact.phone ?? '', instagram: site.contact.instagram ?? '' },
+    press: (site.press ?? []).map(({ name, kind, url, quote }) => ({ name, kind, url: url ?? '', quote: quote ?? '' })),
     catering: {
       blurb: site.catering.blurb ?? '',
       minGuests: site.catering.minGuests,
