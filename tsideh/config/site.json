@@ -1,12 +1,18 @@
 {
   "name": "Tsideh",
-  "tagline": "Pop-up kitchen · Northern New Mexico",
+  "tagline": "Pop-up kitchen in Northern New Mexico",
+  "heroHeadline": "A pop-up kitchen of the Northern Rio Grande.",
   "description": "Pre-order pickup from Tsideh pop-ups and book Tsideh to cater your gathering.",
   "timezone": "America/Denver",
   "currency": "usd",
   "taxRatePercent": 8.1875,
   "taxLabel": "NM gross receipts tax",
-  "tipPresetsPercent": [0, 10, 15, 20],
+  "tipPresetsPercent": [
+    0,
+    10,
+    15,
+    20
+  ],
   "order": {
     "leadTimeMinutes": 30,
     "holdMinutes": 30,
@@ -18,11 +24,47 @@
     "phone": "",
     "instagram": ""
   },
+  "press": [
+    {
+      "name": "Food & Wine",
+      "kind": "featured",
+      "url": "",
+      "quote": ""
+    },
+    {
+      "name": "The Guardian",
+      "kind": "featured",
+      "url": "",
+      "quote": ""
+    },
+    {
+      "name": "New Mexico Magazine",
+      "kind": "featured",
+      "url": "",
+      "quote": ""
+    },
+    {
+      "name": "James Beard Legacy Network",
+      "kind": "recognition",
+      "url": "",
+      "quote": ""
+    }
+  ],
   "catering": {
     "blurb": "From an intimate family table to a 300-guest gathering, we bring the kitchen to you. Tell us about your event and we'll come back with a menu and quote within 48 hours.",
     "minGuests": 10,
     "maxGuests": 500,
     "leadTimeDays": 7,
-    "serviceStyles": ["Drop-off", "Buffet", "Family-style", "Plated", "Pop-up at your event"]
+    "serviceStyles": [
+      "Drop-off",
+      "Buffet",
+      "Family-style",
+      "Plated",
+      "Pop-up at your event"
+    ]
+  },
+  "privacy": {
+    "retentionDays": 180,
+    "cateringRetentionDays": 365
   }
 }
