@@ -120,7 +120,6 @@ export function readEnv(env) {
       port,
       host: env.HOST || '0.0.0.0',
       publicUrl: publicUrl ?? `http://localhost:${port}`,
-      publicUrlFromEnv: publicUrl !== null,
       dataDir: path.resolve(ROOT, env.DATA_DIR || 'data'),
       stripeSecretKey,
       stripeWebhookSecret,
