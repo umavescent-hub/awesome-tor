@@ -6,9 +6,8 @@ import { fixtureContent, MINUTE, T0 } from './helpers.js';
 const catalog = buildCatalog(fixtureContent());
 const winter = catalog.events.get('winter');
 const none = { slotCounts: new Map(), itemQty: new Map() };
-const noOverrides = { paused: false, soldOut: new Set() };
 
-const evaluate = (event, { now = T0, usage = none, overrides = noOverrides } = {}) => evaluateEvent(catalog, event, { now, usage, overrides });
+const evaluate = (event, { now = T0, usage = none } = {}) => evaluateEvent(catalog, event, { now, usage });
 
 describe('event status', () => {
   test('open when pre-orders are open and capacity remains', () => {
@@ -23,9 +22,8 @@ describe('event status', () => {
     assert.equal(evaluate(winter, { now: winter.opensAtMs }).status, 'open');
   });
 
-  test('paused by config or by the kitchen override', () => {
+  test('paused by config', () => {
     assert.equal(evaluate(catalog.events.get('resting')).status, 'paused');
-    assert.equal(evaluate(winter, { overrides: { paused: true, soldOut: new Set() } }).status, 'paused');
   });
 
   test('closed by config, hidden, or when no slot is left time-wise', () => {
@@ -37,10 +35,9 @@ describe('event status', () => {
   });
 
   test('closed takes precedence over paused, paused over upcoming', () => {
-    const closedAndPaused = evaluate(catalog.events.get('closed'), { overrides: { paused: true, soldOut: new Set() } });
-    assert.equal(closedAndPaused.status, 'closed');
-    const later = catalog.events.get('later');
-    assert.equal(evaluate(later, { overrides: { paused: true, soldOut: new Set() } }).status, 'paused');
+    const resting = catalog.events.get('resting');
+    assert.equal(evaluate(resting, { now: resting.slots.at(-1).atMs }).status, 'closed');
+    assert.equal(evaluate(resting, { now: resting.opensAtMs - 1 }).status, 'paused');
   });
 
   test('soldout when every bookable slot is full', () => {
@@ -50,11 +47,14 @@ describe('event status', () => {
     assert.ok(state.slots.every((slot) => !slot.available && slot.remaining === 0));
   });
 
-  test('soldout when every menu item is out (limits or 86)', () => {
-    const usage = { slotCounts: new Map(), itemQty: new Map([['tacos', 3]]) };
-    const overrides = { paused: false, soldOut: new Set(['stew', 'cookies']) };
-    assert.equal(evaluate(winter, { usage, overrides }).status, 'soldout');
-    assert.equal(evaluate(winter, { usage }).status, 'open');
+  test('soldout when every menu item has reached its limit', () => {
+    const content = fixtureContent();
+    content.events.events.find((event) => event.id === 'winter').itemLimits = { tacos: 3, stew: 5, cookies: 2 };
+    const limited = buildCatalog(content);
+    const event = limited.events.get('winter');
+    const usage = (cookies) => ({ slotCounts: new Map(), itemQty: new Map([['tacos', 3], ['stew', 5], ['cookies', cookies]]) });
+    assert.equal(evaluateEvent(limited, event, { now: T0, usage: usage(2) }).status, 'soldout');
+    assert.equal(evaluateEvent(limited, event, { now: T0, usage: usage(1) }).status, 'open');
   });
 
   test('lead time: slots starting within leadTimeMinutes are unavailable', () => {
@@ -82,11 +82,6 @@ describe('item stock', () => {
     const items = evaluate(winter, { usage }).items;
     assert.deepEqual(items.get('tacos'), { limit: 3, remaining: 1, soldOut: false });
     assert.deepEqual(items.get('stew'), { limit: null, remaining: null, soldOut: false });
-  });
-
-  test('86 marks an item sold out regardless of limit', () => {
-    const items = evaluate(winter, { overrides: { paused: false, soldOut: new Set(['stew']) } }).items;
-    assert.equal(items.get('stew').soldOut, true);
   });
 
   test('menuView groups by category in config order and omits empty categories', () => {

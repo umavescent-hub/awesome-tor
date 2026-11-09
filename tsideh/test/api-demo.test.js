@@ -30,6 +30,7 @@ describe('site and events', () => {
     assert.deepEqual(body, {
       name: 'Tsideh',
       tagline: 'Pop-up kitchen · Northern New Mexico',
+      heroHeadline: '',
       description: 'Pre-order pickup and catering.',
       timezone: 'America/Denver',
       currency: 'usd',
@@ -37,6 +38,7 @@ describe('site and events', () => {
       taxLabel: 'NM gross receipts tax',
       tipPresetsPercent: [0, 10, 15, 20],
       contact: { email: 'hello@tsideh.test', phone: '', instagram: '' },
+      press: [],
       catering: { blurb: 'We bring the kitchen to you.', minGuests: 10, maxGuests: 500, leadTimeDays: 7, serviceStyles: ['Drop-off', 'Buffet'] },
       order: { maxQtyPerItem: 12, maxItemsPerOrder: 30 },
       payments: { mode: 'demo' },
@@ -322,6 +324,11 @@ describe('checkout validation', () => {
     assert.equal(broken.status, 400);
     const list = await c.post('/api/checkout', '[]', { headers: { 'Content-Type': 'application/json' } });
     assert.equal(list.status, 400);
+    for (const key of ['__proto__', 'constructor', 'prototype']) {
+      const polluted = await c.post('/api/checkout', `{"eventId":"winter","customer":{"${key}":{"admin":true}}}`, { headers: { 'Content-Type': 'application/json' } });
+      assert.equal(polluted.status, 400, key);
+      assert.equal(polluted.body.error.message, 'The request body contains a reserved key.');
+    }
     const huge = await c.post('/api/checkout', checkoutBody({ notes: 'x'.repeat(17 * 1024) }));
     assert.equal(huge.status, 413);
     assert.equal(huge.body.error.code, 'payload_too_large');

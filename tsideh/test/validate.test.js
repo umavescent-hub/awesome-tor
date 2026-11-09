@@ -68,11 +68,9 @@ describe('field validators', () => {
     rejects(() => validate.customer({ name: 'Ana', email: 'ana@example.com' }), 'customer.phone');
   });
 
-  test('date, bool and oneOf', () => {
+  test('date and oneOf', () => {
     assert.equal(validate.date('2026-12-12', 'eventDate'), '2026-12-12');
     rejects(() => validate.date('12/12/2026', 'eventDate'), 'eventDate');
-    assert.equal(validate.bool(false, 'paused'), false);
-    rejects(() => validate.bool('false', 'paused'), 'paused');
     assert.equal(validate.oneOf('Buffet', 'serviceStyle', ['Buffet'], 'Pick one.'), 'Buffet');
     rejects(() => validate.oneOf('buffet', 'serviceStyle', ['Buffet'], 'Pick one.'), 'serviceStyle');
   });

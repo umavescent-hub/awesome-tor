@@ -70,6 +70,23 @@ describe('content files', () => {
     assert.equal(problems.length, expected.length);
   });
 
+  test('checks the hero headline and press entries', () => {
+    const problems = problemsFor((content) => {
+      content.site.heroHeadline = 42;
+      content.site.press = [
+        { name: 'Food & Wine', kind: 'featured', url: '', quote: '' },
+        { name: '', kind: 'award', url: 'http://example.com', quote: 'x'.repeat(301) },
+      ];
+    });
+    assert.deepEqual(problems.map((problem) => problem.split(':')[0]), [
+      'config/site.json → heroHeadline',
+      'config/site.json → press[1].name',
+      'config/site.json → press[1].kind',
+      'config/site.json → press[1].url',
+      'config/site.json → press[1].quote',
+    ]);
+  });
+
   test('rejects menu images outside /assets/menu', () => {
     const problems = problemsFor((content) => {
       content.menu.items[0].image = 'https://evil.example/x.png';

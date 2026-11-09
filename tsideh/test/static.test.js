@@ -6,7 +6,8 @@ import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { rawRequest, startTestServer, tempDir } from './helpers.js';
 
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; "
-  + "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
+  + "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; "
+  + "require-trusted-types-for 'script'; trusted-types 'none'";
 const SECURITY_HEADERS = {
   'content-security-policy': CSP,
   'x-content-type-options': 'nosniff',
@@ -15,6 +16,10 @@ const SECURITY_HEADERS = {
   'x-frame-options': 'DENY',
   'cross-origin-opener-policy': 'same-origin',
   'cross-origin-resource-policy': 'same-origin',
+  'cross-origin-embedder-policy': 'require-corp',
+  'origin-agent-cluster': '?1',
+  'x-dns-prefetch-control': 'off',
+  'x-permitted-cross-domain-policies': 'none',
 };
 
 const SITE_CSS = `:root { --clay: #c16742; }\n${'.tile { border: 2px solid var(--ink); }\n'.repeat(80)}`;

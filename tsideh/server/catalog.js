@@ -1,6 +1,6 @@
 // The catalog is the validated config compiled into fast lookups with every event time resolved to
-// UTC once. The evaluation functions are pure: they take "now", current usage and kitchen
-// overrides, and say what is orderable.
+// UTC once. The evaluation functions are pure: they take "now" and current usage, and say what is
+// orderable.
 
 import { addDays, minutesOf, timeLabel, timeOf, toIso, zonedToUtc } from './time.js';
 
@@ -76,23 +76,22 @@ export function isRecent(event, now) {
 /**
  * Computes status, slot availability and item stock for one event.
  * usage = { slotCounts: Map<slot, activeOrders>, itemQty: Map<itemId, activeQty> }
- * overrides = { paused: boolean, soldOut: Set<itemId> }
  */
-export function evaluateEvent(catalog, event, { now, usage, overrides }) {
+export function evaluateEvent(catalog, event, { now, usage }) {
   const cutoff = now + catalog.leadMs;
 
   const items = new Map();
   for (const item of event.menuItems) {
     const limit = event.limits.get(item.id) ?? null;
     const remaining = limit === null ? null : Math.max(0, limit - (usage.itemQty.get(item.id) ?? 0));
-    items.set(item.id, { limit, remaining, soldOut: remaining === 0 || overrides.soldOut.has(item.id) });
+    items.set(item.id, { limit, remaining, soldOut: remaining === 0 });
   }
 
   const ordersIn = (slot) => usage.slotCounts.get(slot.time) ?? 0;
   const bookable = event.slots.filter((slot) => slot.atMs >= cutoff);
   let status;
   if (event.configStatus === 'closed' || event.configStatus === 'hidden' || bookable.length === 0) status = 'closed';
-  else if (event.configStatus === 'paused' || overrides.paused) status = 'paused';
+  else if (event.configStatus === 'paused') status = 'paused';
   else if (now < event.opensAtMs) status = 'upcoming';
   else if (bookable.every((slot) => ordersIn(slot) >= event.ordersPerSlot)
     || [...items.values()].every((item) => item.soldOut)) status = 'soldout';

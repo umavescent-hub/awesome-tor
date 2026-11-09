@@ -3,7 +3,7 @@
 // top of the SameSite=Strict cookie).
 
 import { setTimeout as sleep } from 'node:timers/promises';
-import { clearedSessionCookie, parseCookies, SESSION_COOKIE, sessionCookie } from '../auth.js';
+import { parseCookies, sessionCookies } from '../auth.js';
 import { eventSummary, isRecent } from '../catalog.js';
 import { CATERING_STATUSES } from '../db.js';
 import { ApiError, notFound, sendJson } from '../http.js';
@@ -13,19 +13,12 @@ import { timeLabel, toIso } from '../time.js';
 import * as validate from '../validate.js';
 
 const FAILED_LOGIN_DELAY_MS = 250;
-const CSV_COLUMNS = ['code', 'status', 'slot', 'name', 'phone', 'email', 'items', 'notes', 'total'];
-
-/** Every cell quoted; cells that a spreadsheet would read as a formula are defused with a leading quote. */
-function csvCell(value) {
-  let text = String(value);
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return `"${text.replaceAll('"', '""')}"`;
-}
 
 const forbidden = () => new ApiError(403, 'forbidden', 'This request was blocked. Reload the admin and try again.');
 
-export function adminRoutes({ config, catalog, orders, overrides, catering, auth, clock }) {
-  const tokenOf = (req) => parseCookies(req.headers.cookie).get(SESSION_COOKIE);
+export function adminRoutes({ config, catalog, orders, catering, auth, clock }) {
+  const cookies = sessionCookies({ production: config.production });
+  const tokenOf = (req) => parseCookies(req.headers.cookie).get(cookies.name);
   const secureCookie = (client) => client.https || config.production;
   const sameOrigin = (req, client) => originAllowed(req, { publicUrl: config.publicUrl, https: client.https });
 
@@ -67,8 +60,9 @@ export function adminRoutes({ config, catalog, orders, overrides, catering, auth
           await sleep(FAILED_LOGIN_DELAY_MS);
           throw new ApiError(401, 'bad_credentials', 'That password is not right.');
         }
+        auth.destroy(tokenOf(req));
         const token = auth.createSession(clock.now());
-        sendJson(res, 200, { authenticated: true }, { 'Set-Cookie': sessionCookie(token, { secure: secureCookie(client) }) });
+        sendJson(res, 200, { authenticated: true }, { 'Set-Cookie': cookies.set(token, { secure: secureCookie(client) }) });
       },
     },
     {
@@ -77,7 +71,7 @@ export function adminRoutes({ config, catalog, orders, overrides, catering, auth
       handler: (req, res, { client }) => {
         if (!sameOrigin(req, client)) throw forbidden();
         auth.destroy(tokenOf(req));
-        sendJson(res, 200, { ok: true }, { 'Set-Cookie': clearedSessionCookie({ secure: secureCookie(client) }) });
+        sendJson(res, 200, { ok: true }, { 'Set-Cookie': cookies.clear({ secure: secureCookie(client) }) });
       },
     },
     {
@@ -93,7 +87,6 @@ export function adminRoutes({ config, catalog, orders, overrides, catering, auth
         const events = catalog.eventList.filter((event) => isRecent(event, now)).map((event) => ({
           ...eventSummary(event, orders.inspect(event, now).status),
           configStatus: event.configStatus,
-          paused: overrides.forEvent(event.id).paused,
           ...orders.stats(event.id, now),
         }));
         sendJson(res, 200, { events });
@@ -121,32 +114,6 @@ export function adminRoutes({ config, catalog, orders, overrides, catering, auth
     },
     {
       method: 'GET',
-      path: '/api/admin/events/:id/orders.csv',
-      handler: session((req, res, { params, query }) => {
-        const event = eventFor(params.id);
-        const rows = ordersFor(event, query).map((order) => [
-          order.code,
-          order.status,
-          timeLabel(order.slot),
-          order.customer.name,
-          order.customer.phone,
-          order.customer.email,
-          order.items.map((line) => `${line.qty} x ${line.name}`).join('; '),
-          order.notes,
-          (order.totalCents / 100).toFixed(2),
-        ]);
-        const csv = `﻿${[CSV_COLUMNS, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`;
-        const body = Buffer.from(csv);
-        res.writeHead(200, {
-          'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="tsideh-${event.id}-orders.csv"`,
-          'Content-Length': body.length,
-        });
-        res.end(body);
-      }),
-    },
-    {
-      method: 'GET',
       path: '/api/admin/events/:id/prep',
       handler: session((req, res, { params }) => {
         const event = eventFor(params.id);
@@ -156,7 +123,7 @@ export function adminRoutes({ config, catalog, orders, overrides, catering, auth
         const items = catalog.categories
           .flatMap((category) => event.menuItems.filter((item) => item.category === category.id))
           .map((item) => {
-            const totals = prep.items.get(item.id) ?? { committed: 0, pending: 0 };
+            const totals = prep.get(item.id) ?? { committed: 0, pending: 0 };
             const stock = state.items.get(item.id);
             return {
               id: item.id,
@@ -169,13 +136,7 @@ export function adminRoutes({ config, catalog, orders, overrides, catering, auth
               soldOut: stock.soldOut,
             };
           });
-        const slots = event.slots.map((slot) => ({
-          time: slot.time,
-          label: slot.label,
-          orders: prep.slotOrders.get(slot.time) ?? 0,
-          items: prep.slotItems.get(slot.time) ?? {},
-        }));
-        sendJson(res, 200, { items, slots });
+        sendJson(res, 200, { items });
       }),
     },
     {
@@ -190,27 +151,6 @@ export function adminRoutes({ config, catalog, orders, overrides, catering, auth
         if (!orders.setKitchenStatus(code, status, clock.now())) {
           throw new ApiError(409, 'invalid_transition', `Order ${code} is ${order.status.replace('_', ' ')} and cannot be changed here.`);
         }
-        sendJson(res, 200, { ok: true });
-      }),
-    },
-    {
-      method: 'POST',
-      path: '/api/admin/events/:id/pause',
-      handler: mutation(async (req, res, { params }) => {
-        const event = eventFor(params.id);
-        const body = await readJson(req);
-        overrides.setPaused(event.id, validate.bool(body.paused, 'paused'), clock.now());
-        sendJson(res, 200, { ok: true });
-      }),
-    },
-    {
-      method: 'POST',
-      path: '/api/admin/events/:id/items/:itemId/sold-out',
-      handler: mutation(async (req, res, { params }) => {
-        const event = eventFor(params.id);
-        if (!event.menuItems.some((item) => item.id === params.itemId)) throw notFound('That item is not on this event\'s menu.');
-        const body = await readJson(req);
-        overrides.setSoldOut(event.id, params.itemId, validate.bool(body.soldOut, 'soldOut'), clock.now());
         sendJson(res, 200, { ok: true });
       }),
     },

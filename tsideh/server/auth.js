@@ -1,11 +1,12 @@
 // Kitchen admin authentication: one shared password (ADMIN_PASSWORD), server-side sessions
-// referenced by an HttpOnly, SameSite=Strict cookie. Only token hashes are stored.
+// referenced by an HttpOnly, SameSite=Strict cookie. Only token hashes are stored. A session ends
+// after 12 hours, or after 2 hours without a request, whichever comes first.
 
 import { createHash, randomBytes, scrypt, scryptSync, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
-export const SESSION_COOKIE = 'tsideh_admin';
 const SESSION_SECONDS = 12 * 60 * 60;
+const IDLE_MS = 2 * 60 * 60 * 1000;
 const KEY_LENGTH = 32;
 const scryptAsync = promisify(scrypt);
 
@@ -22,16 +23,22 @@ export function parseCookies(header) {
   return cookies;
 }
 
-export function sessionCookie(token, { secure }) {
-  const attributes = [`${SESSION_COOKIE}=${token}`, 'HttpOnly', 'SameSite=Strict', 'Path=/', `Max-Age=${SESSION_SECONDS}`];
-  if (secure) attributes.push('Secure');
-  return attributes.join('; ');
-}
-
-export function clearedSessionCookie({ secure }) {
-  const attributes = [`${SESSION_COOKIE}=`, 'HttpOnly', 'SameSite=Strict', 'Path=/', 'Max-Age=0'];
-  if (secure) attributes.push('Secure');
-  return attributes.join('; ');
+/**
+ * The session cookie. In production it carries the __Host- prefix, so browsers only accept it
+ * over HTTPS, for this exact host and for every path.
+ */
+export function sessionCookies({ production }) {
+  const name = production ? '__Host-tsideh_admin' : 'tsideh_admin';
+  const build = (value, maxAge, secure) => {
+    const attributes = [`${name}=${value}`, 'HttpOnly', 'SameSite=Strict', 'Path=/', `Max-Age=${maxAge}`];
+    if (secure) attributes.push('Secure');
+    return attributes.join('; ');
+  };
+  return {
+    name,
+    set: (token, { secure }) => build(token, SESSION_SECONDS, secure),
+    clear: ({ secure }) => build('', 0, secure),
+  };
 }
 
 export function createAdminAuth({ db, password }) {
@@ -39,10 +46,11 @@ export function createAdminAuth({ db, password }) {
   const salt = randomBytes(16);
   const expected = enabled ? scryptSync(password, salt, KEY_LENGTH) : null;
   const sql = {
-    insert: db.prepare('INSERT INTO admin_sessions (token_hash, created_at, expires_at) VALUES (?, ?, ?)'),
-    find: db.prepare('SELECT expires_at FROM admin_sessions WHERE token_hash = ?'),
+    insert: db.prepare('INSERT INTO admin_sessions (token_hash, created_at, expires_at, last_seen_at) VALUES (:hash, :now, :expiresAt, :now)'),
+    find: db.prepare('SELECT expires_at, last_seen_at FROM admin_sessions WHERE token_hash = ?'),
+    touch: db.prepare('UPDATE admin_sessions SET last_seen_at = ? WHERE token_hash = ?'),
     remove: db.prepare('DELETE FROM admin_sessions WHERE token_hash = ?'),
-    prune: db.prepare('DELETE FROM admin_sessions WHERE expires_at <= ?'),
+    prune: db.prepare('DELETE FROM admin_sessions WHERE expires_at <= :now OR last_seen_at <= :idleSince'),
   };
 
   return {
@@ -57,14 +65,18 @@ export function createAdminAuth({ db, password }) {
 
     createSession(now) {
       const token = randomBytes(32).toString('base64url');
-      sql.insert.run(hash(token), now, now + SESSION_SECONDS * 1000);
+      sql.insert.run({ hash: hash(token), now, expiresAt: now + SESSION_SECONDS * 1000 });
       return token;
     },
 
+    /** A valid session counts as activity, which keeps it from going idle. */
     isValid(token, now) {
       if (!token) return false;
-      const row = sql.find.get(hash(token));
-      return Boolean(row && row.expires_at > now);
+      const tokenHash = hash(token);
+      const row = sql.find.get(tokenHash);
+      if (!row || row.expires_at <= now || row.last_seen_at <= now - IDLE_MS) return false;
+      sql.touch.run(now, tokenHash);
+      return true;
     },
 
     destroy(token) {
@@ -72,7 +84,7 @@ export function createAdminAuth({ db, password }) {
     },
 
     prune(now) {
-      sql.prune.run(now);
+      sql.prune.run({ now, idleSince: now - IDLE_MS });
     },
   };
 }

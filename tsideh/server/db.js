@@ -66,23 +66,11 @@ const MIGRATIONS = [
     message       TEXT NOT NULL
   );
 
-  CREATE TABLE event_overrides (
-    event_id   TEXT PRIMARY KEY,
-    paused     INTEGER NOT NULL DEFAULT 0,
-    updated_at INTEGER NOT NULL
-  );
-
-  CREATE TABLE sold_out_items (
-    event_id   TEXT NOT NULL,
-    item_id    TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    PRIMARY KEY (event_id, item_id)
-  );
-
   CREATE TABLE admin_sessions (
-    token_hash TEXT PRIMARY KEY,
-    created_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL
+    token_hash   TEXT PRIMARY KEY,
+    created_at   INTEGER NOT NULL,
+    expires_at   INTEGER NOT NULL,
+    last_seen_at INTEGER NOT NULL
   );
 
   CREATE TABLE webhook_events (

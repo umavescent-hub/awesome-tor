@@ -74,38 +74,81 @@ describe('sign in and sessions', () => {
     assert.equal((await c.get('/api/admin/events', { headers: { Cookie: cookie } })).status, 401);
   });
 
-  test('sessions expire after 12 hours', async () => {
+  test('sessions end 12 hours after sign-in, even while in use', async () => {
     const admin = await signIn();
-    server.clock.advance(12 * 60 * 60 * 1000);
+    const HOUR = 60 * 60 * 1000;
     try {
+      for (let hour = 1; hour < 12; hour++) {
+        server.clock.advance(HOUR);
+        assert.equal((await admin.get('/api/admin/events')).status, 200, `hour ${hour}`);
+      }
+      server.clock.advance(HOUR);
       assert.equal((await admin.get('/api/admin/events')).status, 401);
     } finally {
-      server.clock.advance(-12 * 60 * 60 * 1000);
+      server.clock.advance(-12 * HOUR);
+    }
+  });
+
+  test('sessions end after 2 hours without a request', async () => {
+    const admin = await signIn();
+    const quiet = 2 * 60 * 60 * 1000;
+    try {
+      server.clock.advance(quiet - 1);
+      assert.equal((await admin.get('/api/admin/events')).status, 200);
+      server.clock.advance(quiet);
+      assert.equal((await admin.get('/api/admin/events')).status, 401);
+    } finally {
+      server.clock.advance(1 - 2 * quiet);
+    }
+  });
+
+  test('signing in again replaces the session the browser presented', async () => {
+    const admin = await signIn();
+    const again = await server.client().post('/api/admin/login', { password: ADMIN_PASSWORD }, { headers: { Cookie: admin.cookie } });
+    assert.equal(again.status, 200);
+    assert.notEqual(again.headers.get('set-cookie').split(';')[0], admin.cookie);
+    assert.equal((await admin.get('/api/admin/events')).status, 401);
+  });
+
+  test('in production the cookie is __Host- prefixed and Secure', async () => {
+    const prod = await startTestServer({ env: { NODE_ENV: 'production', PUBLIC_URL: 'https://tsideh.test', ADMIN_PASSWORD } });
+    try {
+      const https = { 'X-Forwarded-Proto': 'https' };
+      const login = await prod.client().post('/api/admin/login', { password: ADMIN_PASSWORD }, { headers: https });
+      const setCookie = login.headers.get('set-cookie');
+      assert.match(setCookie, /^__Host-tsideh_admin=[A-Za-z0-9_-]{43}; HttpOnly; SameSite=Strict; Path=\/; Max-Age=43200; Secure$/);
+      const session = await prod.client().get('/api/admin/session', { headers: { ...https, Cookie: setCookie.split(';')[0] } });
+      assert.deepEqual(session.body, { authenticated: true });
+      const unprefixed = setCookie.split(';')[0].replace('__Host-', '');
+      assert.deepEqual((await prod.client().get('/api/admin/session', { headers: { ...https, Cookie: unprefixed } })).body, { authenticated: false });
+    } finally {
+      await prod.close();
     }
   });
 
   test('admin data needs a session: 401 unauthorized without one', async () => {
     const c = server.client();
-    for (const url of ['/api/admin/events', '/api/admin/events/winter/orders', '/api/admin/events/winter/prep', '/api/admin/events/winter/orders.csv', '/api/admin/catering']) {
+    for (const url of ['/api/admin/events', '/api/admin/events/winter/orders', '/api/admin/events/winter/prep', '/api/admin/catering']) {
       const response = await c.get(url, { headers: { Cookie: 'tsideh_admin=forged-token' } });
       assert.equal(response.status, 401, url);
       assert.equal(response.body.error.code, 'unauthorized');
     }
-    const mutation = await c.post('/api/admin/events/winter/pause', { paused: true }, { headers: MUTATION_HEADERS });
+    const mutation = await c.post('/api/admin/orders/TS-2222/status', { status: 'ready' }, { headers: MUTATION_HEADERS });
     assert.equal(mutation.status, 401);
   });
 
   test('mutations need X-Tsideh-Admin and a same-site Origin: 403 otherwise', async () => {
     const admin = await signIn();
-    const noHeader = await admin.post('/api/admin/events/winter/pause', { paused: false }, {});
+    const path = '/api/admin/orders/TS-2222/status';
+    const noHeader = await admin.post(path, { status: 'ready' }, {});
     assert.equal(noHeader.status, 403);
     assert.equal(noHeader.body.error.code, 'forbidden');
-    const foreign = await admin.post('/api/admin/events/winter/pause', { paused: false }, { ...MUTATION_HEADERS, Origin: 'https://evil.example' });
+    const foreign = await admin.post(path, { status: 'ready' }, { ...MUTATION_HEADERS, Origin: 'https://evil.example' });
     assert.equal(foreign.status, 403);
-    const nullOrigin = await admin.post('/api/admin/events/winter/pause', { paused: false }, { ...MUTATION_HEADERS, Origin: 'null' });
+    const nullOrigin = await admin.post(path, { status: 'ready' }, { ...MUTATION_HEADERS, Origin: 'null' });
     assert.equal(nullOrigin.status, 403);
-    const ownOrigin = await admin.post('/api/admin/events/winter/pause', { paused: false }, { ...MUTATION_HEADERS, Origin: server.base });
-    assert.equal(ownOrigin.status, 200);
+    const ownOrigin = await admin.post(path, { status: 'ready' }, { ...MUTATION_HEADERS, Origin: server.base });
+    assert.equal(ownOrigin.status, 404, 'past the CSRF checks, the unknown order is simply not found');
     const loginFromElsewhere = await server.client().post('/api/admin/login', { password: ADMIN_PASSWORD }, { headers: { Origin: 'https://evil.example' } });
     assert.equal(loginFromElsewhere.status, 403);
   });
@@ -139,7 +182,6 @@ describe('kitchen board', () => {
     const today = body.events.find((event) => event.id === 'today');
     assert.deepEqual(today.counts, { active: 2, paid: 1, ready: 0, pickedUp: 0, pending: 1 });
     assert.equal(today.revenueCents, 1200 + 98);
-    assert.equal(today.paused, false);
     assert.ok(first.code);
   });
 
@@ -190,37 +232,7 @@ describe('kitchen board', () => {
     assert.equal((await admin.post('/api/admin/orders/TS-2222/status', { status: 'ready' })).status, 404);
   });
 
-  test('pause stops new orders; unpause reopens', async () => {
-    const admin = await signIn();
-    const c = server.client();
-    assert.deepEqual((await admin.post('/api/admin/events/winter/pause', { paused: true })).body, { ok: true });
-    assert.equal((await c.get('/api/events/winter')).body.event.status, 'paused');
-    const refused = await c.post('/api/checkout', checkoutBody({ slot: '11:30' }));
-    assert.equal(refused.body.error.code, 'event_closed');
-    assert.equal((await admin.get('/api/admin/events')).body.events.find((event) => event.id === 'winter').paused, true);
-
-    await admin.post('/api/admin/events/winter/pause', { paused: false });
-    assert.equal((await c.get('/api/events/winter')).body.event.status, 'open');
-    assert.equal((await admin.post('/api/admin/events/winter/pause', { paused: 'yes' })).status, 400);
-    assert.equal((await admin.post('/api/admin/events/nope/pause', { paused: true })).status, 404);
-  });
-
-  test('86 switch marks an item sold out for one event and back', async () => {
-    const admin = await signIn();
-    const c = server.client();
-    const stew = async () => (await c.get('/api/events/winter')).body.menu.categories[0].items.find((item) => item.id === 'stew');
-    assert.deepEqual((await admin.post('/api/admin/events/winter/items/stew/sold-out', { soldOut: true })).body, { ok: true });
-    assert.equal((await stew()).soldOut, true);
-    const refused = await c.post('/api/checkout', checkoutBody({ slot: '11:30' }));
-    assert.equal(refused.status, 409);
-    assert.deepEqual(refused.body.error.details, { itemId: 'stew', remaining: 0 });
-
-    await admin.post('/api/admin/events/winter/items/stew/sold-out', { soldOut: false });
-    assert.equal((await stew()).soldOut, false);
-    assert.equal((await admin.post('/api/admin/events/winter/items/atole/sold-out', { soldOut: true })).status, 404, 'atole is not on the winter menu');
-  });
-
-  test('prep sheet: committed vs pending per item, committed per slot', async () => {
+  test('prep list: committed vs pending per item', async () => {
     const admin = await signIn();
     const fresh = await startTestServer({ env: { ADMIN_PASSWORD } });
     try {
@@ -241,45 +253,14 @@ describe('kitchen board', () => {
         { id: 'stew', name: 'Green Chile Stew', category: 'Plates', committed: 4, pending: 0, limit: null, remaining: null, soldOut: false },
         { id: 'cookies', name: 'Biscochitos (6)', category: 'Sweets', committed: 0, pending: 0, limit: null, remaining: null, soldOut: false },
       ]);
-      assert.deepEqual(body.slots.slice(0, 3), [
-        { time: '11:00', label: '11:00 AM', orders: 1, items: { tacos: 2, stew: 1 } },
-        { time: '11:15', label: '11:15 AM', orders: 1, items: { stew: 3 } },
-        { time: '11:30', label: '11:30 AM', orders: 0, items: {} },
-      ]);
-      assert.equal(body.slots.length, 8);
+      assert.deepEqual(Object.keys(body), ['items']);
     } finally {
       await fresh.close();
     }
     assert.equal((await admin.get('/api/admin/events/nope/prep')).status, 404);
   });
-
-  test('CSV export: attachment, BOM, every cell quoted, formulas defused', async () => {
-    const admin = await signIn();
-    const evil = await paidOrder({
-      slot: '12:00',
-      customer: { name: '=HYPERLINK("http://evil.example","Click")', email: 'eve@example.com', phone: '+1 505 555 0101' },
-      notes: '@SUM(A1:A9)\nsecond "line"',
-    });
-    const response = await admin.get('/api/admin/events/winter/orders.csv');
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get('content-type'), 'text/csv; charset=utf-8');
-    assert.equal(response.headers.get('content-disposition'), 'attachment; filename="tsideh-winter-orders.csv"');
-    assert.equal(response.headers.get('cache-control'), 'no-store');
-    const text = response.text;
-    assert.ok(text.startsWith('"code","status","slot","name","phone","email","items","notes","total"\r\n'), 'BOM is stripped by fetch; header follows');
-    const row = text.split('\r\n').find((line) => line.startsWith(`"${evil.code}"`));
-    assert.ok(row);
-    assert.ok(row.includes('"\'=HYPERLINK(""http://evil.example"",""Click"")"'));
-    assert.ok(row.includes('"\'+1 505 555 0101"'));
-    assert.ok(text.includes('"\'@SUM(A1:A9)\nsecond ""line"""'));
-    assert.ok(row.includes('"1 x Green Chile Stew"'));
-    assert.ok(row.includes('"14.06"'));
-
-    const raw = await fetch(`${server.base}/api/admin/events/winter/orders.csv`, { headers: { Cookie: admin.cookie } });
-    const bytes = Buffer.from(await raw.arrayBuffer());
-    assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
-  });
 });
+
 
 describe('catering inbox', () => {
   test('inquiries are listed newest first and their status can be updated', async () => {

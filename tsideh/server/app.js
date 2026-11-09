@@ -10,7 +10,6 @@ import { openDatabase } from './db.js';
 import { ApiError, createRouter, sendError } from './http.js';
 import { createNotifier } from './notify.js';
 import { createOrders } from './orders.js';
-import { createOverrides } from './overrides.js';
 import { createPayments } from './payments.js';
 import { adminRoutes } from './routes/admin.js';
 import { publicRoutes } from './routes/public.js';
@@ -48,8 +47,7 @@ function createApp({
   const appClock = clock ?? (config.now === null ? systemClock() : fixedClock(config.now));
   const db = openDatabase(config.dataDir);
 
-  const overrides = createOverrides(db);
-  const orders = createOrders({ db, catalog, overrides });
+  const orders = createOrders({ db, catalog });
   const catering = createCatering(db);
   const auth = createAdminAuth({ db, password: config.adminPassword });
   const notifier = createNotifier({ url: config.notifyWebhookUrl, log, fetch });
@@ -58,7 +56,7 @@ function createApp({
     : null;
   const payments = createPayments({ config, catalog, db, orders, stripe, notifier, log, clock: appClock });
 
-  const context = { config, catalog, clock: appClock, orders, overrides, catering, auth, payments, notifier };
+  const context = { config, catalog, clock: appClock, orders, catering, auth, payments, notifier };
   const router = createRouter([...publicRoutes(context), ...adminRoutes(context)]);
   const limiters = Object.fromEntries(Object.entries(RATE_LIMITS).map(([name, rule]) => [name, createRateLimiter(rule)]));
   const serveStatic = createStaticHandler(publicDir);

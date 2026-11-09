@@ -59,11 +59,6 @@ export function integer(value, field, { min, max, message }) {
   return number;
 }
 
-export function bool(value, field) {
-  if (typeof value !== 'boolean') throw invalid(field, `${field} must be true or false.`);
-  return value;
-}
-
 export function oneOf(value, field, choices, message) {
   if (!choices.includes(value)) throw invalid(field, message);
   return value;

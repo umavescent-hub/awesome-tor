@@ -1,5 +1,5 @@
 // Orders: the capacity-safe reservation, status transitions and the queries behind the order
-// page, the kitchen board and the prep sheet.
+// page, the kitchen board and the prep list.
 
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { evaluateEvent } from './catalog.js';
@@ -57,7 +57,7 @@ const toLine = (row) => ({
   lineCents: row.unit_cents * row.qty,
 });
 
-export function createOrders({ db, catalog, overrides }) {
+export function createOrders({ db, catalog }) {
   const sql = {
     slotCounts: db.prepare(`
       SELECT slot, COUNT(*) AS n FROM orders
@@ -111,11 +111,6 @@ export function createOrders({ db, catalog, overrides }) {
         SUM(CASE WHEN o.status = 'pending' AND o.expires_at > :now THEN oi.qty ELSE 0 END) AS pending
       FROM order_items oi JOIN orders o ON o.code = oi.order_code
       WHERE o.event_id = :eventId GROUP BY oi.item_id`),
-    prepSlotItems: db.prepare(`
-      SELECT o.slot, oi.item_id, SUM(oi.qty) AS qty
-      FROM orders o JOIN order_items oi ON oi.order_code = o.code
-      WHERE o.event_id = ? AND o.${COMMITTED_SQL} GROUP BY o.slot, oi.item_id`),
-    prepSlotOrders: db.prepare(`SELECT slot, COUNT(*) AS n FROM orders WHERE event_id = ? AND ${COMMITTED_SQL} GROUP BY slot`),
   };
 
   function usage(eventId, now, exclude = '') {
@@ -149,7 +144,7 @@ export function createOrders({ db, catalog, overrides }) {
 
   /** Live status, slots and stock for an event. */
   function inspect(event, now) {
-    return evaluateEvent(catalog, event, { now, usage: usage(event.id, now), overrides: overrides.forEvent(event.id) });
+    return evaluateEvent(catalog, event, { now, usage: usage(event.id, now) });
   }
 
   return {
@@ -283,18 +278,9 @@ export function createOrders({ db, catalog, overrides }) {
       return { counts, revenueCents };
     },
 
-    /** Raw prep numbers: per-item committed/pending qty and committed qty by slot. */
+    /** Per-item quantities: committed (paid, ready, picked up) and pending (unexpired holds). */
     prep(eventId, now) {
-      const slotItems = new Map();
-      for (const row of sql.prepSlotItems.all(eventId)) {
-        if (!slotItems.has(row.slot)) slotItems.set(row.slot, {});
-        slotItems.get(row.slot)[row.item_id] = row.qty;
-      }
-      return {
-        items: new Map(sql.prepItems.all({ eventId, now }).map((row) => [row.item_id, { committed: row.committed, pending: row.pending }])),
-        slotOrders: new Map(sql.prepSlotOrders.all(eventId).map((row) => [row.slot, row.n])),
-        slotItems,
-      };
+      return new Map(sql.prepItems.all({ eventId, now }).map((row) => [row.item_id, { committed: row.committed, pending: row.pending }]));
     },
   };
 }
